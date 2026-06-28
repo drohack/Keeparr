@@ -794,6 +794,54 @@ export function sectionSizeSummary(): {
   }[];
 }
 
+/**
+ * Per-library breakdown for a given user. Every non-removed title falls into
+ * exactly one of three buckets so the byte/item counts partition the total:
+ *   - kept     = protected (ANYONE keeps it; safe from reclaim)
+ *   - dontcare = not protected AND this user marked "don't care"
+ *   - undecided= not protected AND this user hasn't decided (their triage queue)
+ * `kept_by_me_*` is a sub-count of `kept_*` (how much of the protected set is
+ * the caller's own keep). Reclaimable = dontcare + undecided = bytes - kept.
+ */
+export interface LibrarySummaryRow {
+  section_id: string;
+  items: number;
+  bytes: number;
+  kept_items: number;
+  kept_bytes: number;
+  kept_by_me_items: number;
+  kept_by_me_bytes: number;
+  dontcare_items: number;
+  dontcare_bytes: number;
+  undecided_items: number;
+  undecided_bytes: number;
+}
+
+export function librarySummary(plexUserId: string): LibrarySummaryRow[] {
+  const protectedExpr =
+    'EXISTS (SELECT 1 FROM keeps k WHERE k.rating_key = m.rating_key)';
+  return getDb()
+    .prepare(
+      `SELECT m.section_id,
+              COUNT(*) AS items,
+              COALESCE(SUM(m.size_bytes), 0) AS bytes,
+              COALESCE(SUM(CASE WHEN ${protectedExpr} THEN 1 ELSE 0 END), 0) AS kept_items,
+              COALESCE(SUM(CASE WHEN ${protectedExpr} THEN m.size_bytes ELSE 0 END), 0) AS kept_bytes,
+              COALESCE(SUM(CASE WHEN km.rating_key IS NOT NULL THEN 1 ELSE 0 END), 0) AS kept_by_me_items,
+              COALESCE(SUM(CASE WHEN km.rating_key IS NOT NULL THEN m.size_bytes ELSE 0 END), 0) AS kept_by_me_bytes,
+              COALESCE(SUM(CASE WHEN NOT ${protectedExpr} AND s.rating_key IS NOT NULL THEN 1 ELSE 0 END), 0) AS dontcare_items,
+              COALESCE(SUM(CASE WHEN NOT ${protectedExpr} AND s.rating_key IS NOT NULL THEN m.size_bytes ELSE 0 END), 0) AS dontcare_bytes,
+              COALESCE(SUM(CASE WHEN NOT ${protectedExpr} AND s.rating_key IS NULL THEN 1 ELSE 0 END), 0) AS undecided_items,
+              COALESCE(SUM(CASE WHEN NOT ${protectedExpr} AND s.rating_key IS NULL THEN m.size_bytes ELSE 0 END), 0) AS undecided_bytes
+       FROM media_items m
+       LEFT JOIN keeps km ON km.rating_key = m.rating_key AND km.plex_user_id = @uid
+       LEFT JOIN user_skips s ON s.rating_key = m.rating_key AND s.plex_user_id = @uid
+       WHERE m.removed = 0
+       GROUP BY m.section_id`
+    )
+    .all({ uid: plexUserId }) as LibrarySummaryRow[];
+}
+
 /** Total used bytes per section id (used by the storage report). */
 export function usedBytesBySection(): Map<string, number> {
   const rows = getDb()

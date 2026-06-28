@@ -195,8 +195,28 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     upsertMediaBatch(buildItems(), Math.floor(Date.now() / 1000));
 
     addKeep(DEV_USER_ID, 'dev-1');
-    addKeep('dev-friend', 'dev-50');
     addKeep(DEV_USER_ID, 'dev-210');
+
+    // Keeps by OTHER users (friend/kid), spread across every library and biased
+    // toward large TV/4K titles, so "Kept by others" is clearly visible on the
+    // graphs. None of these are also kept by the dev user (so they count as
+    // others', not yours). Keys: dev-1..100 = Movies (every 3rd is 4K, larger),
+    // dev-101..200 = TV Shows (largest), dev-201..300 = Anime.
+    const keptByFriend = [
+      'dev-102', 'dev-106', 'dev-111', 'dev-119', 'dev-127', 'dev-134', // TV Shows
+      'dev-205', 'dev-212', 'dev-230', 'dev-248', // Anime
+      'dev-7', 'dev-13', 'dev-22', // 4K Movies (large)
+      'dev-12', 'dev-35', 'dev-50', // Movies
+    ];
+    const keptByKid = [
+      'dev-104', 'dev-115', 'dev-122', 'dev-140', 'dev-160', // TV Shows
+      'dev-220', 'dev-260', // Anime
+      'dev-10', 'dev-19', // 4K Movies (large)
+      'dev-44', // Movies
+    ];
+    for (const rk of keptByFriend) addKeep('dev-friend', rk);
+    for (const rk of keptByKid) addKeep('dev-kid', rk);
+
     addSkip(DEV_USER_ID, 'dev-3');
     addSkip(DEV_USER_ID, 'dev-120');
     upsertWatchBatch([

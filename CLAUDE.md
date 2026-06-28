@@ -73,6 +73,9 @@ app/
   api/...            route handlers (see below)
 components/          AppShell (rail + top bar + user menu), MediaCard, KeepView,
                      LibraryBrowser, StatsView, UsersManager, SearchBox, SearchResults;
+                     breakdown.tsx (shared keep/reclaim visual language: StackedBar,
+                       Donut, LegendRow + the TONE palette — used by KeepView's totals
+                       column and the StatsView dashboard);
                      settings/ (SettingsLayout + General/Users/Connections/JobsCache/Logs/About panels;
                        managed libraries + storage live inside the Connections panel)
 ```
@@ -136,6 +139,12 @@ across Plex library rebuilds — treat as best-effort).
   (nav rail Browse, Keep filters, Library, Big Picture).
 - `GET /api/storage` → per-filesystem free/total (`fs.statfs`) + per-library used
   size; `configured:false` until libraries are mapped to disk paths.
+- `GET /api/overview` → per-library, per-user keep breakdown + disk capacity, in
+  one call (powers the Keep totals column and the Big Picture dashboard). Each
+  library partitions its bytes/items into `kept` (protected — anyone keeps it),
+  `dontcare` (not protected + this user skipped), and `undecided` (the rest);
+  `keptByMe*` is a sub-count of kept. Also returns `storage` totals, `mediaUsedBytes`,
+  and summed `totals`. Backed by `librarySummary(plexUserId)` in `lib/queries.ts`.
 - `GET /api/about` → `{name, version}` for the About panel.
 - `GET /api/stats?view=largest|reclaimable&offset=` — big picture + summary.
   Accepts a session user **or** the API key (`X-Api-Key`).

@@ -32,13 +32,16 @@ manually in Plex / Sonarr / Radarr.
   stats/reclaimable report or trigger refresh jobs from scripts (no login needed).
 - **Keep loop** — the home page shows a screen-filling batch of not-yet-kept
   titles, a mix weighted toward the big series (with a few movies always seeded).
-  Tap to keep, then **"Skip the rest →"** passes on the batch (per-user) and rolls
-  a fresh set. Switch the feed to any of **your Plex libraries** (or **Largest**)
-  — your choice is remembered. Designed for a 30-second visit.
-- **Storage at a glance** — the home header shows free space (% + TB/GB), total
-  capacity, and a per-library size breakdown, read straight off the disk. Requires
-  mounting your media share read-only and mapping libraries to their paths in
-  Settings (Plex's API doesn't expose free space).
+  Tap to keep, then **"Next →"** marks everything you didn't keep as "you don't
+  care" (per-user) and rolls a fresh set. Switch the feed to any of **your Plex
+  libraries** (or **Largest**) — your choice is remembered. Designed for a
+  30-second visit.
+- **Storage at a glance** — the Keep page's side column shows a disk gauge (free
+  space + % full, the empty part *is* your free space), a **by-library donut**
+  (share of the whole), per-library kept/don't-care/undecided bars, and your own
+  review progress. Free space is read straight off the disk — requires mounting
+  your media share read-only and mapping libraries to their paths in Settings
+  (Plex's API doesn't expose free space).
 - **Search** — typeahead in the nav previews the closest matches as you type;
   Enter opens a results page (ranked best-first, infinite scroll). Already-kept
   titles show greyed/marked, and your own "don't care" choices are flagged.
@@ -53,8 +56,12 @@ manually in Plex / Sonarr / Radarr.
   care). Keeps are per-user but protective: an item stays safe while anyone keeps
   it, and you only remove your own keep. Marking "don't care" clears your keep
   (and vice-versa) and greys the card.
-- **Big Picture** — largest titles on disk, and a reclaimable report (not kept,
-  largest first, with a running cumulative total).
+- **Big Picture** — a dashboard: one honest disk bar (kept by you / kept by others
+  / you don't care / undecided, with free as the empty remainder), your review
+  progress, a "where your space goes" donut, and per-library breakdown cards with
+  bars sized proportional to each library. The charts are interactive (hover to
+  highlight a segment + see its size/share). Plus the drill-down tables: largest
+  titles on disk, and what's not kept by anyone (largest first, running total).
 - **Size on disk** — series totals are summed across every episode; movies across
   all parts/versions. Shown as `x.xx GB` per card; aggregates auto-switch to TB.
 - **Scheduled refresh jobs** — admins set a schedule (every N minutes, or daily at a

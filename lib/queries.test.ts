@@ -11,6 +11,7 @@ import {
   isKept,
   isKeptByUser,
   largestItems,
+  librarySummary,
   listUsers,
   queryLibrary,
   reclaimableItems,
@@ -519,5 +520,35 @@ describe('reclaimable + library views', () => {
     expect(s.keptItems).toBe(1);
     expect(s.keptBytes).toBe(10 * GB);
     expect(s.reclaimableBytes).toBe(6 * GB);
+  });
+
+  it('librarySummary partitions bytes into kept / dontcare / undecided per user', () => {
+    // items 1 (10GB), 2 (5GB), 3 (1GB), all in section '1'.
+    addKeep('userB', '1'); // protected by someone else (not me)
+    addKeep('userA', '2'); // protected by me
+    addSkip('userA', '3'); // I don't care about the smallest
+
+    const [row] = librarySummary('userA');
+    expect(row.section_id).toBe('1');
+    expect(row.items).toBe(3);
+    expect(row.bytes).toBe(16 * GB);
+
+    // kept = protected by anyone (items 1 and 2)
+    expect(row.kept_items).toBe(2);
+    expect(row.kept_bytes).toBe(15 * GB);
+    // of which only item 2 is my own keep
+    expect(row.kept_by_me_items).toBe(1);
+    expect(row.kept_by_me_bytes).toBe(5 * GB);
+    // don't care = not protected AND skipped by me (item 3)
+    expect(row.dontcare_items).toBe(1);
+    expect(row.dontcare_bytes).toBe(1 * GB);
+    // undecided = not protected AND not skipped (none left here)
+    expect(row.undecided_items).toBe(0);
+    expect(row.undecided_bytes).toBe(0);
+
+    // buckets partition the total exactly
+    expect(row.kept_bytes + row.dontcare_bytes + row.undecided_bytes).toBe(
+      row.bytes
+    );
   });
 });
