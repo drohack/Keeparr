@@ -1,0 +1,39 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# runtime data (sqlite db) — never commit
+/data/
+
+# test artifacts (Playwright screenshots, etc.) — never commit
+/test-results/
+/playwright-report/
+*.png
+*.jpg
+*.jpeg
+!public/**
+
+# misc
+.DS_Store
+*.pem
+.env*
+!.env.example
+
+# debug / logs
+*.log
+npm-debug.log*
+
+# playwright mcp artifacts
+.playwright-mcp/
+
+# typescript
+*.tsbuildinfo

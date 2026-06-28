@@ -1,0 +1,34 @@
+services:
+  keeparr:
+    build: .
+    image: keeparr:latest
+    container_name: keeparr
+    restart: unless-stopped
+    ports:
+      # host:container — change the host port to taste / put behind your reverse proxy
+      - "8767:3000"
+    environment:
+      # REQUIRED in production — set a real value (see .env.example).
+      SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET}"
+      # Optional: public URL of this app, used to build the Plex auth forwardUrl.
+      # APP_URL: "https://keeparr.example.net"
+    volumes:
+      # Persist the SQLite db. On unraid point this at e.g.
+      # /mnt/user/appdata/keeparr/data
+      - ./data:/data
+      # OPTIONAL — to show array capacity / free space on the home page, mount
+      # your media share(s) READ-ONLY, then map each library to its container
+      # path in Settings → Storage. Use the same container path you enter there.
+      #   - /mnt/user/Movies:/media/movies:ro
+      #   - /mnt/user/TV:/media/tv:ro
+    dns:
+      # Match the other self-hosted containers: embedded Docker DNS, then public.
+      - 127.0.0.11
+      - 8.8.8.8
+      - 1.1.1.1
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
