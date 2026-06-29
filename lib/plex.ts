@@ -348,7 +348,7 @@ export interface PlexMetadata {
   addedAt?: number;
   type?: string;
   Guid?: { id: string }[];
-  Media?: { Part?: { size?: number }[] }[];
+  Media?: { Part?: { id?: number; file?: string; size?: number }[] }[];
 }
 
 /** Sum Part.size across all Media versions of one metadata node (bytes). */
@@ -362,9 +362,29 @@ export function sumPartSizes(node: PlexMetadata): number {
   return total;
 }
 
-/** Sum Part.size across an array of episode/movie nodes (bytes). */
+/**
+ * Sum the on-disk size across episode/movie nodes (bytes), counting each
+ * physical file ONCE. Plex reports the full file size on every episode that
+ * shares a multi-episode file, so a naive per-leaf sum massively overcounts a
+ * show packed several-episodes-per-file. We dedupe by Part.file (falling back to
+ * Part.id); parts with neither are summed as-is (can't dedupe, don't drop).
+ */
 export function sumLeafSizes(nodes: PlexMetadata[]): number {
-  return nodes.reduce((acc, n) => acc + sumPartSizes(n), 0);
+  const seenFiles = new Set<string | number>();
+  let total = 0;
+  for (const node of nodes) {
+    for (const media of node.Media ?? []) {
+      for (const part of media.Part ?? []) {
+        const key = part.file ?? part.id;
+        if (key != null) {
+          if (seenFiles.has(key)) continue;
+          seenFiles.add(key);
+        }
+        total += part.size ?? 0;
+      }
+    }
+  }
+  return total;
 }
 
 /** Extract tmdb/tvdb ids from a node's Guid[] (modern Plex agent). */

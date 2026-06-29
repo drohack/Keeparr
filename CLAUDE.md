@@ -56,6 +56,7 @@ lib/
   tautulli.ts        watch-history client
   seerr.ts           requests client
   sync.ts            job runners: syncRecentlyAdded / syncLibrary / syncSizes / syncWatchHistory / syncSeerrRequests
+                     (+ syncSeerrRequestsForUser: warm one user's request cache on first login)
   jobs.ts            job registry + runJob/runWithState (single-flight) + isDue/dueJobs
   scheduler.ts       per-job scheduler (interval or daily HH:MM); fires due jobs each minute
   cards.ts           MediaItem → MediaCardData (+ proxied poster URL)
@@ -98,7 +99,9 @@ The chrome is a Sonarr/Radarr-style left rail (logo → Keep; Keep / Browse[expa
   (admin can block an account; Owner is exempt). Migrated via guarded `ALTER TABLE`.
 - `watch_history` — `(plex_user_id, rating_key)` plays, from Tautulli.
 - `seerr_requests` — `(plex_user_id, rating_key)`; cached Seerr requests (refreshed
-  by the `requests` job; badges/filters read this, not live Seerr).
+  by the `requests` job; badges/filters read this, not live Seerr). Also warmed
+  for a single user on their **first login** via `syncSeerrRequestsForUser`, so
+  "Requested by me" works without waiting for the daily job.
 - `settings` — key/value; secret values encrypted.
 - `job_state` — one row per scheduled job (`recentlyAdded`/`library`/`sizes`/`watch`/
   `requests`): last run/status/message/duration/result.
@@ -213,7 +216,10 @@ dev session (no Plex/login). Both are inert/absent in production.
 
 - **Plex size on disk**: `MediaContainer.Metadata[].Media[].Part[].size` (bytes).
   Movies inline; series via `GET /library/metadata/{ratingKey}/allLeaves` summed
-  over all episodes. Helpers: `sumPartSizes`, `sumLeafSizes`.
+  over all episodes. Helpers: `sumPartSizes`, `sumLeafSizes`. `sumLeafSizes`
+  dedupes by `Part.file`/`Part.id` so a **multi-episode file** (one file shared by
+  several episode leaves — Plex reports the full size on each) is counted once,
+  not once per episode.
 - **Plex PIN**: `POST plex.tv/api/v2/pins?strong=true`, auth at
   `app.plex.tv/auth#?clientID=&code=&context[device][product]=`, poll
   `GET plex.tv/api/v2/pins/{id}` until `authToken`. Reuse a stable

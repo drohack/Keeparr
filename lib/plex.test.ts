@@ -56,6 +56,25 @@ describe('sumPartSizes / sumLeafSizes', () => {
     ];
     expect(sumLeafSizes(leaves)).toBe(400);
   });
+
+  it('counts a shared multi-episode file ONCE (Plex repeats full size per leaf)', () => {
+    // s1.mkv holds E1+E2; Plex reports its full 1000-byte size on both leaves.
+    const leaves: PlexMetadata[] = [
+      { ratingKey: 'e1', title: 'E1', Media: [{ Part: [{ id: 1, file: '/tv/rvb/s1.mkv', size: 1000 }] }] },
+      { ratingKey: 'e2', title: 'E2', Media: [{ Part: [{ id: 1, file: '/tv/rvb/s1.mkv', size: 1000 }] }] },
+      { ratingKey: 'e3', title: 'E3', Media: [{ Part: [{ id: 2, file: '/tv/rvb/s2.mkv', size: 500 }] }] },
+    ];
+    // 1000 (s1, once) + 500 (s2) = 1500, NOT 2500.
+    expect(sumLeafSizes(leaves)).toBe(1500);
+  });
+
+  it('dedupes by file path even when ids differ', () => {
+    const leaves: PlexMetadata[] = [
+      { ratingKey: 'e1', title: 'E1', Media: [{ Part: [{ id: 10, file: '/x/a.mkv', size: 800 }] }] },
+      { ratingKey: 'e2', title: 'E2', Media: [{ Part: [{ id: 11, file: '/x/a.mkv', size: 800 }] }] },
+    ];
+    expect(sumLeafSizes(leaves)).toBe(800);
+  });
 });
 
 describe('extractGuids', () => {

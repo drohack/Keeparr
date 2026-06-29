@@ -157,8 +157,9 @@ test blocks the image.
 
 Plex stores file size on `Media[].Part[].size` (bytes). Movies have it inline;
 series do not, so Keeparr calls `/library/metadata/{ratingKey}/allLeaves` once
-per show and sums every episode's parts. Results are cached in SQLite, so pages
-read instantly. Because the per-show calls are the expensive part, the **Series
+per show and sums every episode's parts — counting each **physical file once**, so
+a multi-episode file (where Plex reports the full size on every episode it holds)
+isn't multiplied. Results are cached in SQLite, so pages read instantly. Because the per-show calls are the expensive part, the **Series
 sizes** job is separate from the cheap **Library data** job — schedule the size
 recompute less often (default every 12h) and the inventory refresh more often
 (default hourly), or run either on demand. Jobs are checked each minute and fire

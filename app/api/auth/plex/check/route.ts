@@ -3,6 +3,7 @@ import { checkPin, checkServerAccess, getPlexAccount } from '@/lib/plex';
 import { decideAccess } from '@/lib/login';
 import { countAdmins, getUser, logEvent, upsertUser } from '@/lib/queries';
 import { errorResponse } from '@/lib/route-helpers';
+import { syncSeerrRequestsForUser } from '@/lib/sync';
 import {
   getAdminToken,
   getMachineId,
@@ -107,6 +108,17 @@ export async function GET(req: Request) {
     });
 
     await setSessionCookie(account.id);
+
+    if (existing == null) {
+      // First login: warm this user's Seerr "Requested by me" cache in the
+      // background so it works right away (don't block login on Seerr).
+      void syncSeerrRequestsForUser(account.id, {
+        email: account.email,
+        username: account.username ?? account.title,
+      }).catch((e) =>
+        logEvent('warn', 'seerr', `First-login request sync failed: ${String(e)}`)
+      );
+    }
 
     logEvent(
       'info',

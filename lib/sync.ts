@@ -217,6 +217,25 @@ export async function syncSeerrRequests(): Promise<JobResult> {
   return { result: ok, message: `Cached Seerr requests for ${ok} user(s).` };
 }
 
+/**
+ * Cache a single user's Seerr requests. Used to warm the cache on first login so
+ * "Requested by me" works right away instead of waiting for the daily job.
+ * No-op (returns 0) when Seerr isn't configured.
+ */
+export async function syncSeerrRequestsForUser(
+  plexUserId: string,
+  match: { email: string | null; username: string | null }
+): Promise<number> {
+  if (!isSeerrConfigured()) return 0;
+  const keys = await requestedRatingKeysForUser(
+    getSeerrUrl()!,
+    getSeerrKey()!,
+    match
+  );
+  replaceSeerrRequests(plexUserId, [...keys]);
+  return keys.size;
+}
+
 function toInput(
   node: PlexMetadata,
   sectionId: string,
