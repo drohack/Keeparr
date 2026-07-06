@@ -932,6 +932,48 @@ describe('queryLibrary keptByMeOnly', () => {
   });
 });
 
+describe('queryLibrary combinable Status buckets (stateBuckets, OR)', () => {
+  beforeEach(() => {
+    upsertMediaBatch([
+      media('1'), media('2'), media('3'), media('4'), media('5'), media('6'),
+    ]);
+    addKeep('me', '1'); // kept by me
+    addKeep('other', '2'); // kept by someone else only (protected, not mine)
+    addSkip('me', '3'); // I don't care
+    addDelete('me', '4'); // OK to delete (by me)
+    addDelete('other', '5'); // OK to delete (by someone else)
+    // '6' — undecided
+  });
+
+  const q = (stateBuckets: LibraryQuery['stateBuckets']) =>
+    queryLibrary({ plexUserId: 'me', limit: 100, offset: 0, stateBuckets })
+      .map((r) => r.rating_key)
+      .sort();
+
+  it('empty/omitted = no filter (All)', () => {
+    expect(q([])).toEqual(['1', '2', '3', '4', '5', '6']);
+    expect(q(undefined)).toEqual(['1', '2', '3', '4', '5', '6']);
+  });
+
+  it('each bucket selects only its own state', () => {
+    expect(q(['keptByMe'])).toEqual(['1']);
+    expect(q(['keptOther'])).toEqual(['2']);
+    expect(q(['dontcare'])).toEqual(['3']);
+    expect(q(['okDeleteMine'])).toEqual(['4']);
+    expect(q(['okDeleteAny'])).toEqual(['4', '5']); // my own mark counts as "any" too
+    // Undecided = "I" made no decision. '5' (marked by someone else, untouched by
+    // me) counts — consistent with the prior Undecided view (excludes only YOUR
+    // own keep/skip/delete).
+    expect(q(['undecided'])).toEqual(['5', '6']);
+  });
+
+  it("multiple buckets are OR'd together (union)", () => {
+    expect(q(['keptByMe', 'undecided'])).toEqual(['1', '5', '6']);
+    expect(q(['keptByMe', 'keptOther'])).toEqual(['1', '2']);
+    expect(q(['dontcare', 'okDeleteMine', 'undecided'])).toEqual(['3', '4', '5', '6']);
+  });
+});
+
 describe('OK to delete (user_deletes)', () => {
   beforeEach(() => {
     upsertMediaBatch([media('1'), media('2'), media('3')]);

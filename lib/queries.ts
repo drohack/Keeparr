@@ -572,6 +572,14 @@ export type SortDir = 'asc' | 'desc';
 export type KeptFilter = 'all' | 'kept' | 'unkept';
 export type SkipFilter = 'all' | 'skipped' | 'unskipped';
 export type DeleteFilter = 'all' | 'deletedByMe' | 'deletedAny';
+/** Combinable Browse "Status" buckets (per-user decision states), OR'd together. */
+export type StateBucket =
+  | 'keptByMe'
+  | 'keptOther'
+  | 'dontcare'
+  | 'okDeleteMine'
+  | 'okDeleteAny'
+  | 'undecided';
 /** Per-user "have you watched it" filter (recency windows use last_watched). */
 export type WatchFilter =
   | 'all'
@@ -601,6 +609,9 @@ export interface LibraryQuery {
    * = items anyone marked (the "released by someone" view). Default 'all'.
    */
   deleteFilter?: DeleteFilter;
+  /** Combinable "Status" buckets, OR'd together (empty/omitted = no filter). The
+   *  Browse Status multi-select drives this; supersedes kept/skip/delete filters. */
+  stateBuckets?: StateBucket[];
   /** Filter by THIS user's watch history (default 'all'). */
   watchFilter?: WatchFilter;
   /** Sonarr/Radarr filters (match arr_items). Each restricts to arr-matched rows.
@@ -701,6 +712,23 @@ export function queryLibrary(q: LibraryQuery): LibraryRow[] {
   // also exclude their own "OK to delete" marks.
   if (keptFilter === 'unkept' && skipFilter === 'unskipped') {
     where.push('ud.rating_key IS NULL');
+  }
+
+  // Combinable "Status" buckets (the Browse Status multi-select): OR the selected
+  // per-user decision states. Empty/omitted = no filter (All).
+  if (q.stateBuckets && q.stateBuckets.length) {
+    const cond: Record<StateBucket, string> = {
+      keptByMe: 'km.rating_key IS NOT NULL',
+      keptOther: `(${keptExists}) AND km.rating_key IS NULL`,
+      dontcare: 's.rating_key IS NOT NULL',
+      okDeleteMine: 'ud.rating_key IS NOT NULL',
+      okDeleteAny: deletedAnyExists,
+      undecided: `NOT (${keptExists}) AND s.rating_key IS NULL AND ud.rating_key IS NULL`,
+    };
+    const parts = q.stateBuckets
+      .filter((b) => cond[b])
+      .map((b) => `(${cond[b]})`);
+    if (parts.length) where.push(`(${parts.join(' OR ')})`);
   }
 
   // Watch filter (this user's history). Recency uses last_watched (epoch seconds).

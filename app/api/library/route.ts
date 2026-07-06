@@ -10,6 +10,7 @@ import {
   type LibrarySort,
   type SkipFilter,
   type SortDir,
+  type StateBucket,
   type WatchFilter,
 } from '@/lib/queries';
 import { toCard } from '@/lib/cards';
@@ -31,6 +32,14 @@ const SORTS: LibrarySort[] = [
 const KEPT: KeptFilter[] = ['all', 'kept', 'unkept'];
 const SKIP: SkipFilter[] = ['all', 'skipped', 'unskipped'];
 const DELETED: DeleteFilter[] = ['all', 'deletedByMe', 'deletedAny'];
+const STATE_BUCKETS: StateBucket[] = [
+  'keptByMe',
+  'keptOther',
+  'dontcare',
+  'okDeleteMine',
+  'okDeleteAny',
+  'undecided',
+];
 const WATCH: WatchFilter[] = [
   'all',
   'watched',
@@ -76,6 +85,11 @@ export async function GET(req: Request) {
     const csv = (key: string) =>
       (p.get(key) || '').split(',').map((s) => s.trim()).filter(Boolean);
     const sources = csv('source').filter((s) => s === 'sonarr' || s === 'radarr');
+    // Combinable "Status" buckets (OR'd together; empty = no filter). Supersedes
+    // the legacy kept/skip/deleted single-select params from the Browse UI.
+    const stateBuckets = csv('state').filter((s): s is StateBucket =>
+      (STATE_BUCKETS as string[]).includes(s)
+    );
     const monitored = csv('monitored').filter(
       (m): m is ArrMonitored => m === 'monitored' || m === 'unmonitored'
     );
@@ -103,6 +117,7 @@ export async function GET(req: Request) {
       keptByMeOnly: keptByMe,
       skipFilter: SKIP.includes(skip) ? skip : 'all',
       deleteFilter: DELETED.includes(deleted) ? deleted : 'all',
+      stateBuckets,
       watchFilter: WATCH.includes(watch) ? watch : 'all',
       sources,
       instanceIds: csv('instance'),

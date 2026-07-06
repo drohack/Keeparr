@@ -59,10 +59,12 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
 - **Library browse/search** — your Plex libraries in the sidebar (each with its
   total size), **multi-select several at once** to compare across them (e.g. all
   your series libraries to see the biggest), sort by size / title / release year /
-  recently added in either direction, a single **Status** filter (defaults to
-  **Undecided**, hiding what you've already kept or marked "I don't care"/"OK to
-  delete"; switch to **Kept by anyone**, **Kept by you**, **I don't care**, — when
-  Seerr is connected — **OK to delete (by you)** / **(by anyone)**, or All), and — when
+  recently added in either direction, a combinable **Status** filter — a checkbox
+  dropdown whose buckets (**Kept by you**, **Kept by others**, **I don't care**,
+  **Undecided**, and — when Seerr is connected — **OK to delete (by you)** / **(by
+  anyone)**) are OR'd together, so you can view several states at once; it defaults
+  to **Undecided** (hiding what you've already decided on) and checking nothing
+  shows everything — and — when
   **watch data is available** (Tautulli for Plex; native for Jellyfin/Emby) — a
   **Watched** filter: watched / not watched **by
   you**, **not watched by anyone** (server-wide), watched in the last 30·60·90 days,

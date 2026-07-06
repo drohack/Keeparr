@@ -24,15 +24,23 @@ const SORT_KEYS: Sort[] = ['size', 'title', 'added', 'year', 'library', 'quality
 // Numeric-ish columns read best high→low by default; text columns A→Z.
 const defaultDir = (col: Sort): Dir => (col === 'size' || col === 'watched' ? 'desc' : 'asc');
 type View = 'grid' | 'list';
-type Status =
-  | 'undecided'
-  | 'keptAny'
-  | 'keptMine'
+// Combinable "Status" buckets (per-user decision states). Any checked are OR'd
+// together server-side; none checked = All. Mirrors lib/queries StateBucket.
+type StateBucket =
+  | 'keptByMe'
+  | 'keptOther'
   | 'dontcare'
-  | 'okToDeleteMine'
-  | 'okToDeleteAny'
-  | 'all';
-type Deleted = 'all' | 'deletedByMe' | 'deletedAny';
+  | 'okDeleteMine'
+  | 'okDeleteAny'
+  | 'undecided';
+const STATE_OPTIONS: { value: StateBucket; label: string; seerrOnly?: boolean }[] = [
+  { value: 'undecided', label: 'Undecided' },
+  { value: 'keptByMe', label: 'Kept by you' },
+  { value: 'keptOther', label: 'Kept by others' },
+  { value: 'dontcare', label: "I don't care" },
+  { value: 'okDeleteMine', label: 'OK to delete (by you)', seerrOnly: true },
+  { value: 'okDeleteAny', label: 'OK to delete (by anyone)', seerrOnly: true },
+];
 
 interface Facets {
   instances: { id: string; name: string; source: string }[];
@@ -65,28 +73,6 @@ type Watch =
   | 'recent60'
   | 'recent90'
   | 'stale90';
-
-// One clear Status filter → the existing kept/skip query params. `keptByMe`
-// narrows "kept" to the current user's own keeps (vs anyone's).
-const STATUS_PARAMS: Record<
-  Status,
-  {
-    kept: 'all' | 'kept' | 'unkept';
-    skip: 'all' | 'skipped' | 'unskipped';
-    keptByMe?: boolean;
-    deleted?: Deleted;
-  }
-> = {
-  // "Undecided" hides anything this user has decided — kept, don't-care, AND
-  // their own "OK to delete" (the server's unkept+unskipped also drops deleted).
-  undecided: { kept: 'unkept', skip: 'unskipped' },
-  keptAny: { kept: 'kept', skip: 'all' }, // kept by anyone (protected)
-  keptMine: { kept: 'all', skip: 'all', keptByMe: true }, // only your keeps
-  dontcare: { kept: 'all', skip: 'skipped' },
-  okToDeleteMine: { kept: 'all', skip: 'all', deleted: 'deletedByMe' },
-  okToDeleteAny: { kept: 'all', skip: 'all', deleted: 'deletedAny' },
-  all: { kept: 'all', skip: 'all' },
-};
 
 /** A sortable List-view column header: click to sort, shows the active arrow. */
 function SortTh({
@@ -146,8 +132,9 @@ export default function LibraryBrowser({
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<Sort>('size');
   const [dir, setDir] = useState<Dir>('desc');
-  // Default hides items you've already decided on (kept or don't-care).
-  const [status, setStatus] = useState<Status>('undecided');
+  // Combinable Status filter (OR'd buckets; empty = All). Defaults to Undecided
+  // so decided items (kept / don't-care / your own "OK to delete") are hidden.
+  const [states, setStates] = useState<string[]>(['undecided']);
   const [watch, setWatch] = useState<Watch>('all');
   const [requestedByMe, setRequestedByMe] = useState(false);
   // Sonarr/Radarr multi-select filters (only used/shown when arr is connected).
@@ -263,10 +250,8 @@ export default function LibraryBrowser({
       if (debouncedQ) params.set('q', debouncedQ);
       params.set('sort', sort);
       params.set('dir', dir);
-      params.set('kept', STATUS_PARAMS[status].kept);
-      params.set('skip', STATUS_PARAMS[status].skip);
-      if (STATUS_PARAMS[status].keptByMe) params.set('keptByMe', '1');
-      if (STATUS_PARAMS[status].deleted) params.set('deleted', STATUS_PARAMS[status].deleted!);
+      // Combinable Status buckets (OR'd server-side); empty = All.
+      if (states.length) params.set('state', states.join(','));
       if (tautulli && watch !== 'all') params.set('watch', watch);
       if (requestedByMe) params.set('requestedByMe', '1');
       if (arr) {
@@ -289,13 +274,13 @@ export default function LibraryBrowser({
       setItems((prev) => (reset ? list : [...prev, ...list]));
       setLoading(false);
     },
-    [selectedKey, debouncedQ, sort, dir, status, watch, tautulli, requestedByMe,
+    [selectedKey, debouncedQ, sort, dir, states, watch, tautulli, requestedByMe,
      arr, sources, instanceIds, tags, qualities, statuses, monitoredSel, match, sizeMismatch, offset]
   );
 
   // Reset + reload whenever a filter (or the rail selection) changes. (View
   // toggle is NOT here — Grid/List render the same data, no refetch.)
-  const filterKey = `${selectedKey}|${debouncedQ}|${sort}|${dir}|${status}|${watch}|${requestedByMe}|${sources}|${instanceIds}|${tags}|${qualities}|${statuses}|${monitoredSel}|${match}|${sizeMismatch}`;
+  const filterKey = `${selectedKey}|${debouncedQ}|${sort}|${dir}|${states}|${watch}|${requestedByMe}|${sources}|${instanceIds}|${tags}|${qualities}|${statuses}|${monitoredSel}|${match}|${sizeMismatch}`;
   useEffect(() => {
     setOffset(0);
     fetchPage(true);
@@ -356,20 +341,20 @@ export default function LibraryBrowser({
             </button>
           </>
         )}
-        <select
-          className={inputCls}
-          value={status}
-          onChange={(e) => setStatus(e.target.value as Status)}
-          title="Which items to show"
-        >
-          <option value="undecided">Undecided</option>
-          <option value="keptAny">Kept by anyone</option>
-          <option value="keptMine">Kept by you</option>
-          <option value="dontcare">I don&apos;t care</option>
-          {seerr && <option value="okToDeleteMine">OK to delete (by you)</option>}
-          {seerr && <option value="okToDeleteAny">OK to delete (by anyone)</option>}
-          <option value="all">All</option>
-        </select>
+        <MultiSelect
+          placeholder="Status: All"
+          summaryName="Status"
+          selected={states}
+          onChange={setStates}
+          groups={[
+            {
+              options: STATE_OPTIONS.filter((o) => !o.seerrOnly || seerr).map((o) => ({
+                value: o.value,
+                label: o.label,
+              })),
+            },
+          ]}
+        />
         {tautulli && (
           <select
             className={inputCls}

@@ -195,7 +195,7 @@ when it has no tvdb/tmdb **and** no imdb.
   POST is **gated** by `isRequestedByUser` (403 `not_requested` otherwise) and clears
   this user's keep + "don't care". Does not touch others' keeps.
 - `POST /api/skip-batch` `{ratingKeys[]}` — per-user skip + fresh batch (keep-loop).
-- `GET /api/library?sections=<id,id,…>&q=&sort=size|title|added|year&dir=asc|desc&kept=all|kept|unkept&keptByMe=1&skip=all|skipped|unskipped&deleted=all|deletedByMe|deletedAny&watch=all|watched|unwatched|unwatchedAny|recent30|recent60|recent90|stale90&source=sonarr|radarr&instance=&tag=&quality=&monitored=all|monitored|unmonitored&requestedByMe=1&hideKept=&offset=`
+- `GET /api/library?sections=<id,id,…>&q=&sort=size|title|added|year&dir=asc|desc&state=keptByMe,keptOther,dontcare,okDeleteMine,okDeleteAny,undecided&kept=all|kept|unkept&keptByMe=1&skip=all|skipped|unskipped&deleted=all|deletedByMe|deletedAny&watch=all|watched|unwatched|unwatchedAny|recent30|recent60|recent90|stale90&source=sonarr|radarr&instance=&tag=&quality=&monitored=all|monitored|unmonitored&requestedByMe=1&hideKept=&offset=`
   — browse/search; `sections` is a comma list of Plex library ids (omit = all,
   multi-select in the sidebar). Returns `kept` (anyone), per-user `keptByMe`,
   per-user `skipped`, per-user `watched`, per-user `requestedByMe` +
@@ -203,12 +203,16 @@ when it has no tvdb/tmdb **and** no imdb.
   **and Sonarr/Radarr metadata** (`source`,
   `instanceName`, `monitored`, `status`, `quality`, `qualityKind`, `tags[]` — null
   when the title isn't arr-matched; powers Browse's List view + quality badge). The
-  Browse UI exposes one **Status** filter (default **Undecided** →
-  `kept=unkept&skip=unskipped`, i.e. hides decided items — incl. the user's own "OK
-  to delete"; **Kept by anyone** → `kept=kept`; **Kept by you** → `keptByMe=1`;
-  **I don't care** → `skip=skipped`; — only when Seerr is connected — **OK to delete
-  (by you)** → `deleted=deletedByMe` and **OK to delete (by anyone)** →
-  `deleted=deletedAny`; All), a **Grid/List** view toggle (remembered in
+  Browse UI exposes a **Status** filter as a **combinable checkbox dropdown** →
+  the `state=` param: a comma list of per-user decision buckets OR'd together
+  (**empty = All**). Buckets: `keptByMe` (you keep it), `keptOther` (kept by
+  someone else, not you), `dontcare` (your "don't care"), `undecided` (you've made
+  no keep/skip/delete decision — excludes only YOUR own marks), and — only when
+  Seerr is connected — `okDeleteMine` / `okDeleteAny` (your / anyone's "OK to
+  delete", the by-anyone view stays identity-free). Defaults to `state=undecided`
+  (hides items you've decided on). (The legacy single-select `kept`/`keptByMe`/
+  `skip`/`deleted` params are still honored for back-compat but the Browse UI now
+  drives `state`.) Also a **Grid/List** view toggle (remembered in
   `localStorage`; List adds
   click-to-sort column headers — all columns, sort persisted — and a poster column),
   — **only when Tautulli is connected** — a **Watched** filter (`watch=`):
