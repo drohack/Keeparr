@@ -3,7 +3,7 @@
 # ---- Build stage ---------------------------------------------------------
 # Alpine so the native module (better-sqlite3) is compiled against the same
 # musl libc the runner uses.
-FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS builder
+FROM node:26-alpine@sha256:725aeba2364a9b16beae49e180d83bd597dbd0b15c47f1f28875c290bfd255b9 AS builder
 WORKDIR /app
 
 # Build tools for better-sqlite3's native addon.
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # ---- Runtime stage -------------------------------------------------------
-FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS runner
+FROM node:26-alpine@sha256:725aeba2364a9b16beae49e180d83bd597dbd0b15c47f1f28875c290bfd255b9 AS runner
 WORKDIR /app
 
 # Image metadata + Unraid Docker UI hints (icon + WebUI button).
