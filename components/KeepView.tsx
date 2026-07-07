@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MediaCardData } from '@/lib/types';
 import { formatSize } from '@/lib/format';
-import MediaCard, { CARD_MIN_W, CARD_GRID_CLASS } from './MediaCard';
+import MediaCard, { CARD_MIN_W } from './MediaCard';
 import {
   StackedBar,
   LegendRow,
@@ -24,23 +24,42 @@ interface Library {
 type Selection = 'all' | 'largest' | string; // string = section id
 
 const STORAGE_KEY = 'keeparr.feedSelection';
-const GAP = 12; // matches gap-3 in CARD_GRID_CLASS
+const GAP = 12; // matches gap-3 on the grid
 const LABEL_H = 56; // title + size row + padding below the 2:3 poster
+// A card showing the "OK to delete" action button is ~this much taller. It's
+// budgeted into EVERY row so any row can be full of OK-to-delete cards without
+// overflowing the no-scroll grid.
+const ACTION_H = 34;
+// Cards match the shared Browse size (CARD_MIN_W) by default, but on a big/tall
+// screen we allow them to shrink down to this floor to fit another whole row
+// (e.g. 3 rows on a 4K panel). Never smaller — that gets hard to read.
+const CARD_FLOOR_W = 150;
 // Fetch a generous batch up front; the measured grid only controls how many of
 // these we *display*, so a first-load mis-measure never causes an under-fetch.
 const FETCH_LIMIT = 96;
 
 /**
- * cols×rows that fit a w×h area, with cards the SAME size as every other page
- * (same min width + 2:3 poster as CARD_GRID_CLASS). `cols` mirrors the CSS
- * auto-fill so slicing to cols×rows yields whole rows and no scroll.
+ * cols×rows that fill a w×h area with no scroll. Each row is budgeted at the
+ * TALLEST card (poster + label + OK-to-delete button) so any row can be full of
+ * OK-to-delete cards without clipping. Cards default to the shared Browse size;
+ * they only shrink (more columns, down to CARD_FLOOR_W) when that buys another
+ * whole row — so 1080p keeps big cards / 2 rows while a 4K panel gets 3 rows
+ * with slightly smaller cards.
  */
 function dimsFor(w: number, h: number): { cols: number; rows: number } {
-  const cols = Math.max(1, Math.floor((w + GAP) / (CARD_MIN_W + GAP)));
-  const cardW = (w - (cols - 1) * GAP) / cols;
-  const cardH = cardW * 1.5 + LABEL_H; // poster is aspect-[2/3]
-  const rows = Math.max(1, Math.floor((h + GAP) / (cardH + GAP)));
-  return { cols, rows };
+  const budgetedH = (cardW: number) => cardW * 1.5 + LABEL_H + ACTION_H;
+  const fit = (cols: number) => {
+    const cardW = (w - (cols - 1) * GAP) / cols;
+    return { cols, cardW, rows: Math.max(1, Math.floor((h + GAP) / (budgetedH(cardW) + GAP))) };
+  };
+  let best = fit(Math.max(1, Math.floor((w + GAP) / (CARD_MIN_W + GAP)))); // Browse size
+  const maxCols = Math.floor((w + GAP) / (CARD_FLOOR_W + GAP));
+  for (let c = best.cols + 1; c <= maxCols; c++) {
+    const cand = fit(c);
+    if (cand.cardW < CARD_FLOOR_W) break;
+    if (cand.rows > best.rows) best = cand; // only shrink if it gains a row
+  }
+  return { cols: best.cols, rows: best.rows };
 }
 
 /** Rough cols×rows from the window, before the grid is measured (no-SSR guard). */
@@ -204,8 +223,10 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header + filters (under the top search bar) */}
-      <div className="shrink-0 px-6 pt-5 pb-3">
+      {/* Header + filters (under the top search bar). Padding is kept tight so a
+          bottom-row card with the taller "OK to delete" button isn't clipped in
+          the no-scroll grid. */}
+      <div className="shrink-0 px-6 pt-4 pb-2">
         <div className="flex items-baseline justify-between gap-4">
           <h1 className="text-2xl font-bold">What should we keep?</h1>
           <p className="text-sm text-slate-400">
@@ -214,7 +235,7 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
               : 'Your biggest titles by size on disk.'}
           </p>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-1 rounded-lg bg-rail p-1">
+        <div className="mt-2 flex flex-wrap items-center gap-1 rounded-lg bg-rail p-1">
           {chip('all', 'For you')}
           {libraries.map((l) => chip(l.id, l.title))}
           {chip('largest', 'Largest')}
@@ -231,7 +252,10 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
               You’re all caught up here. Try another library above.
             </div>
           ) : (
-            <div className={`${CARD_GRID_CLASS} content-start`}>
+            <div
+              className="grid gap-3 content-start"
+              style={{ gridTemplateColumns: `repeat(${dims.cols}, minmax(0, 1fr))` }}
+            >
               {shown.map((item) => (
                 <MediaCard
                   key={item.ratingKey}
@@ -251,7 +275,7 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
 
       {/* Bottom bar. The action + its explanation align with the GRID, not the
           totals column — a matching spacer keeps them out from under the aside. */}
-      <div className="shrink-0 border-t border-slate-800 bg-rail px-6 py-3 flex items-center gap-4">
+      <div className="shrink-0 border-t border-slate-800 bg-rail px-6 py-2 flex items-center gap-4">
         <div className="flex flex-1 items-center gap-4">
           <span className="text-sm text-slate-400">
             <span className="text-white font-semibold">{kept.size}</span> kept ·{' '}

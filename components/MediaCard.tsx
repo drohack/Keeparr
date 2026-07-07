@@ -85,18 +85,22 @@ export default function MediaCard({
     }
   }
 
-  // Border encodes the decision: my keep = full amber ring; my "OK to delete" =
-  // full rose ring; someone else released it = muted rose edge; others' keep =
+  // Border encodes the decision: my keep = bold amber frame; my "OK to delete" =
+  // bold rose frame; someone else released it = muted rose edge; others' keep =
   // muted amber edge. (Grey/dim is reserved for "don't care".)
+  // Use a real 2px border (not a ring): an outward ring gets clipped by the Keep
+  // page's overflow-hidden grid, and an inset ring hides behind the poster
+  // image. A border frames the card, so it's always fully visible. With
+  // box-border (Tailwind default) the 1px↔2px change causes no layout shift.
   const borderCls = keptByMe
-    ? 'border-brand ring-2 ring-brand'
+    ? 'border-2 border-brand'
     : markedForDelete
-      ? 'border-rose-500 ring-2 ring-rose-500/70'
+      ? 'border-2 border-rose-500'
       : releasedByOther && !skipped
-        ? 'border-rose-800/60'
+        ? 'border border-rose-800/60'
         : keptByOthers && !skipped
-          ? 'border-amber-700/60'
-          : 'border-slate-800 hover:border-slate-600';
+          ? 'border border-amber-700/60'
+          : 'border border-slate-800 hover:border-slate-600';
 
   return (
     <div
@@ -105,7 +109,7 @@ export default function MediaCard({
       tabIndex={interactive ? 0 : -1}
       onClick={toggle}
       onKeyDown={onKeyDown}
-      className={`group relative block w-full overflow-hidden rounded-lg border text-left transition-all ${borderCls} ${
+      className={`group relative block w-full overflow-hidden rounded-lg text-left transition-all ${borderCls} ${
         interactive ? 'cursor-pointer' : 'cursor-default'
       } ${dimmed ? 'opacity-50 grayscale' : ''}`}
     >

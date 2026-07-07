@@ -6,7 +6,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: getAppTitle(),
     description: 'Decide what media to keep, and find what can be deleted.',
+    // Declaring `icons` overrides Next's file-convention auto-link for
+    // app/icon.svg, so the favicon MUST be listed here explicitly or the tab
+    // icon disappears.
     icons: {
+      icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
       apple: '/icons/apple-touch-icon.png',
     },
   };
