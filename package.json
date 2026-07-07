@@ -1,6 +1,6 @@
 {
   "name": "keeparr",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "Plex-login web app to decide what media to keep and report what's reclaimable. Tags and reports only — never deletes.",
   "license": "MIT",
