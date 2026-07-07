@@ -3,6 +3,7 @@ import {
   getServerBaseUrl,
   getServerToken,
 } from '@/lib/settings';
+import { isSafeImagePath } from '@/lib/image-path';
 import { readImageCache, writeImageCache } from '@/lib/cache';
 
 export const runtime = 'nodejs';
@@ -66,9 +67,9 @@ function buildUpstreamUrl(
   w: number,
   h: number
 ): string | null {
+  if (!isSafeImagePath(type, path)) return null;
   const base = baseUrl.replace(/\/$/, '');
   if (type === 'plex') {
-    if (!path.startsWith('/')) return null; // Plex thumbs are relative paths
     const u = new URL(base + '/photo/:/transcode');
     u.searchParams.set('width', String(w));
     u.searchParams.set('height', String(h));

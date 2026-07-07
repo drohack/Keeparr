@@ -3,6 +3,7 @@ import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
   createSessionToken,
+  safeEqual,
   verifySessionToken,
 } from './session';
 import { getUser } from './queries';
@@ -91,7 +92,8 @@ function apiKeyMatches(req: Request): boolean {
   const provided = req.headers.get('x-api-key');
   if (!provided) return false;
   const stored = getApiKey();
-  return !!stored && stored === provided;
+  // Constant-time compare so the key can't be recovered by timing the response.
+  return !!stored && safeEqual(stored, provided);
 }
 
 /** Admin via session, or a valid `X-Api-Key` header (for automation). */

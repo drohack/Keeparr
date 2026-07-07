@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateByName } from '@/lib/jellyfin';
 import { decideAccess } from '@/lib/login';
+import { rateLimit } from '@/lib/rate-limit';
 import { countAdmins, getUser, logEvent, upsertUser } from '@/lib/queries';
 import { errorResponse } from '@/lib/route-helpers';
 import { syncSeerrRequestsForUser } from '@/lib/sync';
@@ -22,11 +23,37 @@ export const runtime = 'nodejs';
  * a successful auth IS server access. The first user bootstraps admin/owner and
  * their access token becomes the server read token. Body: { username, password }.
  */
+// Brute-force defense: cap credential attempts per client IP. The image is
+// public and Jellyfin/Emby is a first-class backend, so this endpoint is
+// internet-reachable on some deployments.
+const LOGIN_LIMIT = 10; // attempts…
+const LOGIN_WINDOW_MS = 5 * 60 * 1000; // …per 5 minutes per IP
+
+function clientIp(req: Request): string {
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) return xff.split(',')[0].trim();
+  return req.headers.get('x-real-ip') ?? 'unknown';
+}
+
 export async function POST(req: Request) {
   try {
     const type = getMediaServerType();
     if (type === 'plex') {
       return NextResponse.json({ error: 'use_plex_pin' }, { status: 400 });
+    }
+
+    const { limited, retryAfterMs } = rateLimit(
+      `login:${clientIp(req)}`,
+      LOGIN_LIMIT,
+      LOGIN_WINDOW_MS
+    );
+    if (limited) {
+      const retryAfter = Math.ceil(retryAfterMs / 1000);
+      logEvent('warn', 'auth', `Login rate-limited for ${clientIp(req)}.`);
+      return NextResponse.json(
+        { error: 'rate_limited' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      );
     }
     const url = getServerBaseUrl();
     if (!url) {

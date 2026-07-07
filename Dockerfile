@@ -41,7 +41,13 @@ RUN apk add --no-cache libc6-compat \
   && addgroup -g 1001 -S nodejs \
   && adduser -u 1001 -S nextjs -G nodejs \
   && mkdir -p /data \
-  && chown -R nextjs:nodejs /data
+  && chown -R nextjs:nodejs /data \
+  # Runtime is `node server.js` — the bundled package managers are never
+  # invoked. Drop npm/npx/yarn/corepack: their transitive deps carry CVEs and
+  # they're pure attack surface here.
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+           /usr/local/lib/node_modules/corepack /usr/local/bin/corepack \
+           /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 # Standalone server bundle + static assets (traced native modules included).
 # public/ must be copied explicitly — Next's standalone output does NOT

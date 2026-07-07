@@ -364,6 +364,22 @@ backend-aware UI are clickable offline (default = Plex). All inert/absent in pro
   (use **Import users from Plex** to pre-create accounts, then toggle Enabled).
   `getSessionUser` returns null for a disabled non-owner, so blocking takes effect
   immediately. The Owner is always allowed/enabled.
+- **Security posture** (audited July 2026): all SQL is parameterized (`lib/queries.ts`),
+  every `/api/admin/*` route calls `requireAdmin`, secrets are AES-GCM encrypted at
+  rest (`lib/crypto.ts` `SECRET_KEYS`). Hardening in place: the image proxy validates
+  `path` against an SSRF allowlist (`lib/image-path.ts isSafeImagePath` — Plex must be
+  `/library/…`, no `://`/`..`; JF/Emby an opaque id); `/api/auth/login` (Jellyfin/Emby
+  creds) is rate-limited per IP (`lib/rate-limit.ts`, 10 / 5 min); the API-key and
+  session-signature compares are constant-time (`safeEqual`); `instrumentation.ts`
+  logs a loud warning if a production boot uses the default `SESSION_SECRET`. The
+  Docker image strips npm/yarn/corepack from the runtime stage (unused attack surface)
+  and `npm audit` is clean (postcss pinned via an `overrides` entry). Baseline
+  response headers set in `next.config.js` (`X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy`, CSP `frame-ancestors 'self'`) — deliberately NO strict
+  script/style CSP (would break the inline theme script + Scalar). Backup filenames
+  are regex-validated (`isValidBackupName`); the image cache key is SHA-1-hashed before
+  becoming a path. `KEEPARR_DEV_LOGIN` is the only auth bypass and is env-gated + inert
+  in production (never set it in the image).
 - **API key** (`api_key`): `requireAdminOrApiKey`/`requireUserOrApiKey` (`lib/auth.ts`)
   accept an `X-Api-Key` header as an alternative to a session (for `/api/admin/jobs`
   + `/api/stats`). `middleware.ts` lets `/api/` requests carrying that header past the
