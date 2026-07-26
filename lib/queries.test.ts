@@ -68,6 +68,21 @@ import {
   existingShowSizes,
   showRatingKeys,
   updateItemSize,
+  sizeMismatchItems,
+  sizeMismatchSummary,
+  notInArrItems,
+  arrUnmatchedSummary,
+  duplicateGroups,
+  replaceArrConflicts,
+  getArrConflicts,
+  arrConflictsSummary,
+  zeroSizeItems,
+  zeroSizeCount,
+  removedButKeptItems,
+  removedButKeptSummary,
+  missingExternalIdItems,
+  missingExternalIdsSummary,
+  type ArrConflictInput,
   type UpsertMediaInput,
 } from './queries';
 
@@ -1229,5 +1244,283 @@ describe('OK to delete (user_deletes)', () => {
     expect(rows[1].keptByAnyone).toBe(false);
 
     expect(markedForDeleteSummary()).toEqual({ titles: 2, bytes: 51 * GB });
+  });
+});
+
+describe('Problems page queries', () => {
+  const arrRow = (over: Partial<ArrItemInput>): ArrItemInput => ({
+    ratingKey: '1',
+    source: 'radarr',
+    instanceId: 'r1',
+    instanceName: 'Radarr',
+    arrId: 1,
+    monitored: true,
+    status: 'released',
+    quality: 'Bluray-1080p',
+    qualityKind: 'file',
+    rootFolder: '/m',
+    arrSizeBytes: 1 * GB,
+    tags: [],
+    ...over,
+  });
+
+  describe('sizeMismatchItems / sizeMismatchSummary', () => {
+    beforeEach(() => {
+      upsertMediaBatch([
+        media('1', { sizeBytes: 10 * GB }), // arr 4 GB → 6 GB delta, >10% AND >1 GB → IN
+        media('2', { sizeBytes: 100 * GB }), // arr 98 GB → 2 GB delta but 2% → OUT (≤10%)
+        media('3', { sizeBytes: 5 * GB }), // arr 4.2 GB → 16% but 0.8 GB → OUT (≤1 GB)
+        media('4', { sizeBytes: 8 * GB }), // arr size identical → OUT
+        media('5', { sizeBytes: 20 * GB }), // arr 2 GB → IN (bigger delta)
+      ]);
+      replaceArrItems([
+        arrRow({ ratingKey: '1', arrSizeBytes: 4 * GB }),
+        arrRow({ ratingKey: '2', arrSizeBytes: 98 * GB }),
+        arrRow({ ratingKey: '3', arrSizeBytes: Math.round(4.2 * GB) }),
+        arrRow({ ratingKey: '4', arrSizeBytes: 8 * GB }),
+        arrRow({
+          ratingKey: '5',
+          arrSizeBytes: 2 * GB,
+          source: 'sonarr',
+          instanceId: 's1',
+          instanceName: 'Sonarr',
+        }),
+      ]);
+      // Item 6 diverges hard but is tombstoned → OUT.
+      upsertMediaBatch([media('6', { sizeBytes: 9 * GB })], 10);
+      replaceArrItems(
+        [arrRow({ ratingKey: '6', arrSizeBytes: 1 * GB })],
+        ['r1', 's1'] // keep the rows inserted above
+      );
+      tombstoneStale(11);
+    });
+
+    it('flags only >10% AND >1 GB divergences on non-removed items, biggest delta first', () => {
+      const rows = sizeMismatchItems(100, 0);
+      expect(rows.map((r) => r.ratingKey)).toEqual(['5', '1']); // 18 GB then 6 GB delta
+      expect(rows[0].plexBytes).toBe(20 * GB);
+      expect(rows[0].arrBytes).toBe(2 * GB);
+      expect(rows[0].deltaBytes).toBe(18 * GB);
+      expect(rows[0].source).toBe('sonarr');
+      expect(rows[0].instanceName).toBe('Sonarr');
+    });
+
+    it('pages and sums |delta| in the summary', () => {
+      expect(sizeMismatchItems(1, 0).map((r) => r.ratingKey)).toEqual(['5']);
+      expect(sizeMismatchItems(1, 1).map((r) => r.ratingKey)).toEqual(['1']);
+      expect(sizeMismatchSummary()).toEqual({ titles: 2, bytes: 24 * GB });
+    });
+  });
+
+  describe('notInArrItems / arrUnmatchedSummary', () => {
+    it('lists non-removed items with no arr row, largest first, paged', () => {
+      upsertMediaBatch([
+        media('1', { sizeBytes: 1 * GB }), // arr-matched → OUT
+        media('2', { sizeBytes: 8 * GB }), // IN
+        media('3', { sizeBytes: 2 * GB }), // IN
+      ]);
+      replaceArrItems([arrRow({ ratingKey: '1' })]);
+      expect(notInArrItems(100, 0).map((r) => r.ratingKey)).toEqual(['2', '3']);
+      expect(notInArrItems(1, 1).map((r) => r.ratingKey)).toEqual(['3']);
+    });
+
+    it('excludes removed items', () => {
+      upsertMediaBatch([media('1', { sizeBytes: 1 * GB })], 10);
+      tombstoneStale(11);
+      expect(notInArrItems(100, 0)).toEqual([]);
+    });
+
+    it('arrUnmatchedSummary counts + sums without loading rows', () => {
+      replaceArrUnmatched([
+        {
+          source: 'sonarr',
+          instanceId: 's1',
+          instanceName: 'S',
+          title: 'A',
+          extKind: 'tvdb',
+          extId: '1',
+          sizeBytes: 3 * GB,
+        },
+        {
+          source: 'radarr',
+          instanceId: 'r1',
+          instanceName: 'R',
+          title: 'B',
+          extKind: 'tmdb',
+          extId: '2',
+          sizeBytes: 5 * GB,
+        },
+      ]);
+      expect(arrUnmatchedSummary()).toEqual({ titles: 2, bytes: 8 * GB });
+    });
+  });
+
+  describe('duplicateGroups', () => {
+    it('groups items sharing a tmdb id, including CSV multi-id values', () => {
+      upsertMediaBatch([
+        media('1', { guidTmdb: '603,604', sizeBytes: 4 * GB }),
+        media('2', { guidTmdb: '604', sizeBytes: 2 * GB }),
+        media('3', { guidTmdb: '999', sizeBytes: 1 * GB }), // alone → no group
+      ]);
+      const groups = duplicateGroups();
+      expect(groups).toHaveLength(1);
+      expect(groups[0].idKind).toBe('tmdb');
+      expect(groups[0].idValue).toBe('604');
+      expect(groups[0].items.map((m) => m.ratingKey)).toEqual(['1', '2']); // size DESC
+      expect(groups[0].totalBytes).toBe(6 * GB);
+    });
+
+    it('scopes tvdb to shows and tmdb to movies (no cross-kind grouping)', () => {
+      upsertMediaBatch([
+        media('m1', { libraryKind: 'movie', guidTvdb: '42' }), // tvdb on a movie: ignored
+        media('s1', { libraryKind: 'show', guidTvdb: '42' }),
+      ]);
+      expect(duplicateGroups()).toEqual([]);
+    });
+
+    it('imdb spans kinds', () => {
+      upsertMediaBatch([
+        media('m1', { libraryKind: 'movie', guidImdb: 'tt1' }),
+        media('s1', { libraryKind: 'show', guidImdb: 'tt1' }),
+      ]);
+      const groups = duplicateGroups();
+      expect(groups).toHaveLength(1);
+      expect(groups[0].idKind).toBe('imdb');
+    });
+
+    it('dedups the same member set across axes (tmdb wins over imdb)', () => {
+      upsertMediaBatch([
+        media('1', { guidTmdb: '603', guidImdb: 'tt1' }),
+        media('2', { guidTmdb: '603', guidImdb: 'tt1' }),
+      ]);
+      const groups = duplicateGroups();
+      expect(groups).toHaveLength(1);
+      expect(groups[0].idKind).toBe('tmdb');
+    });
+
+    it('an imdb CSV pairing an item with two DIFFERENT partners yields two groups', () => {
+      upsertMediaBatch([
+        media('1', { guidImdb: 'tt1,tt2', sizeBytes: 8 * GB }),
+        media('2', { guidImdb: 'tt1', sizeBytes: 4 * GB }),
+        media('3', { guidImdb: 'tt2', sizeBytes: 1 * GB }),
+      ]);
+      const groups = duplicateGroups();
+      expect(groups).toHaveLength(2);
+      // Ordered by totalBytes DESC: tt1 (12 GB) then tt2 (9 GB).
+      expect(groups[0].idValue).toBe('tt1');
+      expect(groups[1].idValue).toBe('tt2');
+    });
+
+    it('excludes removed items', () => {
+      upsertMediaBatch([media('1', { guidTmdb: '603' })], 10);
+      upsertMediaBatch([media('2', { guidTmdb: '603' })], 20);
+      tombstoneStale(15); // tombstones '1'
+      expect(duplicateGroups()).toEqual([]);
+    });
+  });
+
+  describe('arr_conflicts', () => {
+    const conflict = (over: Partial<ArrConflictInput> = {}): ArrConflictInput => ({
+      ratingKey: '1',
+      title: 'Title 1',
+      firstSource: 'sonarr',
+      firstInstanceId: 's1',
+      firstInstanceName: 'Sonarr',
+      source: 'sonarr',
+      instanceId: 's2',
+      instanceName: 'Sonarr (Anime)',
+      sizeOnDisk: 4 * GB,
+      ...over,
+    });
+
+    it('replaces wholesale, maps camelCase, joins the thumb, sizes DESC', () => {
+      upsertMediaBatch([media('1')]);
+      replaceArrConflicts([
+        conflict(),
+        conflict({ ratingKey: '2', title: 'Title 2', sizeOnDisk: 9 * GB }),
+      ]);
+      const rows = getArrConflicts();
+      expect(rows.map((r) => r.ratingKey)).toEqual(['2', '1']); // size DESC
+      expect(rows[1].thumb).toBe('/library/metadata/1/thumb'); // joined from media_items
+      expect(rows[0].thumb).toBeNull(); // no media row for '2'
+      expect(rows[1].winner).toEqual({ source: 'sonarr', instanceName: 'Sonarr' });
+      expect(rows[1].loser).toEqual({ source: 'sonarr', instanceName: 'Sonarr (Anime)' });
+      expect(arrConflictsSummary()).toEqual({ titles: 2, bytes: 13 * GB });
+
+      replaceArrConflicts([]); // clean run sweeps the table
+      expect(getArrConflicts()).toEqual([]);
+    });
+
+    it('preserve list keeps only the preserved instance rows', () => {
+      replaceArrConflicts([
+        conflict({ instanceId: 's2' }),
+        conflict({ ratingKey: '2', instanceId: 's3', instanceName: 'Other' }),
+      ]);
+      replaceArrConflicts([], ['s3']); // s3 failed this run → its row survives
+      const rows = getArrConflicts();
+      expect(rows.map((r) => r.ratingKey)).toEqual(['2']);
+    });
+  });
+
+  describe('zeroSizeItems / zeroSizeCount', () => {
+    it('lists only non-removed zero-size items, newest first', () => {
+      upsertMediaBatch([
+        media('1', { sizeBytes: 0, addedAt: 100 }),
+        media('2', { sizeBytes: 0, addedAt: 300 }),
+        media('3', { sizeBytes: 1 * GB }),
+      ]);
+      upsertMediaBatch([media('4', { sizeBytes: 0 })], 10);
+      tombstoneStale(11); // '4' removed → excluded (the others were upserted "now")
+      expect(zeroSizeItems(100, 0).map((r) => r.ratingKey)).toEqual(['2', '1']);
+      expect(zeroSizeCount()).toBe(2);
+      expect(zeroSizeItems(1, 1).map((r) => r.ratingKey)).toEqual(['1']);
+    });
+  });
+
+  describe('removedButKeptItems / removedButKeptSummary', () => {
+    it('lists removed items with surviving keeps, keepers grouped, size DESC', () => {
+      upsertUser({ plexUserId: 'u1', username: 'Alice', email: null, thumb: null, isAdmin: false });
+      upsertMediaBatch(
+        [
+          media('gone-big', { sizeBytes: 9 * GB }),
+          media('gone-small', { sizeBytes: 2 * GB }),
+          media('gone-unkept', { sizeBytes: 5 * GB }),
+        ],
+        10
+      );
+      upsertMediaBatch([media('here', { sizeBytes: 7 * GB })]);
+      addKeep('u1', 'gone-big');
+      addKeep('u2', 'gone-big'); // no users row → username null
+      addKeep('u1', 'gone-small');
+      addKeep('u1', 'here'); // not removed → excluded
+      tombstoneStale(11);
+
+      const rows = removedButKeptItems();
+      expect(rows.map((r) => r.ratingKey)).toEqual(['gone-big', 'gone-small']);
+      expect(rows[0].keptBy.map((k) => k.username)).toEqual(['Alice', null]);
+      expect(removedButKeptSummary()).toEqual({ titles: 2, bytes: 11 * GB });
+    });
+  });
+
+  describe('missingExternalIdItems / missingExternalIdsSummary', () => {
+    it('kind-scoped primary id AND imdb must both be missing; largest first; paged', () => {
+      upsertMediaBatch([
+        media('s1', { libraryKind: 'show', guidTvdb: null, sizeBytes: 8 * GB }), // IN
+        media('s2', { libraryKind: 'show', guidTvdb: null, guidImdb: 'tt1' }), // imdb → OUT
+        media('s3', { libraryKind: 'show', guidTvdb: '42' }), // tvdb → OUT
+        media('m1', { libraryKind: 'movie', guidTmdb: null, sizeBytes: 3 * GB }), // IN
+        media('m2', { libraryKind: 'movie', guidTmdb: '603' }), // tmdb → OUT
+      ]);
+      expect(missingExternalIdItems(100, 0).map((r) => r.ratingKey)).toEqual(['s1', 'm1']);
+      expect(missingExternalIdItems(1, 1).map((r) => r.ratingKey)).toEqual(['m1']);
+      expect(missingExternalIdsSummary()).toEqual({ titles: 2, bytes: 11 * GB });
+    });
+
+    it('excludes removed items', () => {
+      upsertMediaBatch([media('1', { guidTmdb: null })], 10);
+      tombstoneStale(11);
+      expect(missingExternalIdItems(100, 0)).toEqual([]);
+      expect(missingExternalIdsSummary()).toEqual({ titles: 0, bytes: 0 });
+    });
   });
 });

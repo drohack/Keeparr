@@ -161,6 +161,29 @@ export function applySchema(database: Database.Database): void {
       last_synced   INTEGER NOT NULL
     );
 
+    -- Cross-instance *arr conflicts: a second instance claimed a rating_key the
+    -- first had already matched in the same 'arr' run (two instances managing
+    -- one title, or two arr entries resolving to one merged Plex item). Rows are
+    -- scoped to the LOSING claimant's instance_id for the per-instance preserve
+    -- (same semantics as arr_unmatched). A conflict is only observable in a run
+    -- where BOTH claimants were fetched — if the winner instance fails a later
+    -- run the loser simply wins it and the row vanishes until the next
+    -- full-success run (transient, self-healing). Surfaced on the admin
+    -- Problems page; replaced wholesale by the 'arr' job.
+    CREATE TABLE IF NOT EXISTS arr_conflicts (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      rating_key          TEXT NOT NULL,
+      title               TEXT NOT NULL,             -- losing record's title
+      first_source        TEXT NOT NULL,             -- winner: 'sonarr' | 'radarr'
+      first_instance_id   TEXT NOT NULL,
+      first_instance_name TEXT NOT NULL,
+      source              TEXT NOT NULL,             -- loser (this row's owner)
+      instance_id         TEXT NOT NULL,             -- scopes the per-instance replace
+      instance_name       TEXT NOT NULL,
+      size_on_disk        INTEGER NOT NULL DEFAULT 0,-- loser's sizeOnDisk
+      last_synced         INTEGER NOT NULL
+    );
+
     -- Append-only history of scheduled-job runs (for the admin activity log).
     CREATE TABLE IF NOT EXISTS job_runs (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,

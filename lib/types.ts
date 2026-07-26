@@ -128,6 +128,35 @@ export interface JobState {
   lastResult: number | null;
 }
 
+// --- Problems page (admin) ---
+
+/** The problem categories the admin Problems page can show. */
+export type ProblemType =
+  | 'sizeMismatch' // Plex vs *arr size diverges >10% AND >1 GB
+  | 'notInArr' // in the media server, matched by no Sonarr/Radarr instance
+  | 'missingFromPlex' // downloaded in *arr but not in the media server (arr_unmatched)
+  | 'duplicates' // two+ media items sharing an external id
+  | 'arrConflicts' // two *arr instances claiming the same media item
+  | 'zeroSize' // media server reports the title but no file bytes
+  | 'removedButKept' // gone from the media server while someone still keeps it
+  | 'missingIds' // no tvdb/tmdb/imdb id — can never match *arr
+  | 'diskOrphans'; // reserved stub (disk-scan job not built yet) — never queryable
+
+/** One pill on the Problems page.
+ *  `bytes` semantics vary per category: sizeMismatch = summed |Plex−arr| delta;
+ *  missingFromPlex/arrConflicts = summed *arr size on disk; duplicates = summed
+ *  member bytes (and `titles` = GROUP count, not item count); zeroSize = always 0;
+ *  removedButKept = summed last-known sizes; notInArr/missingIds = summed Plex sizes. */
+export interface ProblemCategorySummary {
+  type: ProblemType;
+  /** False = category can't run (arr not configured) or isn't built yet. */
+  available: boolean;
+  /** True only for diskOrphans — the UI shows a dimmed "Planned" pill. */
+  planned?: boolean;
+  titles: number;
+  bytes: number;
+}
+
 /** A Plex library as the UI sees it. */
 export interface LibrarySection {
   sectionId: string;

@@ -10,10 +10,12 @@ import {
   addSkip,
   libraryStats,
   recordJobRun,
+  replaceArrConflicts,
   replaceArrItems,
   replaceArrUnmatched,
   replaceSeerrRequests,
   setJobState,
+  tombstoneStale,
   upsertMediaBatch,
   upsertUser,
   upsertWatchBatch,
@@ -294,9 +296,74 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
   const seededMedia = opts.reset || libraryStats().totalItems === 0;
   if (seededMedia) {
     const mediaItems = buildItems();
-    upsertMediaBatch(mediaItems, Math.floor(Date.now() / 1000));
+    const seedTs = Math.floor(Date.now() / 1000);
+    upsertMediaBatch(mediaItems, seedTs);
     replaceArrItems(buildArrItems(mediaItems));
     replaceArrUnmatched(ARR_UNMATCHED);
+
+    // --- Problems-page demo rows (mismatch/notInArr/unmatched/missingIds are
+    // already covered by the modular seeding above) ---
+    // Duplicates: re-import an existing movie + show under new rating keys but
+    // the SAME external ids, so the Duplicates check groups them.
+    const dupMovieSrc = mediaItems.find((m) => m.libraryKind === 'movie' && m.guidTmdb)!;
+    const dupShowSrc = mediaItems.find((m) => m.libraryKind === 'show' && m.guidTvdb)!;
+    upsertMediaBatch(
+      [
+        { ...dupMovieSrc, ratingKey: 'dev-dup-movie', sectionId: '2', sizeBytes: Math.round(48 * GB) },
+        { ...dupShowSrc, ratingKey: 'dev-dup-show', sizeBytes: Math.round(0.8 * dupShowSrc.sizeBytes) },
+        // Zero size: the server lists it but reports no file bytes.
+        {
+          ratingKey: 'dev-zero-1',
+          sectionId: '1',
+          libraryKind: 'movie',
+          title: 'Corrupted Import Demo',
+          year: 2024,
+          thumb: null,
+          sizeBytes: 0,
+          addedAt: seedTs - 3 * 86400,
+          guidTmdb: '990001',
+          guidTvdb: null,
+        },
+      ],
+      seedTs
+    );
+    // Removed but kept: seed it slightly "older", keep it, then tombstone it —
+    // the same path a real deletion takes (full sync tombstones stale rows).
+    upsertMediaBatch(
+      [
+        {
+          ratingKey: 'dev-removed-1',
+          sectionId: '3',
+          libraryKind: 'show',
+          title: 'Deleted Anyway',
+          year: 2019,
+          thumb: null,
+          sizeBytes: Math.round(64 * GB),
+          addedAt: seedTs - 400 * 86400,
+          guidTmdb: null,
+          guidTvdb: '990002',
+        },
+      ],
+      seedTs - 100
+    );
+    addKeep('dev-friend', 'dev-removed-1');
+    tombstoneStale(seedTs - 50);
+    // Cross-instance conflict: both Sonarr instances manage the first anime
+    // title; the Anime instance won the match (it owns the arr_items row).
+    const conflictSrc = mediaItems.find((m) => m.sectionId === '4')!;
+    replaceArrConflicts([
+      {
+        ratingKey: conflictSrc.ratingKey,
+        title: conflictSrc.title,
+        firstSource: 'sonarr',
+        firstInstanceId: SONARR_ANIME.id,
+        firstInstanceName: SONARR_ANIME.name,
+        source: 'sonarr',
+        instanceId: SONARR_MAIN.id,
+        instanceName: SONARR_MAIN.name,
+        sizeOnDisk: conflictSrc.sizeBytes,
+      },
+    ]);
 
     addKeep(DEV_USER_ID, 'dev-1');
     addKeep(DEV_USER_ID, 'dev-210');

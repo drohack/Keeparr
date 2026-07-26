@@ -97,6 +97,18 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   is connected** it also adds an **"OK to delete"** headline stat and a drill-down
   listing the titles requesters have released, largest first, with **who** released
   each (and a "still kept" flag where someone else's keep still protects it).
+- **Problems** (admin) — one page that gathers every "something's off" check with
+  a count + size per category, so you don't have to dig through Browse filters and
+  Settings panels: **size mismatch** (Plex vs *arr sizes diverge), **in the media
+  server but not in *arr** (nothing manages the title), **in *arr but not in the
+  media server** (downloaded per Sonarr/Radarr but the server can't see it), **duplicates** (two
+  library entries sharing one external id), ***arr conflicts** (two instances
+  both managing the same title), **zero size** (the server lists it but reports
+  no file bytes), **removed but kept** (deleted despite someone's keep), and
+  **missing IDs** (no tvdb/tmdb/imdb id, so it can never match *arr). The
+  *arr-based categories appear only when Sonarr/Radarr is connected; an
+  **"on disk, in neither"** disk-scan category is planned. Report-only, like
+  everything else in Keeparr.
 - **Size on disk** — series totals are summed across every episode; movies across
   all parts/versions. Shown as `x.xx GB` per card; aggregates auto-switch to TB.
 - **Scheduled refresh jobs** — admins set a schedule (every N minutes, daily, or

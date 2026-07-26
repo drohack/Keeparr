@@ -42,6 +42,8 @@ import { POST as adminSyncLibraries } from '@/app/api/admin/sync-libraries/route
 import { POST as adminTestConnection } from '@/app/api/admin/test-connection/route';
 import { GET as adminHealth } from '@/app/api/admin/health/route';
 import { GET as adminLogsGet, DELETE as adminLogsDelete } from '@/app/api/admin/logs/route';
+import { GET as adminProblems } from '@/app/api/admin/problems/route';
+import { GET as adminProblemsSummary } from '@/app/api/admin/problems/summary/route';
 
 type Handler = (req: Request) => Promise<Response>;
 
@@ -87,6 +89,8 @@ const ADMIN_GUARDED: [string, Handler, string][] = [
   ['GET /api/admin/health', adminHealth, 'GET'],
   ['GET /api/admin/logs', adminLogsGet, 'GET'],
   ['DELETE /api/admin/logs', adminLogsDelete, 'DELETE'],
+  ['GET /api/admin/problems', adminProblems, 'GET'],
+  ['GET /api/admin/problems/summary', adminProblemsSummary, 'GET'],
 ];
 
 describe('public routes stay public', () => {

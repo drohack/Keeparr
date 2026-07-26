@@ -1,8 +1,10 @@
 import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { __setTestDbToMemory, __closeDb } from './db';
 import {
+  getArrConflicts,
   getArrUnmatched,
   getMediaItem,
+  replaceArrConflicts,
   libraryStats,
   replaceArrItems,
   replaceArrUnmatched,
@@ -221,6 +223,111 @@ describe('syncArr per-instance replace', () => {
     expect(arrSource('m1')).toBe('radarr');
     expect(arrSource('sh1')).toBeNull(); // Sonarr reported nothing → row dropped
     expect(getArrUnmatched()).toEqual([]); // stale orphan swept
+  });
+});
+
+describe('syncArr cross-instance conflicts', () => {
+  const rec = (over: Partial<ArrRecord>): ArrRecord => ({
+    source: 'radarr',
+    instanceId: 'r1',
+    instanceName: 'Radarr',
+    arrId: 1,
+    matchId: '22',
+    imdbId: null,
+    title: 'Movie',
+    monitored: true,
+    status: 'released',
+    quality: 'Bluray-1080p',
+    qualityKind: 'file',
+    rootFolder: '/m',
+    sizeOnDisk: 1 * GB,
+    tags: [],
+    ...over,
+  });
+
+  beforeEach(() => {
+    setSonarrInstances([]);
+    setRadarrInstances([
+      { id: 'r1', name: 'Radarr', url: 'http://r1', apiKey: 'k' },
+      { id: 'r2', name: 'Radarr 4K', url: 'http://r2', apiKey: 'k' },
+    ]);
+    upsertMediaBatch([media('m1', { guidTmdb: '22', guidImdb: 'tt5' })]);
+  });
+
+  it('records the second claimant as a conflict; the first keeps the arr_items row', async () => {
+    vi.mocked(fetchRadarr)
+      .mockResolvedValueOnce([rec({})]) // r1 claims m1 first
+      .mockResolvedValueOnce([
+        rec({ instanceId: 'r2', instanceName: 'Radarr 4K', sizeOnDisk: 2 * GB }),
+      ]);
+    const res = await syncArr();
+
+    const conflicts = getArrConflicts();
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].ratingKey).toBe('m1');
+    expect(conflicts[0].winner).toEqual({ source: 'radarr', instanceName: 'Radarr' });
+    expect(conflicts[0].loser).toEqual({ source: 'radarr', instanceName: 'Radarr 4K' });
+    expect(conflicts[0].sizeOnDisk).toBe(2 * GB); // the loser's copy
+    // arr_items kept the FIRST claimant.
+    const row = queryLibrary({ plexUserId: 'u', limit: 10, offset: 0 }).find(
+      (r) => r.rating_key === 'm1'
+    );
+    expect(row?.arr_instance_name).toBe('Radarr');
+    expect(res.message).toContain('1 cross-instance conflict(s)');
+  });
+
+  it('a collision via the imdb fallback is recorded too', async () => {
+    vi.mocked(fetchRadarr)
+      .mockResolvedValueOnce([rec({})]) // r1 claims m1 via tmdb
+      .mockResolvedValueOnce([
+        // r2's record carries a different tmdb id but the same imdb id.
+        rec({ instanceId: 'r2', instanceName: 'Radarr 4K', matchId: '404', imdbId: 'tt5' }),
+      ]);
+    await syncArr();
+    expect(getArrConflicts().map((c) => c.loser.instanceName)).toEqual(['Radarr 4K']);
+  });
+
+  it('a clean run sweeps stale conflict rows', async () => {
+    replaceArrConflicts([
+      {
+        ratingKey: 'm1', title: 'Movie', firstSource: 'radarr', firstInstanceId: 'r1',
+        firstInstanceName: 'Radarr', source: 'radarr', instanceId: 'r2',
+        instanceName: 'Radarr 4K', sizeOnDisk: 1 * GB,
+      },
+    ]);
+    vi.mocked(fetchRadarr)
+      .mockResolvedValueOnce([rec({})]) // only r1 has it now
+      .mockResolvedValueOnce([]);
+    await syncArr();
+    expect(getArrConflicts()).toEqual([]);
+  });
+
+  it("a failed instance's prior conflict rows are preserved", async () => {
+    replaceArrConflicts([
+      {
+        ratingKey: 'm1', title: 'Movie', firstSource: 'radarr', firstInstanceId: 'r1',
+        firstInstanceName: 'Radarr', source: 'radarr', instanceId: 'r2',
+        instanceName: 'Radarr 4K', sizeOnDisk: 1 * GB,
+      },
+    ]);
+    vi.mocked(fetchRadarr)
+      .mockResolvedValueOnce([rec({})])
+      .mockRejectedValueOnce(new Error('down')); // r2 (the row's owner) failed
+    await syncArr();
+    expect(getArrConflicts()).toHaveLength(1); // preserved, not swept
+  });
+
+  it('every instance failing leaves the conflict table untouched', async () => {
+    replaceArrConflicts([
+      {
+        ratingKey: 'm1', title: 'Movie', firstSource: 'radarr', firstInstanceId: 'r1',
+        firstInstanceName: 'Radarr', source: 'radarr', instanceId: 'r2',
+        instanceName: 'Radarr 4K', sizeOnDisk: 1 * GB,
+      },
+    ]);
+    vi.mocked(fetchRadarr).mockRejectedValue(new Error('down'));
+    await syncArr();
+    expect(getArrConflicts()).toHaveLength(1);
   });
 });
 

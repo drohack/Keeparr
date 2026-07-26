@@ -535,6 +535,27 @@
         "summary": "Sonarr/Radarr match health",
         "responses": { "200": { "description": "`{matched, unmatched[], missing, arrJob}` — unmatched = downloaded in *arr but not in the media server, largest first" } }
       }
+    },
+    "/api/admin/problems/summary": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Problems page pill strip: per-category counts + bytes",
+        "responses": { "200": { "description": "`{arrConfigured, serverType, categories[]}` — one `{type, available, planned?, titles, bytes}` per category in display order; arr-gated categories come back `available:false` (zeroed) without Sonarr/Radarr, and `notInArr` also waits for the first successful arr match. `diskOrphans` is a reserved stub (`planned:true`); `serverType` (plex|jellyfin|emby) lets clients name the media server in labels." } }
+      }
+    },
+    "/api/admin/problems": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Paged list for one problem category",
+        "parameters": [
+          { "name": "type", "in": "query", "required": true, "schema": { "type": "string", "enum": ["sizeMismatch", "notInArr", "missingFromPlex", "duplicates", "arrConflicts", "zeroSize", "removedButKept", "missingIds"] } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (e.g. `duplicates` items are groups with members)" },
+          "400": { "description": "`unknown_type` (missing/unknown/stub type — no default view) or `arr_not_configured` (arr-gated type without Sonarr/Radarr)" }
+        }
+      }
     }
   }
 }

@@ -22,6 +22,7 @@ import {
   listUsers,
   ratingKeysByGuid,
   replaceArrItems,
+  replaceArrConflicts,
   replaceArrUnmatched,
   replaceSeerrRequests,
   showRatingKeys,
@@ -29,6 +30,7 @@ import {
   updateItemSize,
   upsertMediaBatch,
   upsertWatchBatch,
+  type ArrConflictInput,
   type ArrItemInput,
   type ArrUnmatchedInput,
   type UpsertMediaInput,
@@ -282,7 +284,14 @@ export async function syncArr(): Promise<JobResult> {
   const imdbMap = ratingKeysByGuid('imdb'); // secondary axis (spans movies + shows)
   const matched: ArrItemInput[] = [];
   const unmatchedRecs: ArrUnmatchedInput[] = [];
-  const seen = new Set<string>();
+  const conflictRecs: ArrConflictInput[] = [];
+  // First instance to claim a rating_key wins; later claimants are recorded as
+  // conflicts (two instances managing one title, or two arr entries resolving
+  // to one merged Plex item) instead of being silently dropped.
+  const seen = new Map<
+    string,
+    { source: string; instanceId: string; instanceName: string }
+  >();
   let total = 0;
   let errors = 0;
   let ok = 0;
@@ -311,8 +320,26 @@ export async function syncArr(): Promise<JobResult> {
         }
         continue;
       }
-      if (seen.has(rk)) continue;
-      seen.add(rk);
+      const first = seen.get(rk);
+      if (first) {
+        conflictRecs.push({
+          ratingKey: rk,
+          title: r.title,
+          firstSource: first.source,
+          firstInstanceId: first.instanceId,
+          firstInstanceName: first.instanceName,
+          source: r.source,
+          instanceId: r.instanceId,
+          instanceName: r.instanceName,
+          sizeOnDisk: r.sizeOnDisk,
+        });
+        continue;
+      }
+      seen.set(rk, {
+        source: r.source,
+        instanceId: r.instanceId,
+        instanceName: r.instanceName,
+      });
       matched.push(toArrInput(rk, r));
     }
   };
@@ -351,13 +378,17 @@ export async function syncArr(): Promise<JobResult> {
 
   replaceArrItems(matched, failedInstanceIds);
   replaceArrUnmatched(unmatchedRecs, failedInstanceIds);
+  replaceArrConflicts(conflictRecs, failedInstanceIds);
   const unmatched = unmatchedRecs.length;
+  const conflictNote = conflictRecs.length
+    ? `, ${conflictRecs.length} cross-instance conflict(s)`
+    : '';
   const errNote = errors
     ? ` (${errors} instance error(s); their cached data kept)`
     : '';
   return {
     result: matched.length,
-    message: `Matched ${matched.length} of ${total} titles (${unmatched} downloaded but not in Plex)${errNote}.`,
+    message: `Matched ${matched.length} of ${total} titles (${unmatched} downloaded but not in Plex${conflictNote})${errNote}.`,
   };
 }
 

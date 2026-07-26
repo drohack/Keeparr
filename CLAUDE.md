@@ -88,6 +88,9 @@ lib/
                      (+ syncSeerrRequestsForUser: warm one user's request cache on first login).
                      syncLibrary aborts on zero sections + skips tombstoning
                      empty-but-200 sections; syncArr keeps a failed instance's cache
+                     + records cross-instance claim collisions into arr_conflicts
+                     (first instance to claim a rating_key wins arr_items; later
+                     claimants are recorded, not silently dropped)
   jobs.ts            job registry + runJob/runWithState (single-flight) + isDue/dueJobs
   scheduler.ts       per-job scheduler (interval or daily HH:MM); fires due jobs each
                      minute; resets stale 'running' job rows at boot (resetInterruptedJobs)
@@ -102,6 +105,8 @@ app/
                      selection via rail, + Sonarr/Radarr quality/tag/monitored filters)
   search/            AppShell → SearchResults
   stats/             AppShell → StatsView (full-width dashboard)
+  problems/          AppShell → ProblemsView (admin-only problem-file dashboard:
+                     category pills + per-category tables; non-admins → /)
   api-docs/          interactive API reference (Scalar over /api/openapi.json;
                      session-gated server component + client dynamic import)
   settings/<tab>/    admin Settings sub-tabs: general, users, connections, libraries,
@@ -110,7 +115,8 @@ app/
 components/          AppShell (rail + top bar + user menu), MediaCard (grid), MediaRow
                      (Browse List view), MultiSelect (grouped checkbox-dropdown filter),
                      useKeepState (shared keep/skip hook), KeepView,
-                     LibraryBrowser, StatsView, UsersManager, SearchBox, SearchResults;
+                     LibraryBrowser, StatsView, ProblemsView (admin Problems page),
+                     UsersManager, SearchBox, SearchResults;
                      breakdown.tsx (shared keep/reclaim visual language: StackedBar,
                        Donut, LegendRow + the TONE palette — used by KeepView's totals
                        column and the StatsView dashboard);
@@ -120,8 +126,9 @@ components/          AppShell (rail + top bar + user menu), MediaCard (grid), Me
 ```
 
 The chrome is a Sonarr/Radarr-style left rail (logo → Keep; Keep / Browse[expand
-→ libraries] / Big Picture / Settings) + a top bar (search + user menu). `AppShell`
-(client) wraps every page; the Keep page renders inside it with no page scroll.
+→ libraries] / Big Picture / Problems[admin] / Settings[admin]) + a top bar
+(search + user menu). `AppShell` (client) wraps every page; the Keep page renders
+inside it with no page scroll.
 
 ## Database schema (`lib/db.ts`)
 
@@ -178,6 +185,13 @@ The chrome is a Sonarr/Radarr-style left rail (logo → Keep; Keep / Browse[expa
   Plex items with a null `guid_tvdb`/`guid_tmdb` that can never match.) Matched via
   `media_items.guid_tvdb`/`guid_tmdb` (indexed). `size_bytes` + `instance_id`
   (scopes the per-instance replace) added via guarded `ALTER`s.
+- `arr_conflicts` — cross-instance *arr claim collisions: during the `arr` job the
+  first instance to claim a rating_key wins `arr_items`; each later claimant is
+  recorded here (winner `first_*` cols + loser `source/instance_*` cols + the
+  loser's `size_on_disk`). Replaced per-instance like `arr_unmatched` (rows are
+  scoped to the LOSER's `instance_id`; failed instances keep their rows). Only
+  observable in a run where both claimants were fetched — transient, self-healing.
+  Surfaced on the admin Problems page.
 - `settings` — key/value; secret values encrypted.
 - `job_state` — one row per scheduled job (`recentlyAdded`/`library`/`sizes`/`watch`/
   `requests`/`arr`): last run/status/message/duration/result. Rows stuck at
@@ -339,6 +353,18 @@ when it has no tvdb/tmdb **and** no imdb.
   `GET /api/admin/arr-health` (`{matched, unmatched[], missing, arrJob}` — Match
   health panel; `unmatched[]` = titles DOWNLOADED in *arr but not in Plex, with
   `sizeBytes`, largest-first),
+  `GET /api/admin/problems/summary` (`{arrConfigured, serverType, categories[]}` —
+  `serverType` lets the UI name the connected media server in labels; the Problems
+  page pill strip: per-category `{type, available, planned?, titles, bytes}` in
+  display order; arr-gated categories are `available:false` zeroed without
+  Sonarr/Radarr, `notInArr` also waits for `arrMatchedCount() > 0`, and
+  `diskOrphans` is a reserved `planned:true` stub) +
+  `GET /api/admin/problems?type=&offset=` (paged list for one category —
+  `sizeMismatch|notInArr|missingFromPlex|duplicates|arrConflicts|zeroSize|`
+  `removedButKept|missingIds`; NO default view: missing/unknown/stub type → 400
+  `unknown_type`, arr-gated type without arr → 400 `arr_not_configured`; returns
+  `{type, items, hasMore, nextOffset}`, item shape varies per category and
+  `duplicates` items are groups),
   `GET/PUT /api/admin/users` (list + grant/revoke admin + enable/disable + the
   `openSignin` toggle; Owner can't be demoted or disabled),
   `POST /api/admin/users/import` (import the Plex shared-user list).
