@@ -407,7 +407,7 @@
         "tags": ["admin", "automation"],
         "summary": "Trigger a job now (accepts X-Api-Key)",
         "security": [{ "cookieAuth": [] }, { "apiKeyAuth": [] }],
-        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "job": { "type": "string", "description": "recentlyAdded | library | sizes | watch | requests | arr | backup | all" } }, "required": ["job"] } } } },
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "job": { "type": "string", "description": "recentlyAdded | library | sizes | watch | requests | arr | diskScan | backup | all" } }, "required": ["job"] } } } },
         "responses": { "200": { "description": "`{started:true}` (fire-and-forget)" } }
       }
     },
@@ -540,7 +540,7 @@
       "get": {
         "tags": ["admin"],
         "summary": "Problems page pill strip: per-category counts + bytes",
-        "responses": { "200": { "description": "`{arrConfigured, serverType, categories[]}` — one `{type, available, planned?, titles, bytes}` per category in display order; arr-gated categories come back `available:false` (zeroed) without Sonarr/Radarr, and `notInArr` also waits for the first successful arr match. `diskOrphans` is a reserved stub (`planned:true`); `serverType` (plex|jellyfin|emby) lets clients name the media server in labels." } }
+        "responses": { "200": { "description": "`{arrConfigured, serverType, categories[]}` — one `{type, available, reason?, titles, bytes}` per category in display order; arr-gated categories come back `available:false` (zeroed) without Sonarr/Radarr, `notInArr` also waits for the first successful arr match, and `diskOrphans` needs storage mappings + a completed Disk scan run (until then `reason` is `storage_not_configured` or `not_scanned`). `serverType` (plex|jellyfin|emby) lets clients name the media server in labels." } }
       }
     },
     "/api/admin/problems": {
@@ -548,12 +548,12 @@
         "tags": ["admin"],
         "summary": "Paged list for one problem category",
         "parameters": [
-          { "name": "type", "in": "query", "required": true, "schema": { "type": "string", "enum": ["sizeMismatch", "notInArr", "missingFromPlex", "duplicates", "arrConflicts", "zeroSize", "removedButKept", "missingIds"] } },
+          { "name": "type", "in": "query", "required": true, "schema": { "type": "string", "enum": ["sizeMismatch", "notInArr", "missingFromPlex", "duplicates", "arrConflicts", "zeroSize", "removedButKept", "missingIds", "diskOrphans"] } },
           { "name": "offset", "in": "query", "schema": { "type": "integer" } }
         ],
         "responses": {
-          "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (e.g. `duplicates` items are groups with members)" },
-          "400": { "description": "`unknown_type` (missing/unknown/stub type — no default view) or `arr_not_configured` (arr-gated type without Sonarr/Radarr)" }
+          "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (`duplicates` items are groups with members; `diskOrphans` items are filesystem entries `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`)" },
+          "400": { "description": "`unknown_type` (missing/unknown type — no default view), `arr_not_configured` (arr-gated type without Sonarr/Radarr), or `storage_not_configured` (`diskOrphans` without storage mappings)" }
         }
       }
     }

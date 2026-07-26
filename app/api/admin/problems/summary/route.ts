@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { errorResponse } from '@/lib/route-helpers';
-import { getMediaServerType, isArrConfigured } from '@/lib/settings';
+import { getMediaServerType, getStorageMappings, isArrConfigured } from '@/lib/settings';
 import {
   arrConflictsSummary,
   arrMatchedCount,
   arrUnmatchedSummary,
+  diskOrphansSummary,
   duplicateGroups,
+  getJobState,
   missingExternalIdsSummary,
   removedButKeptSummary,
   sizeMismatchSummary,
@@ -23,11 +25,16 @@ const ZERO = { titles: 0, bytes: 0 };
  *  are returned in display order; arr-gated ones come back `available: false`
  *  (zeroed) when Sonarr/Radarr isn't configured, and `notInArr` additionally
  *  waits for the first successful arr match — before that EVERY title would be
- *  a false positive. `diskOrphans` is a reserved stub (`planned: true`). */
+ *  a false positive. `diskOrphans` needs storage mappings AND a completed Disk
+ *  scan run; until then it's unavailable with a `reason` the UI turns into a
+ *  fix-it tooltip. */
 export async function GET() {
   try {
     await requireAdmin();
     const arr = isArrConfigured();
+    const storageConfigured = getStorageMappings().length > 0;
+    const scanned = getJobState('diskScan').lastRun != null;
+    const orphansReady = storageConfigured && scanned;
     // Gate "not in *arr" until the arr job has actually matched something.
     const notInArrReady = arr && arrMatchedCount() > 0;
     const notInArr = notInArrReady ? unmatchedMediaSummary() : ZERO;
@@ -52,7 +59,14 @@ export async function GET() {
       { type: 'zeroSize', available: true, titles: zeroSizeCount(), bytes: 0 },
       { type: 'removedButKept', available: true, ...removedButKeptSummary() },
       { type: 'missingIds', available: true, ...missingExternalIdsSummary() },
-      { type: 'diskOrphans', available: false, planned: true, ...ZERO },
+      {
+        type: 'diskOrphans',
+        available: orphansReady,
+        ...(orphansReady ? diskOrphansSummary() : ZERO),
+        ...(orphansReady
+          ? {}
+          : { reason: !storageConfigured ? ('storage_not_configured' as const) : ('not_scanned' as const) }),
+      },
     ];
 
     // serverType lets the UI name the actual media server in labels ("In *arr,

@@ -29,6 +29,7 @@ describe('arr normalize (pure, no network)', () => {
         status: 'continuing',
         qualityProfileId: 5,
         rootFolderPath: '/anime',
+        path: '/anime/Frieren',
         statistics: { sizeOnDisk: 1234 },
         tags: [1, 2, 9], // 9 is unknown → dropped
       },
@@ -44,6 +45,7 @@ describe('arr normalize (pure, no network)', () => {
       monitored: true,
       sizeOnDisk: 1234,
       arrId: 10,
+      path: '/anime/Frieren',
     });
     expect(r?.tags).toEqual(['Anime', 'Bounty']);
   });
@@ -62,6 +64,7 @@ describe('arr normalize (pure, no network)', () => {
         monitored: false,
         status: 'released',
         sizeOnDisk: 80,
+        path: '/movies/Dune (2021)',
         movieFile: { quality: { quality: { name: 'Bluray-2160p' } } },
         tags: [2],
       },
@@ -75,6 +78,7 @@ describe('arr normalize (pure, no network)', () => {
       quality: 'Bluray-2160p',
       qualityKind: 'file',
       monitored: false,
+      path: '/movies/Dune (2021)',
     });
     expect(r?.tags).toEqual(['Bounty']);
   });

@@ -149,10 +149,14 @@ export type ProblemType =
  *  removedButKept = summed last-known sizes; notInArr/missingIds = summed Plex sizes. */
 export interface ProblemCategorySummary {
   type: ProblemType;
-  /** False = category can't run (arr not configured) or isn't built yet. */
+  /** False = category can't run (arr not configured / storage unmapped / never scanned). */
   available: boolean;
-  /** True only for diskOrphans — the UI shows a dimmed "Planned" pill. */
+  /** Reserved for future not-yet-built categories — the UI shows a dimmed
+   *  "Planned" pill. (No category sets it today; kept for API stability.) */
   planned?: boolean;
+  /** Why an otherwise-buildable category is unavailable — the UI shows a dimmed
+   *  pill with a fix-it tooltip instead of hiding it. */
+  reason?: 'storage_not_configured' | 'not_scanned';
   titles: number;
   bytes: number;
 }

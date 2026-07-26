@@ -1,6 +1,7 @@
 import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { __setTestDbToMemory, __closeDb } from './db';
 import {
+  arrFolderNames,
   getArrConflicts,
   getArrUnmatched,
   getMediaItem,
@@ -61,6 +62,8 @@ function backendItem(ratingKey: string, over: Partial<BackendItem> = {}): Backen
     guidTvdb: null,
     guidImdb: null,
     sizeBytes: 1 * GB,
+    dirName: null,
+    fileName: null,
     ...over,
   };
 }
@@ -168,6 +171,7 @@ describe('syncArr per-instance replace', () => {
     qualityKind: 'file',
     rootFolder: '/m',
     sizeOnDisk: 1 * GB,
+    path: null,
     tags: [],
     ...over,
   });
@@ -224,6 +228,16 @@ describe('syncArr per-instance replace', () => {
     expect(arrSource('sh1')).toBeNull(); // Sonarr reported nothing → row dropped
     expect(getArrUnmatched()).toEqual([]); // stale orphan swept
   });
+
+  it('captures folder names for matched AND unmatched titles (disk-orphan set)', async () => {
+    vi.mocked(fetchSonarr).mockResolvedValue([]);
+    vi.mocked(fetchRadarr).mockResolvedValue([
+      rec({ path: '/movies/Dune (2021)' }), // matches m1
+      rec({ arrId: 2, matchId: '404', title: 'Lost Film', path: '/movies/Lost Film' }), // unmatched, downloaded
+    ]);
+    await syncArr();
+    expect(arrFolderNames().sort()).toEqual(['Dune (2021)', 'Lost Film']);
+  });
 });
 
 describe('syncArr cross-instance conflicts', () => {
@@ -241,6 +255,7 @@ describe('syncArr cross-instance conflicts', () => {
     qualityKind: 'file',
     rootFolder: '/m',
     sizeOnDisk: 1 * GB,
+    path: null,
     tags: [],
     ...over,
   });

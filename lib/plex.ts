@@ -366,6 +366,9 @@ export interface PlexMetadata {
   guid?: string;
   Guid?: { id: string }[];
   Media?: { Part?: { id?: number; file?: string; size?: number }[] }[];
+  /** On-disk folder(s) — present on show nodes in section listings (the series
+   *  folder). Movies carry no Location; their folder derives from Part.file. */
+  Location?: { path: string }[];
 }
 
 /** Sum Part.size across all Media versions of one metadata node (bytes). */

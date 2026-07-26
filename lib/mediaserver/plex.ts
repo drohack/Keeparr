@@ -9,6 +9,7 @@ import {
   type PlexMetadata,
 } from '../plex';
 import { getPlexBaseUrl, getServerToken } from '../settings';
+import { lastSegment, parentSegment } from '../paths';
 import type { LibraryKind } from '../types';
 import type { BackendItem, BackendSection, MediaBackend } from './types';
 
@@ -19,8 +20,19 @@ function creds(): { baseUrl: string; token: string } {
   return { baseUrl, token };
 }
 
-function mapItem(m: PlexMetadata, sizeBytes: number): BackendItem {
+/** Exported for tests. Movies derive their on-disk names from Part.file (Media
+ *  is inline in section listings); shows from their Location (series folder). */
+export function mapItem(m: PlexMetadata, kind: LibraryKind, sizeBytes: number): BackendItem {
   const { tmdb, tvdb, imdb } = extractGuids(m);
+  let dirName: string | null = null;
+  let fileName: string | null = null;
+  if (kind === 'movie') {
+    const file = m.Media?.[0]?.Part?.[0]?.file ?? null;
+    dirName = parentSegment(file);
+    fileName = lastSegment(file);
+  } else {
+    dirName = lastSegment(m.Location?.[0]?.path ?? null);
+  }
   return {
     ratingKey: String(m.ratingKey),
     title: m.title,
@@ -31,6 +43,8 @@ function mapItem(m: PlexMetadata, sizeBytes: number): BackendItem {
     guidTvdb: tvdb,
     guidImdb: imdb,
     sizeBytes,
+    dirName,
+    fileName,
   };
 }
 
@@ -51,12 +65,12 @@ export const plexBackend: MediaBackend = {
   async listSectionItems(sectionId, kind) {
     const { baseUrl, token } = creds();
     const items = await getSectionItems(baseUrl, token, sectionId, kind === 'movie' ? 1 : 2);
-    return items.map((m) => mapItem(m, kind === 'movie' ? sumPartSizes(m) : 0));
+    return items.map((m) => mapItem(m, kind, kind === 'movie' ? sumPartSizes(m) : 0));
   },
   async recentItems(sectionId, kind, limit) {
     const { baseUrl, token } = creds();
     const items = await getRecentlyAdded(baseUrl, token, sectionId, kind === 'movie' ? 1 : 2, limit);
-    return items.map((m) => mapItem(m, kind === 'movie' ? sumPartSizes(m) : 0));
+    return items.map((m) => mapItem(m, kind, kind === 'movie' ? sumPartSizes(m) : 0));
   },
   async showSize(ratingKey) {
     const { baseUrl, token } = creds();

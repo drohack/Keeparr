@@ -48,6 +48,9 @@ export const DEFAULT_JOB_SCHEDULES: Record<string, JobSchedule> = {
   arr: { type: 'daily', hour: 7, minute: 0 },
   // After the overnight refresh cycle, snapshot the database.
   backup: { type: 'daily', hour: 8, minute: 0 },
+  // Disk-orphan scan: walks orphan folders on the media mount, so weekly (after
+  // Sunday's overnight cycle has refreshed the known-name sets it matches against).
+  diskScan: { type: 'weekly', weekday: 0, hour: 9, minute: 0 },
 };
 
 /** How many backup files to keep (oldest pruned first). Overridable in Settings. */

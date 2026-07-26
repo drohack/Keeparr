@@ -27,6 +27,11 @@ export interface BackendItem {
   guidTvdb: string | null;
   guidImdb: string | null;
   sizeBytes: number;
+  /** The item's on-disk folder name (server-side basename) — feeds the disk
+   *  scan's known-name set. Null when the backend didn't report a path. */
+  dirName: string | null;
+  /** Movie file basename (covers loose files in the library root); null for shows. */
+  fileName: string | null;
 }
 
 /** One watch-history row (movies by item id; episodes rolled up to their series). */

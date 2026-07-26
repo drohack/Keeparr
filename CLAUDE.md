@@ -70,6 +70,15 @@ lib/
   seerr.ts           requests client
   arr.ts             Sonarr/Radarr v3 client (shared) + pure normalize fns (fetchSonarr/fetchRadarr/testArr)
   quality.ts         pure resolutionBucket()/RES_ORDER (shared by Browse + Big Picture quality grouping)
+  paths.ts           pure separator-agnostic path-string helpers (lastSegment/
+                     parentSegment/normalizeName) — foreign server-side paths may be
+                     Windows-style, so never node:path
+  diskscan.ts        the diskScan job: per mapped library root, readdir top-level
+                     entries and flag names no media item or *arr title claims
+                     (orphans get a recursive size walk — known entries are never
+                     descended into). Safety guard (skip mostly-unnamed sections),
+                     wrong-mapping circuit breaker (record names, skip sizing),
+                     mtime size cache, junk skip-list (JUNK_NAMES)
   version.ts         update check vs GitHub Releases (compareSemver + getVersionInfo,
                      in-memory ~6h cache, never throws — /api/about + health check)
   health.ts          healthIssues(): standing admin warnings derived from job_state/
@@ -133,7 +142,10 @@ inside it with no page scroll.
 ## Database schema (`lib/db.ts`)
 
 - `media_items` — one row per **series or movie** (no episodes). `size_bytes` is
-  the summed total. Tombstoned with `removed=1` when gone from Plex. The full
+  the summed total. `dir_name`/`file_name` are the item's on-disk names as the
+  media server reports them (movie: Part.file / item Path; show: Location /
+  series Path) — the disk-orphan scan's known-name set; NULL until a library
+  scan captures them. Tombstoned with `removed=1` when gone from Plex. The full
   Library sweep aborts if the backend reports zero sections, and skips the
   removal check for scanned sections that returned zero items — an empty-but-200
   hiccup (e.g. PMS mid-restart) must not tombstone a whole library.
@@ -171,7 +183,9 @@ inside it with no page scroll.
   "Requested by me" works without waiting for the daily job.
 - `arr_items` — one row per matched media item with its Sonarr/Radarr metadata
   (`source`, `instance_id/name`, `arr_id`, `monitored`, `status`, `quality` +
-  `quality_kind` file|profile, `root_folder`, `arr_size_bytes`, `tags` JSON). Keyed
+  `quality_kind` file|profile, `root_folder`, `arr_size_bytes`, `tags` JSON,
+  `folder_name` — the title's own *arr folder basename, part of the disk-orphan
+  known-name set). Keyed
   by `rating_key`; replaced per-instance by the `arr` job — instances that failed
   a run keep their cached rows; instances removed from settings drop out next
   run. LEFT-JOINed by `queryLibrary`
@@ -180,11 +194,14 @@ inside it with no page scroll.
   **downloaded** ones (`sizeOnDisk > 0`, stored as `size_bytes`) are recorded — they're
   media on disk Plex can't see (actionable); wanted-but-not-downloaded titles are skipped
   (just missing media). Replaced per-instance by the `arr` job (like
-  `arr_items`); surfaced in Settings → Match health
-  largest-first with sizes + a total. (`mediaMissingExternalIds()` reports the inverse:
+  `arr_items`); full list on the Problems page ("In *arr, not in <server>",
+  largest-first with sizes); Settings → Match health shows only summary counts +
+  a link there. (`mediaMissingExternalIds()` reports the inverse:
   Plex items with a null `guid_tvdb`/`guid_tmdb` that can never match.) Matched via
   `media_items.guid_tvdb`/`guid_tmdb` (indexed). `size_bytes` + `instance_id`
-  (scopes the per-instance replace) added via guarded `ALTER`s.
+  (scopes the per-instance replace) + `folder_name` (disk-orphan known-name set —
+  an *arr title invisible to the media server still occupies disk) added via
+  guarded `ALTER`s.
 - `arr_conflicts` — cross-instance *arr claim collisions: during the `arr` job the
   first instance to claim a rating_key wins `arr_items`; each later claimant is
   recorded here (winner `first_*` cols + loser `source/instance_*` cols + the
@@ -192,9 +209,17 @@ inside it with no page scroll.
   scoped to the LOSER's `instance_id`; failed instances keep their rows). Only
   observable in a run where both claimants were fetched — transient, self-healing.
   Surfaced on the admin Problems page.
+- `disk_orphans` — the `diskScan` job's results: top-level entries under mapped
+  library paths that neither the media server nor Sonarr/Radarr account for
+  (matched by NAME per root — absolute paths differ across containers). Rebuilt
+  per-section per run; sections the scan skips (safety guard: mostly-unnamed
+  items; unreadable root) keep their prior rows. `mtime` keys the size cache
+  (unchanged orphans aren't re-walked); `size_skipped=1` marks circuit-breaker
+  rows (most of a root looked orphaned → suspect mapping → sizing skipped).
+  Surfaced as the Problems page "On disk, in neither" category.
 - `settings` — key/value; secret values encrypted.
 - `job_state` — one row per scheduled job (`recentlyAdded`/`library`/`sizes`/`watch`/
-  `requests`/`arr`): last run/status/message/duration/result. Rows stuck at
+  `requests`/`arr`/`diskScan`/`backup`): last run/status/message/duration/result. Rows stuck at
   `running` (process killed mid-job) are flipped to `error` at boot by
   `startScheduler()` → `resetInterruptedJobs()` — the persisted flag would
   otherwise gate that job out of the scheduler AND manual runs forever.
@@ -355,16 +380,20 @@ when it has no tvdb/tmdb **and** no imdb.
   `sizeBytes`, largest-first),
   `GET /api/admin/problems/summary` (`{arrConfigured, serverType, categories[]}` —
   `serverType` lets the UI name the connected media server in labels; the Problems
-  page pill strip: per-category `{type, available, planned?, titles, bytes}` in
+  page pill strip: per-category `{type, available, reason?, titles, bytes}` in
   display order; arr-gated categories are `available:false` zeroed without
   Sonarr/Radarr, `notInArr` also waits for `arrMatchedCount() > 0`, and
-  `diskOrphans` is a reserved `planned:true` stub) +
+  `diskOrphans` needs storage mappings + a completed diskScan run — until then
+  `available:false` with `reason: storage_not_configured|not_scanned`, which the
+  UI renders as a dimmed pill with a fix-it tooltip) +
   `GET /api/admin/problems?type=&offset=` (paged list for one category —
   `sizeMismatch|notInArr|missingFromPlex|duplicates|arrConflicts|zeroSize|`
-  `removedButKept|missingIds`; NO default view: missing/unknown/stub type → 400
-  `unknown_type`, arr-gated type without arr → 400 `arr_not_configured`; returns
-  `{type, items, hasMore, nextOffset}`, item shape varies per category and
-  `duplicates` items are groups),
+  `removedButKept|missingIds|diskOrphans`; NO default view: missing/unknown type
+  → 400 `unknown_type`, arr-gated type without arr → 400 `arr_not_configured`,
+  `diskOrphans` without mappings → 400 `storage_not_configured`; returns
+  `{type, items, hasMore, nextOffset}`, item shape varies per category —
+  `duplicates` items are groups, `diskOrphans` items are filesystem entries
+  `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`),
   `GET/PUT /api/admin/users` (list + grant/revoke admin + enable/disable + the
   `openSignin` toggle; Owner can't be demoted or disabled),
   `POST /api/admin/users/import` (import the Plex shared-user list).
@@ -558,13 +587,15 @@ A fuller source-verified reference is in the planning doc
 - Refresh work is split into scheduled jobs (`lib/jobs.ts`): `recentlyAdded` (cheap,
   newest items only), `library` (full inventory + movie sizes + new-show sizing),
   `sizes` (expensive per-series `getAllLeaves` recompute), `watch` (Tautulli),
-  `requests` (Seerr cache), `arr` (Sonarr/Radarr quality+tags cache), `backup`
+  `requests` (Seerr cache), `arr` (Sonarr/Radarr quality+tags cache), `diskScan`
+  (disk-orphan scan over the mapped library paths, `lib/diskscan.ts` — gated in
+  `lib/health.ts jobRelevant` on storage mappings existing), `backup`
   (db snapshot + retention prune, `lib/backup.ts`). Each is
   single-flight per `job_state`, fire-and-forget from `/api/admin/jobs`, auto-run by
   `lib/scheduler.ts` on its `job_schedules` entry (`isDue`: every N minutes/hours, daily
   at a local HH:MM, or weekly on a local weekday at HH:MM). Defaults in `config.ts` (`DEFAULT_JOB_SCHEDULES`): recentlyAdded
   5 min; library 03:00; watch 04:00; requests 05:00; sizes 06:00; arr 07:00;
-  backup 08:00.
+  backup 08:00; diskScan weekly Sunday 09:00.
 - **Releases + images (continuous delivery)**: every push to `main` ships one
   release via `.github/workflows/release.yml`: test (tsc + vitest + `next
   build`) → **version** → build (native amd64 + arm64, no QEMU) → publish

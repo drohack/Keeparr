@@ -82,7 +82,14 @@ import {
   removedButKeptSummary,
   missingExternalIdItems,
   missingExternalIdsSummary,
+  replaceDiskOrphansForSection,
+  getDiskOrphans,
+  diskOrphansForSection,
+  diskOrphansSummary,
+  sectionDiskNameStats,
+  arrFolderNames,
   type ArrConflictInput,
+  type DiskOrphanInput,
   type UpsertMediaInput,
 } from './queries';
 
@@ -1521,6 +1528,85 @@ describe('Problems page queries', () => {
       tombstoneStale(11);
       expect(missingExternalIdItems(100, 0)).toEqual([]);
       expect(missingExternalIdsSummary()).toEqual({ titles: 0, bytes: 0 });
+    });
+  });
+
+  describe('disk_orphans', () => {
+    const orphan = (over: Partial<DiskOrphanInput> = {}): DiskOrphanInput => ({
+      name: 'Orphan',
+      path: '/media/Movies/Orphan',
+      isDir: true,
+      sizeBytes: 5 * GB,
+      sizeSkipped: false,
+      mtime: 1000,
+      ...over,
+    });
+
+    it('replaces per section (other sections untouched), size DESC, summary sums', () => {
+      replaceDiskOrphansForSection('1', [
+        orphan({ name: 'Small', path: '/m/Small', sizeBytes: 1 * GB }),
+        orphan({ name: 'Big', path: '/m/Big', sizeBytes: 9 * GB }),
+      ]);
+      replaceDiskOrphansForSection('2', [
+        orphan({ name: 'TV Leftover', path: '/t/TV Leftover', sizeBytes: 4 * GB }),
+      ]);
+      expect(getDiskOrphans().map((r) => r.name)).toEqual(['Big', 'TV Leftover', 'Small']);
+      expect(diskOrphansSummary()).toEqual({ titles: 3, bytes: 14 * GB });
+
+      // Re-scanning section 1 wholesale-replaces ONLY section 1.
+      replaceDiskOrphansForSection('1', []);
+      expect(getDiskOrphans().map((r) => r.name)).toEqual(['TV Leftover']);
+      expect(diskOrphansForSection('2')).toHaveLength(1);
+      expect(diskOrphansForSection('2')[0]).toMatchObject({
+        sectionId: '2',
+        isDir: true,
+        sizeSkipped: false,
+        mtime: 1000,
+      });
+    });
+
+    it('sectionDiskNameStats counts coverage and collects dir + file names', () => {
+      upsertMediaBatch([
+        media('1', { dirName: 'Show A' }),
+        media('2', { dirName: 'Dune (2021)', fileName: 'dune.mkv' }),
+        media('3'), // unnamed (builder default has no names)
+        media('4', { sectionId: '2', dirName: 'Other Lib' }), // other section
+      ]);
+      upsertMediaBatch([media('5', { dirName: 'Gone' })], 10);
+      tombstoneStale(11); // removed items don't count
+      const stats = sectionDiskNameStats('1');
+      expect(stats.total).toBe(3);
+      expect(stats.named).toBe(2);
+      expect(stats.names.sort()).toEqual(['Dune (2021)', 'Show A', 'dune.mkv']);
+    });
+
+    it('arrFolderNames unions arr_items + arr_unmatched, distinct, nulls dropped', () => {
+      upsertMediaBatch([media('1')]);
+      replaceArrItems([
+        arrRow({ ratingKey: '1', folderName: 'Shared Name' }),
+      ]);
+      replaceArrUnmatched([
+        {
+          source: 'sonarr', instanceId: 's1', instanceName: 'S', title: 'A',
+          extKind: 'tvdb', extId: '1', sizeBytes: 1, folderName: 'Shared Name',
+        },
+        {
+          source: 'sonarr', instanceId: 's1', instanceName: 'S', title: 'B',
+          extKind: 'tvdb', extId: '2', sizeBytes: 1, folderName: 'Only Unmatched',
+        },
+        {
+          source: 'sonarr', instanceId: 's1', instanceName: 'S', title: 'C',
+          extKind: 'tvdb', extId: '3', sizeBytes: 1, // no folderName → dropped
+        },
+      ]);
+      expect(arrFolderNames().sort()).toEqual(['Only Unmatched', 'Shared Name']);
+    });
+
+    it('media dir_name/file_name round-trip through upsert (updates too)', () => {
+      upsertMediaBatch([media('1', { dirName: 'Old Name', fileName: 'old.mkv' })]);
+      upsertMediaBatch([media('1', { dirName: 'New Name', fileName: null })]);
+      const stats = sectionDiskNameStats('1');
+      expect(stats.names).toEqual(['New Name']);
     });
   });
 });

@@ -34,8 +34,15 @@ const problemHints = (server: string): Record<ProblemType, string> => ({
   zeroSize: `${server} lists the title but reports zero file bytes — broken/missing files or a dead metadata-only entry.`,
   removedButKept: `Gone from ${server} while someone still keeps it — something protected got deleted anyway (or the item’s id changed in a rebuild).`,
   missingIds: `No TheTVDB/TMDB/IMDb id at all, so the title can never match Sonarr/Radarr — fix the match in ${server}.`,
-  diskOrphans: `Files on disk that neither ${server} nor Sonarr/Radarr know about. Planned — needs a disk-scan job.`,
+  diskOrphans: `Top-level folders and files under your mapped library paths that neither ${server} nor Sonarr/Radarr account for. Matching is by name; if nearly everything here looks orphaned, check that library's storage mapping. Populated by the Disk scan job.`,
 });
+
+/** Fix-it instructions for pills that are visible but not yet runnable. */
+const REASON_TIP: Record<NonNullable<ProblemCategorySummary['reason']>, string> = {
+  storage_not_configured:
+    'Map your libraries to disk paths in Settings → Connections, then run the Disk scan job.',
+  not_scanned: 'Run the Disk scan job in Settings → Jobs (it also runs weekly).',
+};
 
 // --- Row shapes as /api/admin/problems returns them, per category ---
 interface MediaRowBase {
@@ -85,6 +92,15 @@ interface RemovedButKeptRow {
   keptBy: string[];
 }
 type MissingIdRow = MediaRowBase & { sizeBytes: number };
+interface DiskOrphanViewRow {
+  name: string;
+  sectionId: string;
+  path: string;
+  isDir: boolean;
+  sizeBytes: number;
+  /** Circuit breaker recorded the name but skipped sizing (suspect mapping). */
+  sizeSkipped: boolean;
+}
 
 const kindLabel = (k: LibraryKind) => (k === 'movie' ? 'Movie' : 'Series');
 const instLabel = (source: string, name: string) =>
@@ -161,8 +177,9 @@ export default function ProblemsView() {
   };
 
   // Hide arr-gated categories entirely when unavailable (like Big Picture hides
-  // its Tautulli/Seerr tabs); the planned stub stays visible but dimmed.
-  const pills = (categories ?? []).filter((c) => c.available || c.planned);
+  // its Tautulli/Seerr tabs); categories that just need setup (a reason) or are
+  // planned stay visible but dimmed with a fix-it tooltip.
+  const pills = (categories ?? []).filter((c) => c.available || c.planned || c.reason);
   const labels = problemLabels(serverName);
   const hints = problemHints(serverName);
 
@@ -179,15 +196,19 @@ export default function ProblemsView() {
       <div>
         <div className="flex flex-wrap gap-2 mb-4">
           {pills.map((c) =>
-            c.planned ? (
+            !c.available ? (
               <span
                 key={c.type}
                 className="rounded-md px-4 py-2 text-sm text-slate-400 opacity-50 cursor-default"
-                title={hints[c.type]}
+                title={`${hints[c.type]}${c.reason ? ` ${REASON_TIP[c.reason]}` : ''}`}
               >
                 {labels[c.type]}
                 <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
-                  Planned
+                  {c.planned
+                    ? 'Planned'
+                    : c.reason === 'not_scanned'
+                      ? 'Not scanned'
+                      : 'Setup needed'}
                 </span>
               </span>
             ) : (
@@ -495,6 +516,42 @@ function ProblemTable({
                 <td className="px-3 py-2 text-slate-400">{kindLabel(r.libraryKind)}</td>
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.sizeBytes)}</td>
                 <td className="px-3 py-2 text-slate-300">{r.keptBy.join(', ') || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </>
+      );
+    }
+    case 'diskOrphans': {
+      const rows = items as DiskOrphanViewRow[];
+      return (
+        <>
+          <thead className={HEAD_CLS}>
+            <tr>
+              {th('Name')}
+              {th('Kind')}
+              {th('Path')}
+              {th('Size', 'right')}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.path} className={ROW_CLS}>
+                <td className="px-3 py-2 font-medium">{r.name}</td>
+                <td className="px-3 py-2 text-slate-400">{r.isDir ? 'Folder' : 'File'}</td>
+                <td className="px-3 py-2 font-mono text-xs text-slate-500">{r.path}</td>
+                <td className="px-3 py-2 text-right font-mono">
+                  {r.sizeSkipped ? (
+                    <span
+                      className="cursor-help text-slate-600"
+                      title="Sizing skipped — most of this root looked orphaned, so the storage mapping is suspect. Fix the mapping and rerun the Disk scan."
+                    >
+                      —
+                    </span>
+                  ) : (
+                    formatSize(r.sizeBytes)
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

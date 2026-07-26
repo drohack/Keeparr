@@ -26,6 +26,9 @@ export interface ArrRecord {
   quality: string | null;
   qualityKind: 'file' | 'profile';
   rootFolder: string | null;
+  /** The title's own folder as the *arr sees it (series/movie path) — its
+   *  basename feeds the disk-orphan scan's known-name set. */
+  path: string | null;
   sizeOnDisk: number;
   tags: string[];
 }
@@ -40,6 +43,7 @@ interface SonarrSeries {
   status?: string;
   qualityProfileId?: number;
   rootFolderPath?: string;
+  path?: string;
   statistics?: { sizeOnDisk?: number };
   tags?: number[];
 }
@@ -51,6 +55,7 @@ interface RadarrMovie {
   monitored?: boolean;
   status?: string;
   rootFolderPath?: string;
+  path?: string;
   sizeOnDisk?: number;
   movieFile?: { quality?: { quality?: { name?: string } } };
   tags?: number[];
@@ -91,6 +96,7 @@ export function normalizeSonarr(
     quality: (s.qualityProfileId != null && profileMap.get(s.qualityProfileId)) || null,
     qualityKind: 'profile',
     rootFolder: s.rootFolderPath ?? null,
+    path: s.path ?? null,
     sizeOnDisk: s.statistics?.sizeOnDisk ?? 0,
     tags: labelsFor(s.tags, tagMap),
   };
@@ -116,6 +122,7 @@ export function normalizeRadarr(
     quality: m.movieFile?.quality?.quality?.name ?? null,
     qualityKind: 'file',
     rootFolder: m.rootFolderPath ?? null,
+    path: m.path ?? null,
     sizeOnDisk: m.sizeOnDisk ?? 0,
     tags: labelsFor(m.tags, tagMap),
   };

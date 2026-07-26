@@ -123,5 +123,71 @@ describe('migrate: arr_unmatched gained columns', () => {
       .prepare('SELECT instance_id, size_bytes FROM arr_unmatched')
       .get() as { instance_id: string; size_bytes: number };
     expect(row).toEqual({ instance_id: '', size_bytes: 0 });
+    // folder_name (disk-orphan matching) also lands, NULL on old rows.
+    expect(cols).toContain('folder_name');
+    expect(
+      (d.prepare('SELECT folder_name FROM arr_unmatched').get() as { folder_name: string | null })
+        .folder_name
+    ).toBeNull();
+  });
+});
+
+describe('migrate: disk-name columns land on old-shape tables', () => {
+  it('media_items gains dir_name/file_name (NULL until the next library scan)', () => {
+    d = new Database(':memory:');
+    d.exec(`
+      CREATE TABLE media_items (
+        rating_key   TEXT PRIMARY KEY,
+        section_id   TEXT NOT NULL,
+        library_kind TEXT NOT NULL,
+        title        TEXT NOT NULL,
+        year         INTEGER,
+        thumb        TEXT,
+        size_bytes   INTEGER NOT NULL DEFAULT 0,
+        added_at     INTEGER,
+        guid_tmdb    TEXT,
+        guid_tvdb    TEXT,
+        last_synced  INTEGER NOT NULL,
+        removed      INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO media_items (rating_key, section_id, library_kind, title, last_synced)
+        VALUES ('1', '1', 'movie', 'Old Row', 1000);
+    `);
+    applySchema(d);
+    const cols = (
+      d.prepare('PRAGMA table_info(media_items)').all() as { name: string }[]
+    ).map((c) => c.name);
+    expect(cols).toContain('dir_name');
+    expect(cols).toContain('file_name');
+    const row = d
+      .prepare('SELECT dir_name, file_name FROM media_items')
+      .get() as { dir_name: string | null; file_name: string | null };
+    expect(row).toEqual({ dir_name: null, file_name: null });
+  });
+
+  it('arr_items gains folder_name', () => {
+    d = new Database(':memory:');
+    d.exec(`
+      CREATE TABLE arr_items (
+        rating_key     TEXT PRIMARY KEY,
+        source         TEXT NOT NULL,
+        instance_id    TEXT NOT NULL,
+        instance_name  TEXT NOT NULL,
+        arr_id         INTEGER,
+        monitored      INTEGER NOT NULL DEFAULT 0,
+        status         TEXT,
+        quality        TEXT,
+        quality_kind   TEXT,
+        root_folder    TEXT,
+        arr_size_bytes INTEGER,
+        tags           TEXT,
+        last_synced    INTEGER NOT NULL
+      );
+    `);
+    applySchema(d);
+    const cols = (
+      d.prepare('PRAGMA table_info(arr_items)').all() as { name: string }[]
+    ).map((c) => c.name);
+    expect(cols).toContain('folder_name');
   });
 });

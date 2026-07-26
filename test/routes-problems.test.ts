@@ -17,6 +17,8 @@ import {
   replaceArrConflicts,
   replaceArrItems,
   replaceArrUnmatched,
+  replaceDiskOrphansForSection,
+  setJobState,
   tombstoneStale,
   upsertMediaBatch,
   upsertUser,
@@ -24,7 +26,7 @@ import {
   type UpsertMediaInput,
 } from '@/lib/queries';
 import { setSessionCookie } from '@/lib/auth';
-import { setRadarrInstances, setSonarrInstances } from '@/lib/settings';
+import { setRadarrInstances, setSonarrInstances, setStorageMappings } from '@/lib/settings';
 import { GET as problemsGet } from '@/app/api/admin/problems/route';
 import { GET as summaryGet } from '@/app/api/admin/problems/summary/route';
 import type { ProblemCategorySummary } from '@/lib/types';
@@ -129,15 +131,34 @@ describe('GET /api/admin/problems/summary', () => {
     expect(cat).toMatchObject({ available: true, titles: 1, bytes: 3 * GB });
   });
 
-  it('diskOrphans is always the planned stub', async () => {
+  it('diskOrphans reports why it cannot run yet, then goes live', async () => {
     await loginAs('admin', true);
-    const body = await summaryGet().then((r) => r.json());
-    expect(body.categories.at(-1)).toEqual({
+    // No storage mappings → setup needed.
+    let cat = (await summaryGet().then((r) => r.json())).categories.at(-1);
+    expect(cat).toEqual({
       type: 'diskOrphans',
       available: false,
-      planned: true,
+      reason: 'storage_not_configured',
       titles: 0,
       bytes: 0,
+    });
+
+    // Mapped but the Disk scan job has never run → not scanned.
+    setStorageMappings([{ sectionId: '1', path: '/media/Movies' }]);
+    cat = (await summaryGet().then((r) => r.json())).categories.at(-1);
+    expect(cat).toMatchObject({ available: false, reason: 'not_scanned' });
+
+    // Mapped + scanned → live with real counts.
+    setJobState('diskScan', { lastStatus: 'ok', lastRun: 1000 });
+    replaceDiskOrphansForSection('1', [
+      { name: 'Leftover', path: '/media/Movies/Leftover', isDir: true, sizeBytes: 3 * GB, sizeSkipped: false, mtime: 1 },
+    ]);
+    cat = (await summaryGet().then((r) => r.json())).categories.at(-1);
+    expect(cat).toEqual({
+      type: 'diskOrphans',
+      available: true,
+      titles: 1,
+      bytes: 3 * GB,
     });
   });
 
@@ -176,13 +197,36 @@ describe('GET /api/admin/problems/summary', () => {
 });
 
 describe('GET /api/admin/problems', () => {
-  it('400 on a missing, unknown, or stub type', async () => {
+  it('400 on a missing or unknown type', async () => {
     await loginAs('admin', true);
     expect((await problemsGet(listReq(''))).status).toBe(400);
-    expect((await problemsGet(listReq('type=nope'))).status).toBe(400);
-    const res = await problemsGet(listReq('type=diskOrphans'));
+    const res = await problemsGet(listReq('type=nope'));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('unknown_type');
+  });
+
+  it('diskOrphans: 400 without storage mappings, rows once configured', async () => {
+    await loginAs('admin', true);
+    const denied = await problemsGet(listReq('type=diskOrphans'));
+    expect(denied.status).toBe(400);
+    expect((await denied.json()).error).toBe('storage_not_configured');
+
+    setStorageMappings([{ sectionId: '1', path: '/media/Movies' }]);
+    replaceDiskOrphansForSection('1', [
+      { name: 'Big Leftover', path: '/media/Movies/Big Leftover', isDir: true, sizeBytes: 9 * GB, sizeSkipped: false, mtime: 1 },
+      { name: 'flagged', path: '/media/Movies/flagged', isDir: false, sizeBytes: 0, sizeSkipped: true, mtime: 1 },
+    ]);
+    const body = await problemsGet(listReq('type=diskOrphans')).then((r) => r.json());
+    expect(body.items).toHaveLength(2);
+    expect(body.items[0]).toEqual({
+      name: 'Big Leftover',
+      sectionId: '1',
+      path: '/media/Movies/Big Leftover',
+      isDir: true,
+      sizeBytes: 9 * GB,
+      sizeSkipped: false,
+    });
+    expect(body.items[1]).toMatchObject({ sizeSkipped: true, isDir: false });
   });
 
   it('400 arr_not_configured for arr-gated types without Sonarr/Radarr', async () => {

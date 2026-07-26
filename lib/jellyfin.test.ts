@@ -50,18 +50,39 @@ describe('jellyfin mapping (pure)', () => {
     expect(row.guidTvdb).toBeNull();
     expect(row.sizeBytes).toBe(8 * GB);
     expect(row.addedAt).toBe(Math.floor(Date.parse('2020-01-02T03:04:05.000Z') / 1000));
+    // Movie disk names fall back to MediaSources when the item has no Path.
+    expect(row.dirName).toBe('movies');
+    expect(row.fileName).toBe('matrix.mkv');
+  });
+
+  it('toBackendItem movie prefers the item Path for disk names', () => {
+    const row = toBackendItem(
+      {
+        Id: 'm1',
+        Name: 'Dune',
+        Path: '/movies/Dune (2021)/dune.mkv',
+        MediaSources: [{ Path: '/other/place.mkv', Size: 1 }],
+      },
+      true
+    );
+    expect(row.dirName).toBe('Dune (2021)');
+    expect(row.fileName).toBe('dune.mkv');
   });
 
   it('toBackendItem with withSize=false (series) returns size 0 (sized via showSize)', () => {
     const it: JfItem = {
       Id: 'series1',
       Name: 'Breaking Bad',
+      Path: '/tv/Breaking Bad',
       ProviderIds: { Tvdb: '81189' },
       MediaSources: [{ Path: '/x', Size: 99 * GB }],
     };
     const row = toBackendItem(it, false);
     expect(row.sizeBytes).toBe(0);
     expect(row.guidTvdb).toBe('81189');
+    // Series Path IS the folder — its basename is the disk name.
+    expect(row.dirName).toBe('Breaking Bad');
+    expect(row.fileName).toBeNull();
   });
 });
 

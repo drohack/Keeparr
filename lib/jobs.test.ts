@@ -12,6 +12,9 @@ const ALL_OFF: Record<string, JobSchedule> = {
   sizes: { type: 'interval', minutes: 0 },
   watch: { type: 'interval', minutes: 0 },
   requests: { type: 'interval', minutes: 0 },
+  arr: { type: 'interval', minutes: 0 },
+  diskScan: { type: 'interval', minutes: 0 },
+  backup: { type: 'interval', minutes: 0 },
 };
 
 beforeEach(() => {

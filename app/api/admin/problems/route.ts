@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { errorResponse } from '@/lib/route-helpers';
-import { isArrConfigured } from '@/lib/settings';
+import { getStorageMappings, isArrConfigured } from '@/lib/settings';
 import {
   duplicateGroups,
   getArrConflicts,
   getArrUnmatched,
+  getDiskOrphans,
   missingExternalIdItems,
   notInArrItems,
   removedButKeptItems,
@@ -19,7 +20,7 @@ export const runtime = 'nodejs';
 
 const PAGE = 60;
 
-/** The categories this endpoint can list (diskOrphans is a reserved stub). */
+/** The categories this endpoint can list. */
 const QUERYABLE: ProblemType[] = [
   'sizeMismatch',
   'notInArr',
@@ -29,6 +30,7 @@ const QUERYABLE: ProblemType[] = [
   'zeroSize',
   'removedButKept',
   'missingIds',
+  'diskOrphans',
 ];
 /** Categories that only mean anything with Sonarr/Radarr connected. */
 const ARR_GATED = new Set<ProblemType>([
@@ -56,6 +58,9 @@ export async function GET(req: Request) {
     }
     if (ARR_GATED.has(type) && !isArrConfigured()) {
       return NextResponse.json({ error: 'arr_not_configured' }, { status: 400 });
+    }
+    if (type === 'diskOrphans' && getStorageMappings().length === 0) {
+      return NextResponse.json({ error: 'storage_not_configured' }, { status: 400 });
     }
     const offset = Math.max(0, Number(p.get('offset')) || 0);
 
@@ -100,6 +105,20 @@ export async function GET(req: Request) {
       items = {
         rows: rows.slice(0, PAGE).map(withPoster),
         hasMore: rows.length > PAGE,
+      };
+    } else if (type === 'diskOrphans') {
+      // Real filesystem entries — nothing to proxy a poster from.
+      const all = getDiskOrphans();
+      items = {
+        rows: all.slice(offset, offset + PAGE).map((r) => ({
+          name: r.name,
+          sectionId: r.sectionId,
+          path: r.path,
+          isDir: r.isDir,
+          sizeBytes: r.sizeBytes,
+          sizeSkipped: r.sizeSkipped,
+        })),
+        hasMore: all.length > offset + PAGE,
       };
     } else if (type === 'removedButKept') {
       // Removed from the media server — a proxied thumb would 404, so no poster.

@@ -1,5 +1,6 @@
 import { fetchJson } from './http';
 import { getMediaDeviceId, type MediaServerType } from './settings';
+import { lastSegment, parentSegment } from './paths';
 import type { LibraryKind } from './types';
 import type { BackendItem, BackendSection } from './mediaserver/types';
 
@@ -165,6 +166,8 @@ export interface JfItem {
   Name?: string;
   ProductionYear?: number;
   DateCreated?: string;
+  /** Movie: the video file path; Series: the series folder. */
+  Path?: string;
   ProviderIds?: Record<string, string>;
   MediaSources?: { Path?: string; Size?: number }[];
 }
@@ -203,8 +206,20 @@ export function sumMediaSources(items: JfItem[]): number {
   return total;
 }
 
-/** Map a raw Jellyfin item to our generic BackendItem. Exported for tests. */
+/** Map a raw Jellyfin item to our generic BackendItem. Exported for tests.
+ *  `withSize` doubles as the movie/series discriminator (movies carry size). */
 export function toBackendItem(it: JfItem, withSize: boolean): BackendItem {
+  // On-disk names for the disk-orphan scan. Movie Path is the video FILE (fall
+  // back to MediaSources); Series Path is the series FOLDER itself.
+  let dirName: string | null = null;
+  let fileName: string | null = null;
+  if (withSize) {
+    const file = it.Path ?? it.MediaSources?.[0]?.Path ?? null;
+    dirName = parentSegment(file);
+    fileName = lastSegment(file);
+  } else {
+    dirName = lastSegment(it.Path ?? null);
+  }
   return {
     ratingKey: String(it.Id),
     title: String(it.Name ?? ''),
@@ -215,6 +230,8 @@ export function toBackendItem(it: JfItem, withSize: boolean): BackendItem {
     guidTvdb: providerId(it.ProviderIds, 'tvdb'),
     guidImdb: providerId(it.ProviderIds, 'imdb'),
     sizeBytes: withSize ? sumMediaSources([it]) : 0,
+    dirName,
+    fileName,
   };
 }
 
@@ -257,7 +274,7 @@ export async function getItems(
       ParentId: parentId,
       Recursive: 'true',
       IncludeItemTypes: itemTypeFor(kind),
-      fields: 'ProviderIds,MediaSources,DateCreated',
+      fields: 'ProviderIds,MediaSources,DateCreated,Path',
       StartIndex: String(start),
       Limit: String(pageSize),
     });

@@ -13,6 +13,7 @@ import {
   replaceArrConflicts,
   replaceArrItems,
   replaceArrUnmatched,
+  replaceDiskOrphansForSection,
   replaceSeerrRequests,
   setJobState,
   tombstoneStale,
@@ -153,6 +154,10 @@ function buildItems(): UpsertMediaInput[] {
       // 13th null to demo the "Plex item missing tmdb/tvdb id" match-health case.
       guidTmdb: kind === 'movie' && n % 13 !== 0 ? String(n) : null,
       guidTvdb: kind === 'show' && n % 13 !== 0 ? String(n) : null,
+      // On-disk names (disk-orphan matching) — lets a real local Disk scan pass
+      // the safety guard if you map a section to a scratch folder.
+      dirName: title,
+      fileName: kind === 'movie' ? `${title}.mkv` : null,
     });
   };
 
@@ -348,6 +353,37 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     );
     addKeep('dev-friend', 'dev-removed-1');
     tombstoneStale(seedTs - 50);
+    // Disk orphans: fake scan results so the "On disk, in neither" pill/table
+    // demo offline (no real filesystem walk happens in the seed).
+    replaceDiskOrphansForSection('3', [
+      {
+        name: 'Cancelled Show (2017)',
+        path: '/media/TV Shows/Cancelled Show (2017)',
+        isDir: true,
+        sizeBytes: Math.round(18 * GB),
+        sizeSkipped: false,
+        mtime: seedTs - 90 * 86400,
+      },
+      {
+        name: 'random-rip-backup',
+        path: '/media/TV Shows/random-rip-backup',
+        isDir: true,
+        sizeBytes: Math.round(2.4 * GB),
+        sizeSkipped: false,
+        mtime: seedTs - 30 * 86400,
+      },
+    ]);
+    replaceDiskOrphansForSection('1', [
+      {
+        name: 'Some.Movie.2019.1080p.WEB-DL.mkv',
+        path: '/media/Movies/Some.Movie.2019.1080p.WEB-DL.mkv',
+        isDir: false,
+        sizeBytes: Math.round(4.2 * GB),
+        sizeSkipped: false,
+        mtime: seedTs - 200 * 86400,
+      },
+    ]);
+
     // Cross-instance conflict: both Sonarr instances manage the first anime
     // title; the Anime instance won the match (it owns the arr_items row).
     const conflictSrc = mediaItems.find((m) => m.sectionId === '4')!;
@@ -454,6 +490,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     ['watch', 'ok', 'Refreshed 8 watch-history rows.', 8],
     ['requests', 'ok', 'Cached Seerr requests for 1 user(s).', 1],
     ['arr', 'ok', 'Matched 300 of 300 titles (0 unmatched).', 300],
+    ['diskScan', 'ok', 'Found 3 orphaned item(s) (24.60 GB) across 4 mapped root(s).', 3],
   ];
   for (const [jobId, status, msg, result] of jobStates) {
     setJobState(jobId, {
@@ -490,6 +527,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
   runs.push({ jobId: 'watch', startedAt: nowSec - 9000, status: 'ok', message: 'Refreshed 8 watch-history rows.', result: 8 });
   runs.push({ jobId: 'requests', startedAt: nowSec - 11000, status: 'ok', message: 'Cached Seerr requests for 1 user(s).', result: 1 });
   runs.push({ jobId: 'library', startedAt: nowSec - 13000, status: 'ok', message: `Synced ${stats.totalItems} items.`, result: stats.totalItems });
+  runs.push({ jobId: 'diskScan', startedAt: nowSec - 15000, status: 'ok', message: 'Found 3 orphaned item(s) (24.60 GB) across 4 mapped root(s).', result: 3 });
   for (const r of runs) {
     recordJobRun({
       jobId: r.jobId,

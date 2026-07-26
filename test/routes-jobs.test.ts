@@ -98,6 +98,7 @@ describe('GET /api/admin/jobs', () => {
     expect(body.jobs.map((j: { jobId: string }) => j.jobId).sort()).toEqual([
       'arr',
       'backup',
+      'diskScan',
       'library',
       'recentlyAdded',
       'requests',

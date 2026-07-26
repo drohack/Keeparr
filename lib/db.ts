@@ -23,6 +23,8 @@ export function applySchema(database: Database.Database): void {
       guid_tmdb     TEXT,                       -- external ids (CSV when Plex lists several)
       guid_tvdb     TEXT,
       guid_imdb     TEXT,                       -- imdb id(s) ("tt…"); extra arr-match axis
+      dir_name      TEXT,                       -- on-disk folder name (disk-orphan matching)
+      file_name     TEXT,                       -- movie file basename (loose files)
       last_synced   INTEGER NOT NULL,
       removed       INTEGER NOT NULL DEFAULT 0  -- tombstone if gone from Plex
     );
@@ -143,6 +145,7 @@ export function applySchema(database: Database.Database): void {
       root_folder    TEXT,
       arr_size_bytes INTEGER,                   -- arr-reported sizeOnDisk (cross-check)
       tags           TEXT,                      -- JSON array of resolved tag labels
+      folder_name    TEXT,                      -- title's own *arr folder basename
       last_synced    INTEGER NOT NULL
     );
 
@@ -158,7 +161,27 @@ export function applySchema(database: Database.Database): void {
       ext_kind      TEXT NOT NULL,              -- 'tvdb' | 'tmdb'
       ext_id        TEXT NOT NULL,
       size_bytes    INTEGER NOT NULL DEFAULT 0, -- on-disk size in *arr (only "downloaded" rows are stored)
+      folder_name   TEXT,                       -- title's own *arr folder basename
       last_synced   INTEGER NOT NULL
+    );
+
+    -- Disk-orphan scan results: top-level entries under the mapped library
+    -- paths that neither the media server nor Sonarr/Radarr account for.
+    -- Rebuilt per-section by the 'diskScan' job (sections it skips — safety
+    -- guard, unreadable root — keep their prior rows). mtime is the entry's
+    -- mtime at scan time and keys the size cache: an unchanged orphan isn't
+    -- re-walked. size_skipped marks circuit-breaker rows (most of a root
+    -- looked orphaned → the mapping is suspect → names recorded, sizing skipped).
+    CREATE TABLE IF NOT EXISTS disk_orphans (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      section_id   TEXT NOT NULL,
+      name         TEXT NOT NULL,
+      path         TEXT NOT NULL,               -- Keeparr-container absolute path
+      is_dir       INTEGER NOT NULL DEFAULT 1,
+      size_bytes   INTEGER NOT NULL DEFAULT 0,
+      size_skipped INTEGER NOT NULL DEFAULT 0,
+      mtime        INTEGER,
+      last_synced  INTEGER NOT NULL
     );
 
     -- Cross-instance *arr conflicts: a second instance claimed a rating_key the
@@ -246,6 +269,20 @@ function migrate(database: Database.Database): void {
     );
   }
 
+  // arr_unmatched gained folder_name (the title's own *arr folder basename, for
+  // the disk-orphan scan's known-name set). Cache table; NULL until the next run.
+  if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'folder_name')) {
+    database.exec(`ALTER TABLE arr_unmatched ADD COLUMN folder_name TEXT`);
+  }
+
+  // arr_items gained folder_name for the same reason (rebuilt by the arr job).
+  const arrItemCols = database
+    .prepare(`PRAGMA table_info(arr_items)`)
+    .all() as { name: string }[];
+  if (arrItemCols.length > 0 && !arrItemCols.some((c) => c.name === 'folder_name')) {
+    database.exec(`ALTER TABLE arr_items ADD COLUMN folder_name TEXT`);
+  }
+
   // media_items gained guid_imdb (an extra arr-match axis). Backfilled to NULL;
   // the next library scan populates it. Additive, no data touched.
   const mediaCols = database
@@ -253,6 +290,17 @@ function migrate(database: Database.Database): void {
     .all() as { name: string }[];
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'guid_imdb')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN guid_imdb TEXT`);
+  }
+
+  // media_items gained dir_name/file_name (on-disk names for the disk-orphan
+  // scan). NULL until the next library scan recaptures them; the scan's safety
+  // guard skips sections whose items are mostly unnamed, so stale NULLs can't
+  // mass-flag a library as orphaned.
+  if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'dir_name')) {
+    database.exec(`ALTER TABLE media_items ADD COLUMN dir_name TEXT`);
+  }
+  if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'file_name')) {
+    database.exec(`ALTER TABLE media_items ADD COLUMN file_name TEXT`);
   }
 
   // Migrate the legacy global keeps table (rating_key PK, kept_by) to per-user

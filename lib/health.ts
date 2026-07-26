@@ -36,6 +36,9 @@ function jobRelevant(id: JobId): boolean {
       return isSeerrConfigured();
     case 'arr':
       return isArrConfigured();
+    case 'diskScan':
+      // Failures only matter once there are mapped paths to scan.
+      return isServerConfigured() && getStorageMappings().length > 0;
     case 'backup':
       return true;
     default:

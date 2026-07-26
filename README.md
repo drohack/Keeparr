@@ -105,9 +105,17 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   library entries sharing one external id), ***arr conflicts** (two instances
   both managing the same title), **zero size** (the server lists it but reports
   no file bytes), **removed but kept** (deleted despite someone's keep), and
-  **missing IDs** (no tvdb/tmdb/imdb id, so it can never match *arr). The
-  *arr-based categories appear only when Sonarr/Radarr is connected; an
-  **"on disk, in neither"** disk-scan category is planned. Report-only, like
+  **missing IDs** (no tvdb/tmdb/imdb id, so it can never match *arr), and
+  **on disk, in neither** — a weekly *Disk scan* job checks the top level of each
+  mapped library path for folders/files that neither the media server nor
+  Sonarr/Radarr account for (forgotten downloads, leftovers from deletions).
+  Matching is by folder/file **name** per library root (the three systems see
+  different absolute paths for the same folder), well-known junk (`@eaDir`,
+  `#recycle`, dotfiles…) is ignored, only unaccounted-for entries are sized, and
+  if *most* of a root looks orphaned Keeparr assumes the storage mapping is wrong
+  and skips the sizing instead of crawling your whole share. Needs the same
+  library mounts + storage mappings the free-space report uses. The *arr-based
+  categories appear only when Sonarr/Radarr is connected. Report-only, like
   everything else in Keeparr.
 - **Size on disk** — series totals are summed across every episode; movies across
   all parts/versions. Shown as `x.xx GB` per card; aggregates auto-switch to TB.
@@ -115,7 +123,8 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   weekly at a set time) per job and run any on demand from **Settings → Jobs &
   Cache**: *Recently added scan* (cheap, every 5 min), *Full library scan* (daily
   3 AM), *Watch history* (4 AM), *Requests* (5 AM), *Library size* (the expensive
-  per-show recompute, daily 6 AM), *Sonarr / Radarr* (7 AM), and *Backup* (8 AM).
+  per-show recompute, daily 6 AM), *Sonarr / Radarr* (7 AM), *Backup* (8 AM), and
+  *Disk scan* (the disk-orphan check, weekly Sunday 9 AM).
   Clear the poster / Seerr / watch caches from the same page, and view app events
   under **Settings → Logs**. A **Recent activity** list shows the last runs + errors.
 - **Sonarr / Radarr** (optional) — connect any number of Sonarr and Radarr instances
@@ -129,10 +138,10 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   1080p variant). Sort by size to find the biggest, highest-quality titles to
   downgrade; Grid view shows a small quality badge. **Big Picture** gains a **By
   quality** table (how much 2160p/1080p/… is on disk, not kept, and never watched),
-  and **Settings → Match health** shows how many matched, the titles that are
-  **downloaded in *arr but not in Plex** (largest-first with sizes + a total — media on
-  disk Plex can't see, so you can rescan/fix it), and a count of Plex items missing a
-  tmdb/tvdb id (so you can fix them). Report-only; Keeparr never changes
+  and **Settings → Match health** shows a summary right next to the instance
+  config — how many titles matched, plus counts for "in *arr but not on the
+  server" and items missing a tmdb/tvdb id — with a Resync button and a link to
+  the **Problems** page for the full lists. Report-only; Keeparr never changes
   anything in *arr. Titles match on stable tvdb/tmdb ids; unmatched titles are fine
   to leave. All of this stays hidden until you connect an instance.
 - **Watch history** — powers the Browse **Watched** filter, a small "watched" badge on

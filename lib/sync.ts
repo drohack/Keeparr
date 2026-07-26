@@ -35,6 +35,7 @@ import {
   type ArrUnmatchedInput,
   type UpsertMediaInput,
 } from './queries';
+import { lastSegment } from './paths';
 import type { LibraryKind } from './types';
 
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -266,6 +267,7 @@ function toArrInput(ratingKey: string, r: ArrRecord): ArrItemInput {
     rootFolder: r.rootFolder,
     arrSizeBytes: r.sizeOnDisk,
     tags: r.tags,
+    folderName: lastSegment(r.path),
   };
 }
 
@@ -316,6 +318,7 @@ export async function syncArr(): Promise<JobResult> {
             extKind: r.source === 'sonarr' ? 'tvdb' : 'tmdb',
             extId: r.matchId,
             sizeBytes: r.sizeOnDisk,
+            folderName: lastSegment(r.path),
           });
         }
         continue;
@@ -409,5 +412,7 @@ function toInput(
     guidTmdb: item.guidTmdb,
     guidTvdb: item.guidTvdb,
     guidImdb: item.guidImdb,
+    dirName: item.dirName,
+    fileName: item.fileName,
   };
 }

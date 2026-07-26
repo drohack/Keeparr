@@ -1,27 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { formatSize } from '@/lib/format';
 import { Card, btnGhost } from './ui';
 
 interface Unmatched {
-  source: string;
-  instanceName: string;
-  title: string;
-  extKind: string;
-  extId: string;
   sizeBytes: number;
 }
 interface Health {
   matched: number;
   unmatched: Unmatched[];
-  missing: { shows: number; movies: number; sample: { title: string; kind: string }[] };
-  arrJob: { lastStatus: string; lastRun: number | null } | null;
+  missing: { shows: number; movies: number };
 }
 
-/** Sonarr/Radarr match health: matched count, and titles that are DOWNLOADED in
- *  *arr but not found in Plex (media on disk Plex can't see — actionable). Plex
- *  items missing an external id (can never match) are shown as a count. Admin-only. */
+/** Sonarr/Radarr match health, as setup-time feedback next to the instance
+ *  config: how many titles matched, plus problem counts. The full drill-down
+ *  lists (titles downloaded in *arr but not in the media server, items with no
+ *  external id) live on the admin Problems page — this card just summarizes
+ *  and links. Admin-only. */
 export default function MatchHealthCard() {
   const [data, setData] = useState<Health | null>(null);
   const [resyncing, setResyncing] = useState(false);
@@ -59,78 +56,46 @@ export default function MatchHealthCard() {
     }, 2000);
   }
 
-  const missing = data?.missing;
-  const missingTotal = (missing?.shows ?? 0) + (missing?.movies ?? 0);
+  const missingTotal = (data?.missing?.shows ?? 0) + (data?.missing?.movies ?? 0);
   const unmatched = data?.unmatched ?? [];
   const unmatchedBytes = unmatched.reduce((a, u) => a + (u.sizeBytes || 0), 0);
 
   return (
     <Card title="Match health (Sonarr / Radarr)">
-      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="text-slate-300">
           <span className="font-semibold text-white">{data?.matched ?? '—'}</span> matched
         </span>
-        <span className="text-slate-300">
-          <span className="font-semibold text-white">{data ? unmatched.length : '—'}</span>{' '}
-          downloaded, not in Plex
+        <span className={missingTotal > 0 || unmatched.length > 0 ? 'text-amber-400' : 'text-slate-300'}>
+          <span className="font-semibold">{data ? unmatched.length : '—'}</span> in *arr, not in
+          the server
           {unmatchedBytes > 0 && (
             <span className="text-slate-500"> · {formatSize(unmatchedBytes)}</span>
           )}
+        </span>
+        <span className={missingTotal > 0 ? 'text-amber-400' : 'text-slate-300'}>
+          <span className="font-semibold">{data ? missingTotal : '—'}</span> missing IDs
         </span>
         <button onClick={resync} disabled={resyncing} className={`${btnGhost} ml-auto`} type="button">
           {resyncing ? 'Resyncing…' : 'Resync'}
         </button>
       </div>
-
-      {missingTotal > 0 && (
-        <div className="mb-3">
-          <p className="text-sm text-amber-400">
-            {missing!.shows} show(s) / {missing!.movies} movie(s) have no tmdb/tvdb id on the Plex
-            side — they can never match Sonarr/Radarr.
-          </p>
-          {(missing!.sample?.length ?? 0) > 0 && (
-            <div className="mt-1.5 max-h-40 overflow-y-auto rounded border border-slate-800 bg-slate-900/40 p-2 text-xs">
-              {missing!.sample.map((m, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-slate-400">{m.title}</span>
-                  <span className="shrink-0 uppercase text-slate-600">{m.kind}</span>
-                </div>
-              ))}
-              {missingTotal > missing!.sample.length && (
-                <div className="mt-1 text-slate-600">
-                  …and {missingTotal - missing!.sample.length} more
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {data && unmatched.length === 0 ? (
-        <p className="text-sm text-slate-400">
-          Everything downloaded in Sonarr/Radarr is in Plex. 🎉
-        </p>
+      {data && unmatched.length === 0 && missingTotal === 0 ? (
+        <p className="text-sm text-slate-400">Everything lines up. 🎉</p>
       ) : (
-        <div className="max-h-64 space-y-1 overflow-y-auto text-sm">
-          {unmatched.map((u, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-slate-300">{u.title}</span>
-              <span className="shrink-0 font-mono text-xs text-slate-400">
-                {formatSize(u.sizeBytes)}
-              </span>
-              <span className="shrink-0 text-xs uppercase text-slate-500">{u.source}</span>
-              <span className="shrink-0 font-mono text-xs text-slate-600">
-                {u.extKind}:{u.extId}
-              </span>
-            </div>
-          ))}
-        </div>
+        <p className="text-sm text-slate-400">
+          The full lists (with sizes) are on the{' '}
+          <Link href="/problems" className="text-brand hover:underline">
+            Problems page
+          </Link>
+          .
+        </p>
       )}
       <p className="mt-2 text-[11px] text-slate-500">
-        These are titles with files on disk in Sonarr/Radarr that Keeparr couldn&apos;t find in
-        Plex — usually the Plex item is missing its tmdb/tvdb id, or Plex hasn&apos;t scanned the
-        file yet. Fix it in Plex (or rescan), then Resync. Wanted-but-not-downloaded titles aren&apos;t
-        listed — that&apos;s just missing media.
+        Titles match on their tvdb/tmdb/imdb ids. &ldquo;In *arr, not in the server&rdquo; means
+        files exist on disk per Sonarr/Radarr but the media server can&apos;t see them;
+        &ldquo;missing IDs&rdquo; items can never match until their metadata is fixed. Resync after
+        changing instances.
       </p>
     </Card>
   );

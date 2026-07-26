@@ -211,16 +211,22 @@ export interface UpsertMediaInput {
   guidTvdb: string | null;
   /** imdb id(s) ("tt…"), CSV when Plex lists several. Optional for back-compat. */
   guidImdb?: string | null;
+  /** On-disk folder name (server-side basename) — the disk-orphan scan's
+   *  known-name key. Optional for back-compat. */
+  dirName?: string | null;
+  /** Movie file basename (covers loose files in the library root). */
+  fileName?: string | null;
 }
 
 const upsertMediaStmt = () =>
   getDb().prepare(
     `INSERT INTO media_items
        (rating_key, section_id, library_kind, title, year, thumb, size_bytes,
-        added_at, guid_tmdb, guid_tvdb, guid_imdb, last_synced, removed)
+        added_at, guid_tmdb, guid_tvdb, guid_imdb, dir_name, file_name,
+        last_synced, removed)
      VALUES
        (@ratingKey, @sectionId, @libraryKind, @title, @year, @thumb, @sizeBytes,
-        @addedAt, @guidTmdb, @guidTvdb, @guidImdb, @ts, 0)
+        @addedAt, @guidTmdb, @guidTvdb, @guidImdb, @dirName, @fileName, @ts, 0)
      ON CONFLICT(rating_key) DO UPDATE SET
        section_id   = excluded.section_id,
        library_kind = excluded.library_kind,
@@ -232,6 +238,8 @@ const upsertMediaStmt = () =>
        guid_tmdb    = excluded.guid_tmdb,
        guid_tvdb    = excluded.guid_tvdb,
        guid_imdb    = excluded.guid_imdb,
+       dir_name     = excluded.dir_name,
+       file_name    = excluded.file_name,
        last_synced  = excluded.last_synced,
        removed      = 0`
   );
@@ -251,7 +259,13 @@ export function upsertMediaBatch(
   const stmt = upsertMediaStmt();
   const run = db.transaction((rows: UpsertMediaInput[]) => {
     for (const r of rows) {
-      stmt.run({ ...r, guidImdb: r.guidImdb ?? null, ts: syncedAt });
+      stmt.run({
+        ...r,
+        guidImdb: r.guidImdb ?? null,
+        dirName: r.dirName ?? null,
+        fileName: r.fileName ?? null,
+        ts: syncedAt,
+      });
     }
   });
   run(items);
@@ -1691,6 +1705,9 @@ export interface ArrItemInput {
   rootFolder: string | null;
   arrSizeBytes: number;
   tags: string[];
+  /** Basename of the title's own *arr folder (disk-orphan known-name set).
+   *  Optional for back-compat. */
+  folderName?: string | null;
 }
 
 /** Replace the arr_items cache atomically (small dataset; avoids stale).
@@ -1704,16 +1721,17 @@ export function replaceArrItems(
   const ins = db.prepare(
     `INSERT INTO arr_items
        (rating_key, source, instance_id, instance_name, arr_id, monitored, status,
-        quality, quality_kind, root_folder, arr_size_bytes, tags, last_synced)
+        quality, quality_kind, root_folder, arr_size_bytes, tags, folder_name, last_synced)
      VALUES (@rating_key, @source, @instance_id, @instance_name, @arr_id, @monitored,
-        @status, @quality, @quality_kind, @root_folder, @arr_size_bytes, @tags, @ts)
+        @status, @quality, @quality_kind, @root_folder, @arr_size_bytes, @tags,
+        @folder_name, @ts)
      ON CONFLICT(rating_key) DO UPDATE SET
        source=excluded.source, instance_id=excluded.instance_id,
        instance_name=excluded.instance_name, arr_id=excluded.arr_id,
        monitored=excluded.monitored, status=excluded.status, quality=excluded.quality,
        quality_kind=excluded.quality_kind, root_folder=excluded.root_folder,
        arr_size_bytes=excluded.arr_size_bytes, tags=excluded.tags,
-       last_synced=excluded.last_synced`
+       folder_name=excluded.folder_name, last_synced=excluded.last_synced`
   );
   const del = preserveInstanceIds.length
     ? db.prepare(
@@ -1739,6 +1757,7 @@ export function replaceArrItems(
         root_folder: r.rootFolder,
         arr_size_bytes: r.arrSizeBytes,
         tags: JSON.stringify(r.tags ?? []),
+        folder_name: r.folderName ?? null,
         ts,
       });
     }
@@ -1834,6 +1853,9 @@ export interface ArrUnmatchedInput {
   extId: string;
   /** On-disk size in *arr. Only "downloaded" titles (size > 0) are recorded. */
   sizeBytes: number;
+  /** Basename of the title's own *arr folder (disk-orphan known-name set).
+   *  Optional for back-compat. */
+  folderName?: string | null;
 }
 export interface ArrUnmatchedRow extends ArrUnmatchedInput {
   lastSynced: number;
@@ -1847,8 +1869,8 @@ export function replaceArrUnmatched(
 ): number {
   const db = getDb();
   const ins = db.prepare(
-    `INSERT INTO arr_unmatched (source, instance_id, instance_name, title, ext_kind, ext_id, size_bytes, last_synced)
-     VALUES (@source, @instanceId, @instanceName, @title, @extKind, @extId, @sizeBytes, @ts)`
+    `INSERT INTO arr_unmatched (source, instance_id, instance_name, title, ext_kind, ext_id, size_bytes, folder_name, last_synced)
+     VALUES (@source, @instanceId, @instanceName, @title, @extKind, @extId, @sizeBytes, @folderName, @ts)`
   );
   const del = preserveInstanceIds.length
     ? db.prepare(
@@ -1860,7 +1882,7 @@ export function replaceArrUnmatched(
   const ts = now();
   db.transaction(() => {
     del.run(...preserveInstanceIds);
-    for (const r of rows) ins.run({ ...r, ts });
+    for (const r of rows) ins.run({ ...r, folderName: r.folderName ?? null, ts });
   })();
   return rows.length;
 }
@@ -2480,8 +2502,9 @@ export interface MissingIdItem {
 }
 
 // The "can never match *arr" predicate — no kind-primary id AND no imdb
-// (mirrors mediaMissingExternalIds, which keeps the count/sample shape the
-// Match health card uses).
+// (mirrors mediaMissingExternalIds, whose count/sample shape still backs the
+// arr-health endpoint; the Match health card shows the counts and links to the
+// Problems page for the full list).
 const MISSING_ID_EXPR = `guid_imdb IS NULL AND (
          (library_kind = 'show' AND guid_tvdb IS NULL) OR
          (library_kind = 'movie' AND guid_tmdb IS NULL))`;
@@ -2524,4 +2547,137 @@ export function missingExternalIdsSummary(): { titles: number; bytes: number } {
        WHERE removed = 0 AND ${MISSING_ID_EXPR}`
     )
     .get() as { titles: number; bytes: number };
+}
+
+// --- Disk orphans (the diskScan job's results) ---
+
+export interface DiskOrphanInput {
+  name: string;
+  /** Keeparr-container absolute path (mapping root + entry name). */
+  path: string;
+  isDir: boolean;
+  sizeBytes: number;
+  /** True when the circuit breaker recorded the name but skipped sizing. */
+  sizeSkipped: boolean;
+  /** Entry mtime (sec) at scan time — the size-cache key. */
+  mtime: number | null;
+}
+
+export interface DiskOrphanRow extends DiskOrphanInput {
+  sectionId: string;
+  lastSynced: number;
+}
+
+/** Replace one section's orphan rows atomically. Sections the scan skips
+ *  (safety guard, unreadable root) are simply not replaced — prior rows stay. */
+export function replaceDiskOrphansForSection(
+  sectionId: string,
+  rows: DiskOrphanInput[]
+): number {
+  const db = getDb();
+  const ins = db.prepare(
+    `INSERT INTO disk_orphans (section_id, name, path, is_dir, size_bytes, size_skipped, mtime, last_synced)
+     VALUES (@sectionId, @name, @path, @isDir, @sizeBytes, @sizeSkipped, @mtime, @ts)`
+  );
+  const ts = now();
+  db.transaction(() => {
+    db.prepare('DELETE FROM disk_orphans WHERE section_id = ?').run(sectionId);
+    for (const r of rows) {
+      ins.run({
+        ...r,
+        sectionId,
+        isDir: r.isDir ? 1 : 0,
+        sizeSkipped: r.sizeSkipped ? 1 : 0,
+        ts,
+      });
+    }
+  })();
+  return rows.length;
+}
+
+const mapOrphanRow = (r: {
+  section_id: string;
+  name: string;
+  path: string;
+  is_dir: number;
+  size_bytes: number;
+  size_skipped: number;
+  mtime: number | null;
+  last_synced: number;
+}): DiskOrphanRow => ({
+  sectionId: r.section_id,
+  name: r.name,
+  path: r.path,
+  isDir: !!r.is_dir,
+  sizeBytes: r.size_bytes,
+  sizeSkipped: !!r.size_skipped,
+  mtime: r.mtime,
+  lastSynced: r.last_synced,
+});
+
+/** All orphans, largest first (the route paginates). */
+export function getDiskOrphans(): DiskOrphanRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT section_id, name, path, is_dir, size_bytes, size_skipped, mtime, last_synced
+       FROM disk_orphans ORDER BY size_bytes DESC, name COLLATE NOCASE ASC`
+    )
+    .all() as Parameters<typeof mapOrphanRow>[0][];
+  return rows.map(mapOrphanRow);
+}
+
+/** One section's prior rows (feeds the scan's mtime size cache). */
+export function diskOrphansForSection(sectionId: string): DiskOrphanRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT section_id, name, path, is_dir, size_bytes, size_skipped, mtime, last_synced
+       FROM disk_orphans WHERE section_id = ?`
+    )
+    .all(sectionId) as Parameters<typeof mapOrphanRow>[0][];
+  return rows.map(mapOrphanRow);
+}
+
+export function diskOrphansSummary(): { titles: number; bytes: number } {
+  return getDb()
+    .prepare(
+      `SELECT COUNT(*) AS titles, COALESCE(SUM(size_bytes), 0) AS bytes FROM disk_orphans`
+    )
+    .get() as { titles: number; bytes: number };
+}
+
+/** One section's captured on-disk names (+ coverage counts for the safety
+ *  guard: `named` = items with at least one name captured). */
+export function sectionDiskNameStats(sectionId: string): {
+  total: number;
+  named: number;
+  names: string[];
+} {
+  const rows = getDb()
+    .prepare(
+      `SELECT dir_name, file_name FROM media_items
+       WHERE removed = 0 AND section_id = ?`
+    )
+    .all(sectionId) as { dir_name: string | null; file_name: string | null }[];
+  const names: string[] = [];
+  let named = 0;
+  for (const r of rows) {
+    if (r.dir_name || r.file_name) named++;
+    if (r.dir_name) names.push(r.dir_name);
+    if (r.file_name) names.push(r.file_name);
+  }
+  return { total: rows.length, named, names };
+}
+
+/** Every *arr folder basename we know of — matched (arr_items) AND unmatched
+ *  (arr_unmatched: on disk per *arr but invisible to the media server). Global,
+ *  not section-scoped: arr instances don't map to library sections. */
+export function arrFolderNames(): string[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT folder_name AS name FROM arr_items WHERE folder_name IS NOT NULL
+       UNION
+       SELECT folder_name AS name FROM arr_unmatched WHERE folder_name IS NOT NULL`
+    )
+    .all() as { name: string }[];
+  return rows.map((r) => r.name);
 }
