@@ -32,6 +32,9 @@ export interface BackendItem {
   dirName: string | null;
   /** Movie file basename (covers loose files in the library root); null for shows. */
   fileName: string | null;
+  /** FULL server-side path of the item's folder (as the media server sees it) —
+   *  shown on the Problems page so problems can be located on disk. */
+  dirPath: string | null;
 }
 
 /** One watch-history row (movies by item id; episodes rolled up to their series). */

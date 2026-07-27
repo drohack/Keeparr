@@ -916,12 +916,14 @@ describe('arr match health + quality summary', () => {
   it('replaceArrUnmatched / getArrUnmatched / clearArrUnmatched round-trip (largest first)', () => {
     replaceArrUnmatched([
       { source: 'sonarr', instanceId: 's1', instanceName: 'S', title: 'Ghost', extKind: 'tvdb', extId: '999', sizeBytes: 1_000 },
-      { source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'Big Orphan', extKind: 'tmdb', extId: '42', sizeBytes: 9_000 },
+      { source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'Big Orphan', extKind: 'tmdb', extId: '42', sizeBytes: 9_000, path: '/movies/Big Orphan' },
     ]);
     const rows = getArrUnmatched();
     expect(rows.map((u) => u.title)).toEqual(['Big Orphan', 'Ghost']); // size DESC
     expect(rows[0].sizeBytes).toBe(9_000);
     expect(rows[0].instanceId).toBe('r1');
+    expect(rows[0].path).toBe('/movies/Big Orphan'); // full *arr-side path kept
+    expect(rows[1].path).toBeNull();
     clearArrUnmatched();
     expect(getArrUnmatched()).toEqual([]);
   });
@@ -1365,8 +1367,8 @@ describe('Problems page queries', () => {
   describe('duplicateGroups', () => {
     it('groups items sharing a tmdb id, including CSV multi-id values', () => {
       upsertMediaBatch([
-        media('1', { guidTmdb: '603,604', sizeBytes: 4 * GB }),
-        media('2', { guidTmdb: '604', sizeBytes: 2 * GB }),
+        media('1', { guidTmdb: '603,604', sizeBytes: 4 * GB, dirPath: '/media/4K/Title 1' }),
+        media('2', { guidTmdb: '604', sizeBytes: 2 * GB, dirPath: '/media/Movies/Title 2' }),
         media('3', { guidTmdb: '999', sizeBytes: 1 * GB }), // alone → no group
       ]);
       const groups = duplicateGroups();
@@ -1375,6 +1377,11 @@ describe('Problems page queries', () => {
       expect(groups[0].idValue).toBe('604');
       expect(groups[0].items.map((m) => m.ratingKey)).toEqual(['1', '2']); // size DESC
       expect(groups[0].totalBytes).toBe(6 * GB);
+      // Members carry their on-disk location (the whole point of the comparison).
+      expect(groups[0].items.map((m) => m.dirPath)).toEqual([
+        '/media/4K/Title 1',
+        '/media/Movies/Title 2',
+      ]);
     });
 
     it('scopes tvdb to shows and tmdb to movies (no cross-kind grouping)', () => {

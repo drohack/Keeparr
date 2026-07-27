@@ -67,6 +67,7 @@ describe('jellyfin mapping (pure)', () => {
     );
     expect(row.dirName).toBe('Dune (2021)');
     expect(row.fileName).toBe('dune.mkv');
+    expect(row.dirPath).toBe('/movies/Dune (2021)');
   });
 
   it('toBackendItem with withSize=false (series) returns size 0 (sized via showSize)', () => {
@@ -83,6 +84,7 @@ describe('jellyfin mapping (pure)', () => {
     // Series Path IS the folder — its basename is the disk name.
     expect(row.dirName).toBe('Breaking Bad');
     expect(row.fileName).toBeNull();
+    expect(row.dirPath).toBe('/tv/Breaking Bad');
   });
 });
 

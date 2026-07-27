@@ -319,6 +319,7 @@ export async function syncArr(): Promise<JobResult> {
             extId: r.matchId,
             sizeBytes: r.sizeOnDisk,
             folderName: lastSegment(r.path),
+            path: r.path,
           });
         }
         continue;
@@ -414,5 +415,6 @@ function toInput(
     guidImdb: item.guidImdb,
     dirName: item.dirName,
     fileName: item.fileName,
+    dirPath: item.dirPath,
   };
 }

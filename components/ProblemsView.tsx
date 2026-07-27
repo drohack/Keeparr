@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LibraryKind, ProblemCategorySummary, ProblemType } from '@/lib/types';
 import { formatRelative, formatSize } from '@/lib/format';
+import { copyText } from '@/lib/clipboard';
+import { pathSegments, pathTail } from '@/lib/paths';
 import { useToast } from './Toaster';
 
 // Labels/hints name the ACTUAL connected media server ("Plex", "Jellyfin"…) —
@@ -28,7 +30,7 @@ const problemHints = (server: string): Record<ProblemType, string> => ({
   sizeMismatch: `${server} and Sonarr/Radarr report materially different sizes (>10% and >1 GB) for the same title — often a partial/broken file or one side needing a rescan.`,
   notInArr: `These titles exist in ${server} but no Sonarr/Radarr instance manages them — nothing will upgrade or re-download them.`,
   missingFromPlex: `Downloaded in Sonarr/Radarr (files on disk, per *arr) but not present in ${server} — usually a library path ${server} doesn’t scan, or a failed import.`,
-  duplicates: `Two library entries share the same external id — the same title imported twice, or one entry ${server} should have merged.`,
+  duplicates: `Two library entries share the same external id. The Location column shows where each copy lives — the same folder means a split/double-import in ${server} (merge the entries); different folders mean two real copies on disk. Click a path to copy it.`,
   arrConflicts:
     'Two Sonarr/Radarr instances both manage this title — they can download and upgrade it independently, wasting space and bandwidth.',
   zeroSize: `${server} lists the title but reports zero file bytes — broken/missing files or a dead metadata-only entry.`,
@@ -51,6 +53,8 @@ interface MediaRowBase {
   year: number | null;
   libraryKind: LibraryKind;
   thumbUrl: string | null;
+  /** Full server-side folder path (null until a library scan captures it). */
+  dirPath: string | null;
 }
 type SizeMismatchRow = MediaRowBase & {
   plexBytes: number;
@@ -67,6 +71,8 @@ interface MissingFromPlexRow {
   extKind: string;
   extId: string;
   sizeBytes: number;
+  /** Full folder path as the *arr sees it. */
+  path: string | null;
 }
 interface DuplicateGroupRow {
   idKind: string;
@@ -89,6 +95,8 @@ interface RemovedButKeptRow {
   year: number | null;
   libraryKind: LibraryKind;
   sizeBytes: number;
+  /** Last-known folder path (the item is gone from the server; may be stale). */
+  dirPath: string | null;
   keptBy: string[];
 }
 type MissingIdRow = MediaRowBase & { sizeBytes: number };
@@ -289,6 +297,74 @@ function TitleCell({ title, year }: { title: string; year?: number | null }) {
   );
 }
 
+/** Compact, copyable path cell: shows the tail (last two segments, "…/tv/Scrubs"),
+ *  full path on hover, click copies the whole path. With `dimPrefix` (the
+ *  duplicates diff view) the FULL path renders with the group's shared prefix
+ *  dimmed so the differing folder pops. */
+function PathCell({ path, dimPrefix }: { path: string | null; dimPrefix?: string }) {
+  const toast = useToast();
+  if (!path) {
+    return (
+      <td className="px-3 py-2 font-mono text-xs">
+        <span className="cursor-help text-slate-600" title="Captured on the next library scan">
+          —
+        </span>
+      </td>
+    );
+  }
+  const copy = async () => {
+    toast((await copyText(path)) ? 'Path copied' : "Couldn't copy the path", 'info');
+  };
+  const dimmed = dimPrefix && path.startsWith(dimPrefix) && path.length > dimPrefix.length;
+  return (
+    <td className="px-3 py-2 font-mono text-xs">
+      <button
+        type="button"
+        onClick={copy}
+        title={`${path} (click to copy)`}
+        className="max-w-full cursor-pointer truncate text-left text-slate-500 hover:text-slate-300"
+      >
+        {dimmed ? (
+          <>
+            <span className="text-slate-700">{dimPrefix}</span>
+            <span className="text-slate-400">{path.slice(dimPrefix!.length)}</span>
+          </>
+        ) : (
+          pathTail(path)
+        )}
+      </button>
+    </td>
+  );
+}
+
+/** Segment-wise longest common prefix of a group's paths (incl. the trailing
+ *  separator), for the duplicates diff view. Needs ≥2 non-null paths that
+ *  actually share a first segment; returns undefined otherwise. */
+function commonPathPrefix(paths: (string | null)[]): string | undefined {
+  const present = paths.filter((p): p is string => !!p);
+  if (present.length < 2) return undefined;
+  const split = present.map((p) => pathSegments(p));
+  const first = split[0];
+  let common = 0;
+  while (common < first.length - 1 && split.every((s) => s[common] === first[common])) {
+    common++;
+  }
+  if (common === 0) return undefined;
+  // Rebuild the prefix from the ORIGINAL string so separators survive: cut the
+  // first path right after its `common`-th segment.
+  const src = present[0];
+  let idx = 0;
+  let seen = 0;
+  while (seen < common && idx < src.length) {
+    // Skip any leading separators, then one segment, then trailing separators.
+    while (idx < src.length && /[/\\]/.test(src[idx])) idx++;
+    while (idx < src.length && !/[/\\]/.test(src[idx])) idx++;
+    seen++;
+    while (idx < src.length && /[/\\]/.test(src[idx])) idx++;
+  }
+  return src.slice(0, idx);
+}
+
 function AddedCell({ addedAt }: { addedAt: number | null }) {
   return (
     <td className="px-3 py-2 text-right text-slate-400">
@@ -331,6 +407,7 @@ function ProblemTable({
               {th('', 'left', 'w-8')}
               {th('Title')}
               {th('Kind')}
+              {th('Location')}
               {th(`${server} size`, 'right')}
               {th('*arr size', 'right')}
               {th('Δ', 'right')}
@@ -343,6 +420,7 @@ function ProblemTable({
                 <Poster url={r.thumbUrl} />
                 <TitleCell title={r.title} year={r.year} />
                 <td className="px-3 py-2 text-slate-400">{kindLabel(r.libraryKind)}</td>
+                <PathCell path={r.dirPath} />
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.plexBytes)}</td>
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.arrBytes)}</td>
                 <td
@@ -374,6 +452,7 @@ function ProblemTable({
               {th('', 'left', 'w-8')}
               {th('Title')}
               {th('Kind')}
+              {th('Location')}
               {th('Size', 'right')}
               {th('Added', 'right')}
             </tr>
@@ -384,6 +463,7 @@ function ProblemTable({
                 <Poster url={r.thumbUrl} />
                 <TitleCell title={r.title} year={r.year} />
                 <td className="px-3 py-2 text-slate-400">{kindLabel(r.libraryKind)}</td>
+                <PathCell path={r.dirPath} />
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.sizeBytes)}</td>
                 <AddedCell addedAt={r.addedAt} />
               </tr>
@@ -400,6 +480,7 @@ function ProblemTable({
             <tr>
               {th('Title')}
               {th('Instance')}
+              {th('Location')}
               {th('External id')}
               {th('Size in *arr', 'right')}
             </tr>
@@ -409,6 +490,7 @@ function ProblemTable({
               <tr key={`${r.instanceName}-${r.extKind}-${r.extId}`} className={ROW_CLS}>
                 <TitleCell title={r.title} />
                 <td className="px-3 py-2 text-slate-300">{instLabel(r.source, r.instanceName)}</td>
+                <PathCell path={r.path} />
                 <td className="px-3 py-2 font-mono text-xs text-slate-400">
                   {r.extKind}:{r.extId}
                 </td>
@@ -428,7 +510,7 @@ function ProblemTable({
               {th('', 'left', 'w-8')}
               {th('Title')}
               {th('Kind')}
-              {th('Rating key')}
+              {th('Location')}
               {th('Size', 'right')}
               {th('Added', 'right')}
             </tr>
@@ -481,6 +563,7 @@ function ProblemTable({
               {th('', 'left', 'w-8')}
               {th('Title')}
               {th('Kind')}
+              {th('Location')}
               {th('Added', 'right')}
             </tr>
           </thead>
@@ -490,6 +573,7 @@ function ProblemTable({
                 <Poster url={r.thumbUrl} />
                 <TitleCell title={r.title} year={r.year} />
                 <td className="px-3 py-2 text-slate-400">{kindLabel(r.libraryKind)}</td>
+                <PathCell path={r.dirPath} />
                 <AddedCell addedAt={r.addedAt} />
               </tr>
             ))}
@@ -505,6 +589,7 @@ function ProblemTable({
             <tr>
               {th('Title')}
               {th('Kind')}
+              {th('Last known location')}
               {th('Last known size', 'right')}
               {th('Kept by')}
             </tr>
@@ -514,6 +599,7 @@ function ProblemTable({
               <tr key={r.ratingKey} className={ROW_CLS}>
                 <TitleCell title={r.title} year={r.year} />
                 <td className="px-3 py-2 text-slate-400">{kindLabel(r.libraryKind)}</td>
+                <PathCell path={r.dirPath} />
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.sizeBytes)}</td>
                 <td className="px-3 py-2 text-slate-300">{r.keptBy.join(', ') || '—'}</td>
               </tr>
@@ -567,6 +653,7 @@ function ProblemTable({
               {th('', 'left', 'w-8')}
               {th('Title')}
               {th('Kind')}
+              {th('Location')}
               {th('Size', 'right')}
             </tr>
           </thead>
@@ -576,6 +663,7 @@ function ProblemTable({
                 <Poster url={r.thumbUrl} />
                 <TitleCell title={r.title} year={r.year} />
                 <td className="px-3 py-2 text-slate-400">{kindLabel(r.libraryKind)}</td>
+                <PathCell path={r.dirPath} />
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.sizeBytes)}</td>
               </tr>
             ))}
@@ -586,8 +674,11 @@ function ProblemTable({
   }
 }
 
-/** One duplicate group: a full-width header row, then its member rows. */
+/** One duplicate group: a full-width header row, then its member rows. The
+ *  members' shared path prefix is dimmed so the differing folder pops —
+ *  identical locations mean a split entry, different ones mean two real copies. */
 function GroupRows({ group }: { group: DuplicateGroupRow }) {
+  const dimPrefix = commonPathPrefix(group.items.map((m) => m.dirPath));
   return (
     <>
       <tr className="border-t border-slate-800 bg-slate-900/60">
@@ -604,7 +695,7 @@ function GroupRows({ group }: { group: DuplicateGroupRow }) {
           <Poster url={m.thumbUrl} />
           <TitleCell title={m.title} year={m.year} />
           <td className="px-3 py-2 text-slate-400">{kindLabel(m.libraryKind)}</td>
-          <td className="px-3 py-2 font-mono text-xs text-slate-500">{m.ratingKey}</td>
+          <PathCell path={m.dirPath} dimPrefix={dimPrefix} />
           <td className="px-3 py-2 text-right font-mono">{formatSize(m.sizeBytes)}</td>
           <AddedCell addedAt={m.addedAt} />
         </tr>

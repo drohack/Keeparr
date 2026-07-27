@@ -26,6 +26,24 @@ export function parentSegment(p: string | null | undefined): string | null {
   return segs.length >= 2 ? segs[segs.length - 2] : null;
 }
 
+/** The path minus its last segment, preserving the original separators
+ *  ('/data/tv/Scrubs/ep.mkv' → '/data/tv/Scrubs'). Single segment → null. */
+export function parentPath(p: string | null | undefined): string | null {
+  if (!p) return null;
+  const trimmed = p.replace(/[/\\]+$/, '');
+  const cut = trimmed.search(/[/\\]+[^/\\]+$/);
+  if (cut <= 0) return null; // single segment (or leading-separator root child)
+  return trimmed.slice(0, cut);
+}
+
+/** The last `n` segments joined with '/', prefixed with '…/' when segments
+ *  were dropped — the compact display form of a long foreign path. */
+export function pathTail(p: string, n = 2): string {
+  const segs = pathSegments(p);
+  if (segs.length <= n) return segs.join('/');
+  return `…/${segs.slice(-n).join('/')}`;
+}
+
 /**
  * Normalize a folder/file name for cross-system comparison: unicode NFC
  * (macOS mounts hand back NFD) + case-fold (Windows/SMB are case-insensitive).

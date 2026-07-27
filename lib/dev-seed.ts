@@ -158,6 +158,7 @@ function buildItems(): UpsertMediaInput[] {
       // the safety guard if you map a section to a scratch folder.
       dirName: title,
       fileName: kind === 'movie' ? `${title}.mkv` : null,
+      dirPath: `/media/${SECTIONS.find((s) => s.id === sectionId)!.title}/${title}`,
     });
   };
 
@@ -219,10 +220,10 @@ function buildArrItems(items: UpsertMediaInput[]): ArrItemInput[] {
 
 /** A few fake unmatched arr titles (downloaded but no Plex match) for Match health. */
 const ARR_UNMATCHED = [
-  { source: 'sonarr', instanceId: SONARR_MAIN.id, instanceName: 'Sonarr', title: 'Some Obscure Show', extKind: 'tvdb' as const, extId: '999001', sizeBytes: Math.round(42 * GB) },
-  { source: 'sonarr', instanceId: SONARR_ANIME.id, instanceName: 'Sonarr (Anime)', title: 'Niche OVA', extKind: 'tvdb' as const, extId: '999002', sizeBytes: Math.round(3.5 * GB) },
-  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Unreleased Indie Film', extKind: 'tmdb' as const, extId: '999003', sizeBytes: Math.round(8 * GB) },
-  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Festival Short', extKind: 'tmdb' as const, extId: '999004', sizeBytes: Math.round(0.9 * GB) },
+  { source: 'sonarr', instanceId: SONARR_MAIN.id, instanceName: 'Sonarr', title: 'Some Obscure Show', extKind: 'tvdb' as const, extId: '999001', sizeBytes: Math.round(42 * GB), path: '/tv/Some Obscure Show' },
+  { source: 'sonarr', instanceId: SONARR_ANIME.id, instanceName: 'Sonarr (Anime)', title: 'Niche OVA', extKind: 'tvdb' as const, extId: '999002', sizeBytes: Math.round(3.5 * GB), path: '/anime/Niche OVA' },
+  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Unreleased Indie Film', extKind: 'tmdb' as const, extId: '999003', sizeBytes: Math.round(8 * GB), path: '/movies/Unreleased Indie Film' },
+  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Festival Short', extKind: 'tmdb' as const, extId: '999004', sizeBytes: Math.round(0.9 * GB), path: '/movies/Festival Short' },
 ];
 
 export interface SeedResult {
@@ -309,12 +310,24 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     // --- Problems-page demo rows (mismatch/notInArr/unmatched/missingIds are
     // already covered by the modular seeding above) ---
     // Duplicates: re-import an existing movie + show under new rating keys but
-    // the SAME external ids, so the Duplicates check groups them.
+    // the SAME external ids, so the Duplicates check groups them. The movie
+    // copy lives in a DIFFERENT folder (the two-real-copies case); the show
+    // copy keeps the original's path (the split-entry case).
     const dupMovieSrc = mediaItems.find((m) => m.libraryKind === 'movie' && m.guidTmdb)!;
     const dupShowSrc = mediaItems.find((m) => m.libraryKind === 'show' && m.guidTvdb)!;
     upsertMediaBatch(
       [
-        { ...dupMovieSrc, ratingKey: 'dev-dup-movie', sectionId: '2', sizeBytes: Math.round(48 * GB) },
+        {
+          ...dupMovieSrc,
+          ratingKey: 'dev-dup-movie',
+          sectionId: '2',
+          sizeBytes: Math.round(48 * GB),
+          // A DIFFERENT folder than the source copy (whatever library it's in)
+          // so the two-real-copies case is visible in the Location diff.
+          dirPath: dupMovieSrc.dirPath?.startsWith('/media/4K Movies/')
+            ? `/media/Movies/${dupMovieSrc.title}`
+            : `/media/4K Movies/${dupMovieSrc.title}`,
+        },
         { ...dupShowSrc, ratingKey: 'dev-dup-show', sizeBytes: Math.round(0.8 * dupShowSrc.sizeBytes) },
         // Zero size: the server lists it but reports no file bytes.
         {
@@ -328,6 +341,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
           addedAt: seedTs - 3 * 86400,
           guidTmdb: '990001',
           guidTvdb: null,
+          dirPath: '/media/Movies/Corrupted Import Demo',
         },
       ],
       seedTs
@@ -347,6 +361,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
           addedAt: seedTs - 400 * 86400,
           guidTmdb: null,
           guidTvdb: '990002',
+          dirPath: '/media/TV Shows/Deleted Anyway',
         },
       ],
       seedTs - 100

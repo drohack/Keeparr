@@ -64,6 +64,7 @@ function backendItem(ratingKey: string, over: Partial<BackendItem> = {}): Backen
     sizeBytes: 1 * GB,
     dirName: null,
     fileName: null,
+    dirPath: null,
     ...over,
   };
 }
@@ -237,6 +238,8 @@ describe('syncArr per-instance replace', () => {
     ]);
     await syncArr();
     expect(arrFolderNames().sort()).toEqual(['Dune (2021)', 'Lost Film']);
+    // The unmatched record also keeps its FULL *arr-side path (Problems Location).
+    expect(getArrUnmatched().map((u) => u.path)).toEqual(['/movies/Lost Film']);
   });
 });
 

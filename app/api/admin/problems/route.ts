@@ -126,6 +126,7 @@ export async function GET(req: Request) {
       items = {
         rows: all.slice(offset, offset + PAGE).map((r) => ({
           ...r,
+          // dirPath rides along via the spread (last-known location).
           keptBy: r.keptBy.map((k) => k.username || `User ${k.plexUserId}`),
         })),
         hasMore: all.length > offset + PAGE,

@@ -144,8 +144,10 @@ inside it with no page scroll.
 - `media_items` — one row per **series or movie** (no episodes). `size_bytes` is
   the summed total. `dir_name`/`file_name` are the item's on-disk names as the
   media server reports them (movie: Part.file / item Path; show: Location /
-  series Path) — the disk-orphan scan's known-name set; NULL until a library
-  scan captures them. Tombstoned with `removed=1` when gone from Plex. The full
+  series Path) — the disk-orphan scan's known-name set; `dir_path` is the FULL
+  server-side folder path (the Problems page's clickable Location cells). All
+  NULL until a library scan captures them. Tombstoned with `removed=1` when
+  gone from Plex. The full
   Library sweep aborts if the backend reports zero sections, and skips the
   removal check for scanned sections that returned zero items — an empty-but-200
   hiccup (e.g. PMS mid-restart) must not tombstone a whole library.
@@ -200,8 +202,9 @@ inside it with no page scroll.
   Plex items with a null `guid_tvdb`/`guid_tmdb` that can never match.) Matched via
   `media_items.guid_tvdb`/`guid_tmdb` (indexed). `size_bytes` + `instance_id`
   (scopes the per-instance replace) + `folder_name` (disk-orphan known-name set —
-  an *arr title invisible to the media server still occupies disk) added via
-  guarded `ALTER`s.
+  an *arr title invisible to the media server still occupies disk) + `path`
+  (the full *arr-side folder path, shown as the category's Location cell) added
+  via guarded `ALTER`s.
 - `arr_conflicts` — cross-instance *arr claim collisions: during the `arr` job the
   first instance to claim a rating_key wins `arr_items`; each later claimant is
   recorded here (winner `first_*` cols + loser `source/instance_*` cols + the
@@ -393,7 +396,10 @@ when it has no tvdb/tmdb **and** no imdb.
   `diskOrphans` without mappings → 400 `storage_not_configured`; returns
   `{type, items, hasMore, nextOffset}`, item shape varies per category —
   `duplicates` items are groups, `diskOrphans` items are filesystem entries
-  `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`),
+  `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`; media-item rows
+  carry `dirPath` (full server-side folder path; `path` on missingFromPlex) →
+  the UI's Location cells: tail display, full path on hover, click-to-copy,
+  and duplicates dim the group's common prefix so the differing folder pops),
   `GET/PUT /api/admin/users` (list + grant/revoke admin + enable/disable + the
   `openSignin` toggle; Owner can't be demoted or disabled),
   `POST /api/admin/users/import` (import the Plex shared-user list).

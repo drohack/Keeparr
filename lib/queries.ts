@@ -216,17 +216,19 @@ export interface UpsertMediaInput {
   dirName?: string | null;
   /** Movie file basename (covers loose files in the library root). */
   fileName?: string | null;
+  /** FULL server-side path of the item's folder (Problems page Location cells). */
+  dirPath?: string | null;
 }
 
 const upsertMediaStmt = () =>
   getDb().prepare(
     `INSERT INTO media_items
        (rating_key, section_id, library_kind, title, year, thumb, size_bytes,
-        added_at, guid_tmdb, guid_tvdb, guid_imdb, dir_name, file_name,
+        added_at, guid_tmdb, guid_tvdb, guid_imdb, dir_name, file_name, dir_path,
         last_synced, removed)
      VALUES
        (@ratingKey, @sectionId, @libraryKind, @title, @year, @thumb, @sizeBytes,
-        @addedAt, @guidTmdb, @guidTvdb, @guidImdb, @dirName, @fileName, @ts, 0)
+        @addedAt, @guidTmdb, @guidTvdb, @guidImdb, @dirName, @fileName, @dirPath, @ts, 0)
      ON CONFLICT(rating_key) DO UPDATE SET
        section_id   = excluded.section_id,
        library_kind = excluded.library_kind,
@@ -240,6 +242,7 @@ const upsertMediaStmt = () =>
        guid_imdb    = excluded.guid_imdb,
        dir_name     = excluded.dir_name,
        file_name    = excluded.file_name,
+       dir_path     = excluded.dir_path,
        last_synced  = excluded.last_synced,
        removed      = 0`
   );
@@ -264,6 +267,7 @@ export function upsertMediaBatch(
         guidImdb: r.guidImdb ?? null,
         dirName: r.dirName ?? null,
         fileName: r.fileName ?? null,
+        dirPath: r.dirPath ?? null,
         ts: syncedAt,
       });
     }
@@ -1856,6 +1860,8 @@ export interface ArrUnmatchedInput {
   /** Basename of the title's own *arr folder (disk-orphan known-name set).
    *  Optional for back-compat. */
   folderName?: string | null;
+  /** FULL folder path as the *arr sees it (Problems page Location cell). */
+  path?: string | null;
 }
 export interface ArrUnmatchedRow extends ArrUnmatchedInput {
   lastSynced: number;
@@ -1869,8 +1875,8 @@ export function replaceArrUnmatched(
 ): number {
   const db = getDb();
   const ins = db.prepare(
-    `INSERT INTO arr_unmatched (source, instance_id, instance_name, title, ext_kind, ext_id, size_bytes, folder_name, last_synced)
-     VALUES (@source, @instanceId, @instanceName, @title, @extKind, @extId, @sizeBytes, @folderName, @ts)`
+    `INSERT INTO arr_unmatched (source, instance_id, instance_name, title, ext_kind, ext_id, size_bytes, folder_name, path, last_synced)
+     VALUES (@source, @instanceId, @instanceName, @title, @extKind, @extId, @sizeBytes, @folderName, @path, @ts)`
   );
   const del = preserveInstanceIds.length
     ? db.prepare(
@@ -1882,7 +1888,8 @@ export function replaceArrUnmatched(
   const ts = now();
   db.transaction(() => {
     del.run(...preserveInstanceIds);
-    for (const r of rows) ins.run({ ...r, folderName: r.folderName ?? null, ts });
+    for (const r of rows)
+      ins.run({ ...r, folderName: r.folderName ?? null, path: r.path ?? null, ts });
   })();
   return rows.length;
 }
@@ -1895,7 +1902,7 @@ export function clearArrUnmatched(): number {
 export function getArrUnmatched(): ArrUnmatchedRow[] {
   const rows = getDb()
     .prepare(
-      `SELECT source, instance_id, instance_name, title, ext_kind, ext_id, size_bytes, last_synced
+      `SELECT source, instance_id, instance_name, title, ext_kind, ext_id, size_bytes, path, last_synced
        FROM arr_unmatched ORDER BY size_bytes DESC, title COLLATE NOCASE`
     )
     .all() as {
@@ -1906,6 +1913,7 @@ export function getArrUnmatched(): ArrUnmatchedRow[] {
     ext_kind: 'tvdb' | 'tmdb';
     ext_id: string;
     size_bytes: number;
+    path: string | null;
     last_synced: number;
   }[];
   return rows.map((r) => ({
@@ -1916,6 +1924,7 @@ export function getArrUnmatched(): ArrUnmatchedRow[] {
     extKind: r.ext_kind,
     extId: r.ext_id,
     sizeBytes: r.size_bytes,
+    path: r.path,
     lastSynced: r.last_synced,
   }));
 }
@@ -2143,6 +2152,7 @@ export interface SizeMismatchItem {
   libraryKind: LibraryKind;
   sectionId: string;
   thumb: string | null;
+  dirPath: string | null;
   plexBytes: number;
   arrBytes: number;
   /** Signed: plex − arr (positive = Plex sees more than *arr). */
@@ -2156,7 +2166,7 @@ export function sizeMismatchItems(limit: number, offset: number): SizeMismatchIt
   const rows = getDb()
     .prepare(
       `SELECT m.rating_key, m.title, m.year, m.library_kind, m.section_id, m.thumb,
-              m.size_bytes, a.arr_size_bytes, a.source, a.instance_name
+              m.dir_path, m.size_bytes, a.arr_size_bytes, a.source, a.instance_name
        FROM media_items m
        JOIN arr_items a ON a.rating_key = m.rating_key
        WHERE m.removed = 0 AND ${SIZE_MISMATCH_EXPR}
@@ -2170,6 +2180,7 @@ export function sizeMismatchItems(limit: number, offset: number): SizeMismatchIt
     library_kind: LibraryKind;
     section_id: string;
     thumb: string | null;
+    dir_path: string | null;
     size_bytes: number;
     arr_size_bytes: number;
     source: string;
@@ -2182,6 +2193,7 @@ export function sizeMismatchItems(limit: number, offset: number): SizeMismatchIt
     libraryKind: r.library_kind,
     sectionId: r.section_id,
     thumb: r.thumb,
+    dirPath: r.dir_path,
     plexBytes: r.size_bytes,
     arrBytes: r.arr_size_bytes,
     deltaBytes: r.size_bytes - r.arr_size_bytes,
@@ -2211,6 +2223,7 @@ export interface NotInArrItem {
   libraryKind: LibraryKind;
   sectionId: string;
   thumb: string | null;
+  dirPath: string | null;
   sizeBytes: number;
   addedAt: number | null;
 }
@@ -2220,7 +2233,7 @@ export interface NotInArrItem {
 export function notInArrItems(limit: number, offset: number): NotInArrItem[] {
   const rows = getDb()
     .prepare(
-      `SELECT rating_key, title, year, library_kind, section_id, thumb, size_bytes, added_at
+      `SELECT rating_key, title, year, library_kind, section_id, thumb, dir_path, size_bytes, added_at
        FROM media_items m
        WHERE m.removed = 0
          AND NOT EXISTS (SELECT 1 FROM arr_items a WHERE a.rating_key = m.rating_key)
@@ -2234,6 +2247,7 @@ export function notInArrItems(limit: number, offset: number): NotInArrItem[] {
     library_kind: LibraryKind;
     section_id: string;
     thumb: string | null;
+    dir_path: string | null;
     size_bytes: number;
     added_at: number | null;
   }[];
@@ -2244,6 +2258,7 @@ export function notInArrItems(limit: number, offset: number): NotInArrItem[] {
     libraryKind: r.library_kind,
     sectionId: r.section_id,
     thumb: r.thumb,
+    dirPath: r.dir_path,
     sizeBytes: r.size_bytes,
     addedAt: r.added_at,
   }));
@@ -2265,6 +2280,8 @@ export interface DuplicateMember {
   libraryKind: LibraryKind;
   sectionId: string;
   thumb: string | null;
+  /** Where this copy lives — the whole point of the duplicates comparison. */
+  dirPath: string | null;
   sizeBytes: number;
   addedAt: number | null;
 }
@@ -2285,6 +2302,7 @@ interface DuplicateScanRow {
   library_kind: LibraryKind;
   section_id: string;
   thumb: string | null;
+  dir_path: string | null;
   size_bytes: number;
   added_at: number | null;
   guid_tvdb: string | null;
@@ -2303,8 +2321,8 @@ interface DuplicateScanRow {
 export function duplicateGroups(): DuplicateGroup[] {
   const rows = getDb()
     .prepare(
-      `SELECT rating_key, title, year, library_kind, section_id, thumb, size_bytes,
-              added_at, guid_tvdb, guid_tmdb, guid_imdb
+      `SELECT rating_key, title, year, library_kind, section_id, thumb, dir_path,
+              size_bytes, added_at, guid_tvdb, guid_tmdb, guid_imdb
        FROM media_items
        WHERE removed = 0
          AND (guid_tvdb IS NOT NULL OR guid_tmdb IS NOT NULL OR guid_imdb IS NOT NULL)`
@@ -2318,6 +2336,7 @@ export function duplicateGroups(): DuplicateGroup[] {
     libraryKind: r.library_kind,
     sectionId: r.section_id,
     thumb: r.thumb,
+    dirPath: r.dir_path,
     sizeBytes: r.size_bytes,
     addedAt: r.added_at,
   });
@@ -2385,6 +2404,7 @@ export interface ZeroSizeItem {
   libraryKind: LibraryKind;
   sectionId: string;
   thumb: string | null;
+  dirPath: string | null;
   addedAt: number | null;
 }
 
@@ -2392,7 +2412,7 @@ export interface ZeroSizeItem {
 export function zeroSizeItems(limit: number, offset: number): ZeroSizeItem[] {
   const rows = getDb()
     .prepare(
-      `SELECT rating_key, title, year, library_kind, section_id, thumb, added_at
+      `SELECT rating_key, title, year, library_kind, section_id, thumb, dir_path, added_at
        FROM media_items
        WHERE removed = 0 AND size_bytes = 0
        ORDER BY added_at DESC NULLS LAST, title COLLATE NOCASE ASC
@@ -2405,6 +2425,7 @@ export function zeroSizeItems(limit: number, offset: number): ZeroSizeItem[] {
     library_kind: LibraryKind;
     section_id: string;
     thumb: string | null;
+    dir_path: string | null;
     added_at: number | null;
   }[];
   return rows.map((r) => ({
@@ -2414,6 +2435,7 @@ export function zeroSizeItems(limit: number, offset: number): ZeroSizeItem[] {
     libraryKind: r.library_kind,
     sectionId: r.section_id,
     thumb: r.thumb,
+    dirPath: r.dir_path,
     addedAt: r.added_at,
   }));
 }
@@ -2434,6 +2456,9 @@ export interface RemovedButKeptItem {
   libraryKind: LibraryKind;
   /** Last-known size — the item is gone from the media server, so this is stale. */
   sizeBytes: number;
+  /** Last-known folder path (stale for the same reason — but it answers "did
+   *  the files actually get deleted?"). */
+  dirPath: string | null;
   keptBy: { plexUserId: string; username: string | null }[];
 }
 
@@ -2442,7 +2467,7 @@ export interface RemovedButKeptItem {
 export function removedButKeptItems(): RemovedButKeptItem[] {
   const rows = getDb()
     .prepare(
-      `SELECT m.rating_key, m.title, m.year, m.library_kind, m.size_bytes,
+      `SELECT m.rating_key, m.title, m.year, m.library_kind, m.size_bytes, m.dir_path,
               k.plex_user_id AS keeper_id, u.username AS keeper_name
        FROM keeps k
        JOIN media_items m ON m.rating_key = k.rating_key AND m.removed = 1
@@ -2455,6 +2480,7 @@ export function removedButKeptItems(): RemovedButKeptItem[] {
     year: number | null;
     library_kind: LibraryKind;
     size_bytes: number;
+    dir_path: string | null;
     keeper_id: string;
     keeper_name: string | null;
   }[];
@@ -2469,6 +2495,7 @@ export function removedButKeptItems(): RemovedButKeptItem[] {
         year: r.year,
         libraryKind: r.library_kind,
         sizeBytes: r.size_bytes,
+        dirPath: r.dir_path,
         keptBy: [],
       };
       byItem.set(r.rating_key, item);
@@ -2498,6 +2525,8 @@ export interface MissingIdItem {
   libraryKind: LibraryKind;
   sectionId: string;
   thumb: string | null;
+  /** Often the diagnosis: a misnamed folder is why the match failed. */
+  dirPath: string | null;
   sizeBytes: number;
 }
 
@@ -2513,7 +2542,7 @@ const MISSING_ID_EXPR = `guid_imdb IS NULL AND (
 export function missingExternalIdItems(limit: number, offset: number): MissingIdItem[] {
   const rows = getDb()
     .prepare(
-      `SELECT rating_key, title, year, library_kind, section_id, thumb, size_bytes
+      `SELECT rating_key, title, year, library_kind, section_id, thumb, dir_path, size_bytes
        FROM media_items
        WHERE removed = 0 AND ${MISSING_ID_EXPR}
        ORDER BY size_bytes DESC, title COLLATE NOCASE ASC
@@ -2526,6 +2555,7 @@ export function missingExternalIdItems(limit: number, offset: number): MissingId
     library_kind: LibraryKind;
     section_id: string;
     thumb: string | null;
+    dir_path: string | null;
     size_bytes: number;
   }[];
   return rows.map((r) => ({
@@ -2535,6 +2565,7 @@ export function missingExternalIdItems(limit: number, offset: number): MissingId
     libraryKind: r.library_kind,
     sectionId: r.section_id,
     thumb: r.thumb,
+    dirPath: r.dir_path,
     sizeBytes: r.size_bytes,
   }));
 }

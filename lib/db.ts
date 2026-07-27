@@ -25,6 +25,7 @@ export function applySchema(database: Database.Database): void {
       guid_imdb     TEXT,                       -- imdb id(s) ("tt…"); extra arr-match axis
       dir_name      TEXT,                       -- on-disk folder name (disk-orphan matching)
       file_name     TEXT,                       -- movie file basename (loose files)
+      dir_path      TEXT,                       -- full server-side folder path (Problems Location)
       last_synced   INTEGER NOT NULL,
       removed       INTEGER NOT NULL DEFAULT 0  -- tombstone if gone from Plex
     );
@@ -162,6 +163,7 @@ export function applySchema(database: Database.Database): void {
       ext_id        TEXT NOT NULL,
       size_bytes    INTEGER NOT NULL DEFAULT 0, -- on-disk size in *arr (only "downloaded" rows are stored)
       folder_name   TEXT,                       -- title's own *arr folder basename
+      path          TEXT,                       -- full folder path as the *arr sees it
       last_synced   INTEGER NOT NULL
     );
 
@@ -274,6 +276,11 @@ function migrate(database: Database.Database): void {
   if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'folder_name')) {
     database.exec(`ALTER TABLE arr_unmatched ADD COLUMN folder_name TEXT`);
   }
+  // arr_unmatched gained path (the FULL *arr-side folder path — the Problems
+  // page's Location cell). Cache table; NULL until the next arr run.
+  if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'path')) {
+    database.exec(`ALTER TABLE arr_unmatched ADD COLUMN path TEXT`);
+  }
 
   // arr_items gained folder_name for the same reason (rebuilt by the arr job).
   const arrItemCols = database
@@ -301,6 +308,11 @@ function migrate(database: Database.Database): void {
   }
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'file_name')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN file_name TEXT`);
+  }
+  // media_items gained dir_path (the FULL server-side folder path — the
+  // Problems page's Location cells). NULL until the next library scan.
+  if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'dir_path')) {
+    database.exec(`ALTER TABLE media_items ADD COLUMN dir_path TEXT`);
   }
 
   // Migrate the legacy global keeps table (rating_key PK, kept_by) to per-user

@@ -257,29 +257,34 @@ describe('GET /api/admin/problems', () => {
     expect(page2.hasMore).toBe(false);
   });
 
-  it('duplicates returns groups with members', async () => {
+  it('duplicates returns groups with members incl. their locations', async () => {
     await loginAs('admin', true);
     upsertMediaBatch([
-      media('1', { guidTmdb: '603', sizeBytes: 4 * GB }),
-      media('2', { guidTmdb: '603', sizeBytes: 2 * GB }),
+      media('1', { guidTmdb: '603', sizeBytes: 4 * GB, dirPath: '/media/4K/Title 1' }),
+      media('2', { guidTmdb: '603', sizeBytes: 2 * GB, dirPath: '/media/Movies/Title 2' }),
     ]);
     const body = await problemsGet(listReq('type=duplicates')).then((r) => r.json());
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({ idKind: 'tmdb', idValue: '603', totalBytes: 6 * GB });
     expect(body.items[0].items.map((m: { ratingKey: string }) => m.ratingKey)).toEqual(['1', '2']);
     expect(body.items[0].items[0].thumbUrl).toContain('/api/image?path=');
+    expect(body.items[0].items.map((m: { dirPath: string | null }) => m.dirPath)).toEqual([
+      '/media/4K/Title 1',
+      '/media/Movies/Title 2',
+    ]);
   });
 
-  it('removedButKept returns flattened keeper names (username or User <id>)', async () => {
+  it('removedButKept returns flattened keeper names + the last-known location', async () => {
     await loginAs('admin', true);
     upsertUser({ plexUserId: 'u1', username: 'Alice', email: null, thumb: null, isAdmin: false });
-    upsertMediaBatch([media('gone', { sizeBytes: 5 * GB })], 10);
+    upsertMediaBatch([media('gone', { sizeBytes: 5 * GB, dirPath: '/media/TV/Gone Show' })], 10);
     addKeep('u1', 'gone');
     addKeep('u2', 'gone'); // no users row
     tombstoneStale(11);
     const body = await problemsGet(listReq('type=removedButKept')).then((r) => r.json());
     expect(body.items).toHaveLength(1);
     expect(body.items[0].keptBy.sort()).toEqual(['Alice', 'User u2']);
+    expect(body.items[0].dirPath).toBe('/media/TV/Gone Show');
   });
 
   it('sizeMismatch and arrConflicts return their category payloads', async () => {

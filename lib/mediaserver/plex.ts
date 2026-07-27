@@ -9,7 +9,7 @@ import {
   type PlexMetadata,
 } from '../plex';
 import { getPlexBaseUrl, getServerToken } from '../settings';
-import { lastSegment, parentSegment } from '../paths';
+import { lastSegment, parentPath, parentSegment } from '../paths';
 import type { LibraryKind } from '../types';
 import type { BackendItem, BackendSection, MediaBackend } from './types';
 
@@ -26,12 +26,16 @@ export function mapItem(m: PlexMetadata, kind: LibraryKind, sizeBytes: number): 
   const { tmdb, tvdb, imdb } = extractGuids(m);
   let dirName: string | null = null;
   let fileName: string | null = null;
+  let dirPath: string | null = null;
   if (kind === 'movie') {
     const file = m.Media?.[0]?.Part?.[0]?.file ?? null;
     dirName = parentSegment(file);
     fileName = lastSegment(file);
+    dirPath = parentPath(file);
   } else {
-    dirName = lastSegment(m.Location?.[0]?.path ?? null);
+    const loc = m.Location?.[0]?.path ?? null;
+    dirName = lastSegment(loc);
+    dirPath = loc;
   }
   return {
     ratingKey: String(m.ratingKey),
@@ -45,6 +49,7 @@ export function mapItem(m: PlexMetadata, kind: LibraryKind, sizeBytes: number): 
     sizeBytes,
     dirName,
     fileName,
+    dirPath,
   };
 }
 

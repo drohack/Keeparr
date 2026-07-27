@@ -114,7 +114,11 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   `#recycle`, dotfiles…) is ignored, only unaccounted-for entries are sized, and
   if *most* of a root looks orphaned Keeparr assumes the storage mapping is wrong
   and skips the sizing instead of crawling your whole share. Needs the same
-  library mounts + storage mappings the free-space report uses. The *arr-based
+  library mounts + storage mappings the free-space report uses. Rows show
+  **where the item lives on disk** — a compact path with the full one on hover;
+  click to copy — and duplicate groups highlight the folder that differs, so you
+  can tell a double-import (same folder) from two real copies (different
+  folders) at a glance. The *arr-based
   categories appear only when Sonarr/Radarr is connected. Report-only, like
   everything else in Keeparr.
 - **Size on disk** — series totals are summed across every episode; movies across

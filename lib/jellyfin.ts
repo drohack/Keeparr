@@ -1,6 +1,6 @@
 import { fetchJson } from './http';
 import { getMediaDeviceId, type MediaServerType } from './settings';
-import { lastSegment, parentSegment } from './paths';
+import { lastSegment, parentPath, parentSegment } from './paths';
 import type { LibraryKind } from './types';
 import type { BackendItem, BackendSection } from './mediaserver/types';
 
@@ -213,12 +213,15 @@ export function toBackendItem(it: JfItem, withSize: boolean): BackendItem {
   // back to MediaSources); Series Path is the series FOLDER itself.
   let dirName: string | null = null;
   let fileName: string | null = null;
+  let dirPath: string | null = null;
   if (withSize) {
     const file = it.Path ?? it.MediaSources?.[0]?.Path ?? null;
     dirName = parentSegment(file);
     fileName = lastSegment(file);
+    dirPath = parentPath(file);
   } else {
     dirName = lastSegment(it.Path ?? null);
+    dirPath = it.Path ?? null;
   }
   return {
     ratingKey: String(it.Id),
@@ -232,6 +235,7 @@ export function toBackendItem(it: JfItem, withSize: boolean): BackendItem {
     sizeBytes: withSize ? sumMediaSources([it]) : 0,
     dirName,
     fileName,
+    dirPath,
   };
 }
 

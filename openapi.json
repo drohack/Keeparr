@@ -552,7 +552,7 @@
           { "name": "offset", "in": "query", "schema": { "type": "integer" } }
         ],
         "responses": {
-          "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (`duplicates` items are groups with members; `diskOrphans` items are filesystem entries `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`)" },
+          "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (`duplicates` items are groups with members; `diskOrphans` items are filesystem entries `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`). Media-item rows carry `dirPath` — the full server-side folder path (null until a library scan captures it); `missingFromPlex` rows carry the *arr-side `path`." },
           "400": { "description": "`unknown_type` (missing/unknown type — no default view), `arr_not_configured` (arr-gated type without Sonarr/Radarr), or `storage_not_configured` (`diskOrphans` without storage mappings)" }
         }
       }
