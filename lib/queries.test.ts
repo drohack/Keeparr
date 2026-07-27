@@ -1622,11 +1622,15 @@ describe('Problems page queries', () => {
       expect(arrFolderNames().sort()).toEqual(['Only Unmatched', 'Shared Name']);
     });
 
-    it('media dir_name/file_name round-trip through upsert (updates too)', () => {
-      upsertMediaBatch([media('1', { dirName: 'Old Name', fileName: 'old.mkv' })]);
-      upsertMediaBatch([media('1', { dirName: 'New Name', fileName: null })]);
-      const stats = sectionDiskNameStats('1');
-      expect(stats.names).toEqual(['New Name']);
+    it('media disk names update on non-null values but NULL never clobbers', () => {
+      upsertMediaBatch([media('1', { dirName: 'Old Name', fileName: 'old.mkv', dirPath: '/tv/Old Name' })]);
+      // A scan that carries fresh values updates them…
+      upsertMediaBatch([media('1', { dirName: 'New Name', fileName: 'new.mkv', dirPath: '/tv/New Name' })]);
+      expect(sectionDiskNameStats('1').names.sort()).toEqual(['New Name', 'new.mkv']);
+      // …but a scan that carries NULLs (e.g. recentlyAdded re-upserting a known
+      // show it didn't recompute) keeps the stored capture instead of wiping it.
+      upsertMediaBatch([media('1', { dirName: null, fileName: null, dirPath: null })]);
+      expect(sectionDiskNameStats('1').names.sort()).toEqual(['New Name', 'new.mkv']);
     });
   });
 });

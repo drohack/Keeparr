@@ -241,9 +241,9 @@ const upsertMediaStmt = () =>
        guid_tmdb    = excluded.guid_tmdb,
        guid_tvdb    = excluded.guid_tvdb,
        guid_imdb    = excluded.guid_imdb,
-       dir_name     = excluded.dir_name,
-       file_name    = excluded.file_name,
-       dir_path     = excluded.dir_path,
+       dir_name     = COALESCE(excluded.dir_name, dir_name),
+       file_name    = COALESCE(excluded.file_name, file_name),
+       dir_path     = COALESCE(excluded.dir_path, dir_path),
        last_synced  = excluded.last_synced,
        removed      = 0`
   );
@@ -254,6 +254,12 @@ const upsertMediaStmt = () =>
  * Pass a single `syncedAt` for the whole sync so every touched item shares one
  * last_synced value; then call tombstoneStale(syncedAt) afterwards to remove
  * anything not re-touched. Defaults to now() for ad-hoc writes.
+ *
+ * On-disk name/path columns update COALESCE-style: a NULL in the incoming row
+ * keeps the stored value. Scans that don't recompute a show (known size →
+ * showSize skipped, so no episode-derived path) must not wipe the backfill the
+ * sizes job wrote — recentlyAdded runs every 5 minutes and was doing exactly
+ * that on servers that omit Location from listings.
  */
 export function upsertMediaBatch(
   items: UpsertMediaInput[],

@@ -151,8 +151,11 @@ inside it with no page scroll.
   episode file paths (`deriveShowDirPath` in lib/paths.ts: first segment under a
   known section root, else parent-of-file hopping season folders) via
   `backend.showSize()`, which returns `{sizeBytes, dirPath}`: new shows fill at
-  scan time, existing shows are backfilled by the `sizes` job
-  (`updateItemSize`'s COALESCE only overwrites with non-null derivations). Tombstoned with `removed=1` when
+  scan time, existing shows are backfilled by the `sizes` job. ALL disk-name
+  writes are COALESCE-style (upsertMediaBatch + updateItemSize): an incoming
+  NULL keeps the stored value — scans that don't recompute a show (known size →
+  no showSize call) must not wipe the sizes-job backfill (recentlyAdded runs
+  every 5 min and did exactly that). Tombstoned with `removed=1` when
   gone from Plex. The full
   Library sweep aborts if the backend reports zero sections, and skips the
   removal check for scanned sections that returned zero items — an empty-but-200

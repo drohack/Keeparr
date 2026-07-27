@@ -375,6 +375,32 @@ describe('syncRecentlyAdded', () => {
     expect(getMediaItem('old')?.removed).toBe(0); // no tombstoning here, ever
   });
 
+  it("re-upserting a KNOWN show doesn't wipe the sizes-job path backfill", async () => {
+    // The live-server regression: Location-less PMS → sizes job derives the
+    // show folder; recentlyAdded then re-upserts the (known-size) show WITHOUT
+    // recomputing it and must not null the path back out.
+    setPlexSections([{ id: '2', title: 'TV', type: 'show', paths: [] }]);
+    upsertMediaBatch([media('sh1', { sectionId: '2', libraryKind: 'show', sizeBytes: 5 * GB })]);
+    fakeBackend = {
+      ...backendWith([], {}),
+      showSize: async () => ({ sizeBytes: 5 * GB, dirPath: '/tv/Airing Show' }),
+    };
+    await syncSizes(); // backfills dir_path
+    expect(getMediaItem('sh1')?.dir_path).toBe('/tv/Airing Show');
+
+    fakeBackend = {
+      ...backendWith([], {}),
+      // The show is in the recently-added window but its size is known, so
+      // showSize is never called — the item arrives with dirPath null.
+      recentItems: async () => [backendItem('sh1', { sizeBytes: 0 })],
+      showSize: async () => {
+        throw new Error('must not be called for known-size shows');
+      },
+    };
+    await syncRecentlyAdded();
+    expect(getMediaItem('sh1')?.dir_path).toBe('/tv/Airing Show'); // survived
+  });
+
   it('a failing section is skipped, the rest still sync', async () => {
     setPlexSections([
       { id: '1', title: 'Movies', type: 'movie', paths: [] },
