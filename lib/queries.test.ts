@@ -1339,6 +1339,19 @@ describe('Problems page queries', () => {
       expect(notInArrItems(100, 0)).toEqual([]);
     });
 
+    it('excludeMissingIds drops items that can never match (the default view)', () => {
+      upsertMediaBatch([
+        media('1', { guidTmdb: '603', sizeBytes: 8 * GB }), // has an id → always IN
+        media('2', { guidTmdb: null, sizeBytes: 4 * GB }), // no id at all → filtered
+        media('3', { guidTmdb: null, guidImdb: 'tt1', sizeBytes: 2 * GB }), // imdb counts as an id
+      ]);
+      expect(notInArrItems(100, 0).map((r) => r.ratingKey)).toEqual(['1', '2', '3']);
+      expect(notInArrItems(100, 0, true).map((r) => r.ratingKey)).toEqual(['1', '3']);
+      // The Problems pill uses the same default-view filter.
+      expect(unmatchedMediaSummary().titles).toBe(3);
+      expect(unmatchedMediaSummary(true)).toMatchObject({ titles: 2, bytes: 10 * GB });
+    });
+
     it('arrUnmatchedSummary counts + sums without loading rows', () => {
       replaceArrUnmatched([
         {

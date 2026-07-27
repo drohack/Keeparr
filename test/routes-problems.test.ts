@@ -257,6 +257,21 @@ describe('GET /api/admin/problems', () => {
     expect(page2.hasMore).toBe(false);
   });
 
+  it('notInArr hides missing-id titles by default; includeMissingIds=1 shows them', async () => {
+    await loginAs('admin', true);
+    configureArr();
+    upsertMediaBatch([
+      media('1', { sizeBytes: 8 * GB }), // builder gives it a tmdb id → always listed
+      media('2', { guidTmdb: null, sizeBytes: 4 * GB }), // no id at all → hidden by default
+    ]);
+    const def = await problemsGet(listReq('type=notInArr')).then((r) => r.json());
+    expect(def.items.map((i: { ratingKey: string }) => i.ratingKey)).toEqual(['1']);
+    const all = await problemsGet(listReq('type=notInArr&includeMissingIds=1')).then((r) =>
+      r.json()
+    );
+    expect(all.items.map((i: { ratingKey: string }) => i.ratingKey)).toEqual(['1', '2']);
+  });
+
   it('duplicates returns groups with members incl. their locations', async () => {
     await loginAs('admin', true);
     upsertMediaBatch([

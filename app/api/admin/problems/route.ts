@@ -72,7 +72,11 @@ export async function GET(req: Request) {
         hasMore: rows.length > PAGE,
       };
     } else if (type === 'notInArr') {
-      const rows = notInArrItems(PAGE + 1, offset);
+      // Items with no external id can never match *arr, so they'd flood this
+      // view — excluded unless the client opts in (includeMissingIds=1; the UI
+      // checkbox defaults to hiding them).
+      const includeMissingIds = p.get('includeMissingIds') === '1';
+      const rows = notInArrItems(PAGE + 1, offset, !includeMissingIds);
       items = {
         rows: rows.slice(0, PAGE).map(withPoster),
         hasMore: rows.length > PAGE,

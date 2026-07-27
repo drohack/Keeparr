@@ -122,6 +122,9 @@ export default function ProblemsView() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  // notInArr only: items with no external id can never match *arr, so they
+  // flood that view (they have their own Missing IDs category) — hidden by default.
+  const [hideMissingIds, setHideMissingIds] = useState(true);
   const toast = useToast();
   // Guards against out-of-order responses: only the latest request may commit
   // state (a slow old response must not clobber a newer one).
@@ -145,13 +148,14 @@ export default function ProblemsView() {
   }, []);
 
   const load = useCallback(
-    async (type: ProblemType, reset: boolean) => {
+    async (type: ProblemType, reset: boolean, hideMissing: boolean = hideMissingIds) => {
       const seq = ++fetchSeq.current;
       setLoading(true);
       const off = reset ? 0 : offset;
+      const extra = type === 'notInArr' && !hideMissing ? '&includeMissingIds=1' : '';
       try {
-        const data = await fetch(`/api/admin/problems?type=${type}&offset=${off}`).then((r) =>
-          r.json()
+        const data = await fetch(`/api/admin/problems?type=${type}&offset=${off}${extra}`).then(
+          (r) => r.json()
         );
         if (seq !== fetchSeq.current) return; // superseded — drop it
         // An error response has no `items` — guard against a crash.
@@ -166,7 +170,7 @@ export default function ProblemsView() {
         if (seq === fetchSeq.current) setLoading(false);
       }
     },
-    [offset, toast]
+    [offset, toast, hideMissingIds]
   );
 
   useEffect(() => {
@@ -240,8 +244,32 @@ export default function ProblemsView() {
         </div>
 
         {/* What the selected check means — ABOVE the table so it's readable
-            without scrolling past a long list. */}
-        {active && <p className="mb-3 text-sm text-slate-400">{hints[active]}</p>}
+            without scrolling past a long list. Per-category controls sit on the
+            same line, right-aligned. */}
+        {active && (
+          <div className="mb-3 flex items-start justify-between gap-6">
+            <p className="text-sm text-slate-400">{hints[active]}</p>
+            {active === 'notInArr' && (
+              <label
+                className="flex shrink-0 items-center gap-2 text-sm text-slate-400"
+                title="Titles with no tvdb/tmdb/imdb id can never match Sonarr/Radarr — see the Missing IDs check"
+              >
+                <input
+                  type="checkbox"
+                  checked={hideMissingIds}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    setHideMissingIds(v);
+                    setItems([]);
+                    setHasMore(false);
+                    load('notInArr', true, v);
+                  }}
+                />
+                Hide titles with missing IDs
+              </label>
+            )}
+          </div>
+        )}
 
         {active && categories && !loading && items.length === 0 ? (
           <p className="text-sm text-slate-400 py-8 text-center">

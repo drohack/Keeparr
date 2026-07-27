@@ -389,7 +389,11 @@ when it has no tvdb/tmdb **and** no imdb.
   `diskOrphans` needs storage mappings + a completed diskScan run — until then
   `available:false` with `reason: storage_not_configured|not_scanned`, which the
   UI renders as a dimmed pill with a fix-it tooltip) +
-  `GET /api/admin/problems?type=&offset=` (paged list for one category —
+  `GET /api/admin/problems?type=&offset=&includeMissingIds=` (paged list for one
+  category — `notInArr` hides titles with no external id by DEFAULT (they can
+  never match *arr and have their own missingIds category; the pill count matches
+  via `unmatchedMediaSummary(true)`), `includeMissingIds=1` opts back in;
+  categories:
   `sizeMismatch|notInArr|missingFromPlex|duplicates|arrConflicts|zeroSize|`
   `removedButKept|missingIds|diskOrphans`; NO default view: missing/unknown type
   → 400 `unknown_type`, arr-gated type without arr → 400 `arr_not_configured`,

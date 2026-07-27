@@ -549,7 +549,8 @@
         "summary": "Paged list for one problem category",
         "parameters": [
           { "name": "type", "in": "query", "required": true, "schema": { "type": "string", "enum": ["sizeMismatch", "notInArr", "missingFromPlex", "duplicates", "arrConflicts", "zeroSize", "removedButKept", "missingIds", "diskOrphans"] } },
-          { "name": "offset", "in": "query", "schema": { "type": "integer" } }
+          { "name": "offset", "in": "query", "schema": { "type": "integer" } },
+          { "name": "includeMissingIds", "in": "query", "schema": { "type": "string", "enum": ["1"] }, "description": "`notInArr` only: also list titles with no external id (hidden by default — they can never match *arr and have their own missingIds category)" }
         ],
         "responses": {
           "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (`duplicates` items are groups with members; `diskOrphans` items are filesystem entries `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`). Media-item rows carry `dirPath` — the full server-side folder path (null until a library scan captures it); `missingFromPlex` rows carry the *arr-side `path`." },

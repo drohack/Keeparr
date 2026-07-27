@@ -2095,8 +2095,13 @@ export function arrQualitySummary(): QualitySummaryRow[] {
     .all() as QualitySummaryRow[];
 }
 
-/** Single aggregate for non-removed media with NO arr match ("Not in *arr"). */
-export function unmatchedMediaSummary(): Omit<QualitySummaryRow, 'quality'> {
+/** Single aggregate for non-removed media with NO arr match ("Not in *arr").
+ *  `excludeMissingIds` mirrors notInArrItems' filter (the Problems pill counts
+ *  the DEFAULT view); Big Picture calls without it (its table spans everything). */
+export function unmatchedMediaSummary(
+  excludeMissingIds = false
+): Omit<QualitySummaryRow, 'quality'> {
+  const missingIdFilter = excludeMissingIds ? ` AND NOT (${MISSING_ID_EXPR})` : '';
   return getDb()
     .prepare(
       `SELECT COUNT(*) AS titles,
@@ -2105,7 +2110,7 @@ export function unmatchedMediaSummary(): Omit<QualitySummaryRow, 'quality'> {
               COALESCE(SUM(CASE WHEN ${notWatchedAnyExpr} THEN m.size_bytes ELSE 0 END), 0) AS unwatchedBytes
        FROM media_items m
        WHERE m.removed = 0
-         AND NOT EXISTS (SELECT 1 FROM arr_items a WHERE a.rating_key = m.rating_key)`
+         AND NOT EXISTS (SELECT 1 FROM arr_items a WHERE a.rating_key = m.rating_key)${missingIdFilter}`
     )
     .get() as Omit<QualitySummaryRow, 'quality'>;
 }
@@ -2229,14 +2234,21 @@ export interface NotInArrItem {
 }
 
 /** Non-removed items with no arr match, largest first.
- *  (Aggregate counterpart: unmatchedMediaSummary().) */
-export function notInArrItems(limit: number, offset: number): NotInArrItem[] {
+ *  `excludeMissingIds` drops items with no external id at all — they can NEVER
+ *  match *arr, so they'd flood this view (they have their own Missing IDs
+ *  category). (Aggregate counterpart: unmatchedMediaSummary().) */
+export function notInArrItems(
+  limit: number,
+  offset: number,
+  excludeMissingIds = false
+): NotInArrItem[] {
+  const missingIdFilter = excludeMissingIds ? ` AND NOT (${MISSING_ID_EXPR})` : '';
   const rows = getDb()
     .prepare(
       `SELECT rating_key, title, year, library_kind, section_id, thumb, dir_path, size_bytes, added_at
        FROM media_items m
        WHERE m.removed = 0
-         AND NOT EXISTS (SELECT 1 FROM arr_items a WHERE a.rating_key = m.rating_key)
+         AND NOT EXISTS (SELECT 1 FROM arr_items a WHERE a.rating_key = m.rating_key)${missingIdFilter}
        ORDER BY m.size_bytes DESC, m.title COLLATE NOCASE ASC
        LIMIT @limit OFFSET @offset`
     )

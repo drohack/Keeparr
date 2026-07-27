@@ -36,8 +36,10 @@ export async function GET() {
     const scanned = getJobState('diskScan').lastRun != null;
     const orphansReady = storageConfigured && scanned;
     // Gate "not in *arr" until the arr job has actually matched something.
+    // The count reflects the list's DEFAULT view: items with no external id at
+    // all are excluded (they can never match — they're the Missing IDs category).
     const notInArrReady = arr && arrMatchedCount() > 0;
-    const notInArr = notInArrReady ? unmatchedMediaSummary() : ZERO;
+    const notInArr = notInArrReady ? unmatchedMediaSummary(true) : ZERO;
     const dupes = duplicateGroups();
 
     const categories: ProblemCategorySummary[] = [
