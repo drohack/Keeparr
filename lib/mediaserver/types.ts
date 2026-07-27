@@ -45,6 +45,15 @@ export interface WatchRow {
   lastWatched: number | null;
 }
 
+/** A show's on-disk footprint, computed from its episodes. */
+export interface ShowDisk {
+  sizeBytes: number;
+  /** Show folder derived from episode file paths — the fallback when the
+   *  backend omits the show's own Location/Path from listings. Null when no
+   *  episode carried a usable path. */
+  dirPath: string | null;
+}
+
 export interface MediaBackend {
   /** All movie/show libraries on the server. */
   listSections(): Promise<BackendSection[]>;
@@ -52,8 +61,8 @@ export interface MediaBackend {
   listSectionItems(sectionId: string, kind: LibraryKind): Promise<BackendItem[]>;
   /** Newest items in a section (cheap incremental scan). */
   recentItems(sectionId: string, kind: LibraryKind, limit: number): Promise<BackendItem[]>;
-  /** Total on-disk size for one series (episode sum, counting each file once). */
-  showSize(ratingKey: string): Promise<number>;
+  /** On-disk size + derived folder for one series (episode sum, each file once). */
+  showSize(ratingKey: string): Promise<ShowDisk>;
   /**
    * Native watch history, or `null` if the backend has none of its own (Plex —
    * watch comes from Tautulli instead). Jellyfin/Emby return their own UserData.

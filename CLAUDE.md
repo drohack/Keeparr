@@ -146,7 +146,13 @@ inside it with no page scroll.
   media server reports them (movie: Part.file / item Path; show: Location /
   series Path) — the disk-orphan scan's known-name set; `dir_path` is the FULL
   server-side folder path (the Problems page's clickable Location cells). All
-  NULL until a library scan captures them. Tombstoned with `removed=1` when
+  NULL until a library scan captures them. **Some PMS versions omit `Location`
+  from show listings entirely** — shows then get dir_path/dir_name DERIVED from
+  episode file paths (`deriveShowDirPath` in lib/paths.ts: first segment under a
+  known section root, else parent-of-file hopping season folders) via
+  `backend.showSize()`, which returns `{sizeBytes, dirPath}`: new shows fill at
+  scan time, existing shows are backfilled by the `sizes` job
+  (`updateItemSize`'s COALESCE only overwrites with non-null derivations). Tombstoned with `removed=1` when
   gone from Plex. The full
   Library sweep aborts if the backend reports zero sections, and skips the
   removal check for scanned sections that returned zero items — an empty-but-200
@@ -596,7 +602,8 @@ A fuller source-verified reference is in the planning doc
   SearchResults / StatsView / KeepView / SearchBox — new fetchers follow suit.
 - Refresh work is split into scheduled jobs (`lib/jobs.ts`): `recentlyAdded` (cheap,
   newest items only), `library` (full inventory + movie sizes + new-show sizing),
-  `sizes` (expensive per-series `getAllLeaves` recompute), `watch` (Tautulli),
+  `sizes` (expensive per-series `getAllLeaves` recompute; also backfills show
+  `dir_path` derived from episode paths), `watch` (Tautulli),
   `requests` (Seerr cache), `arr` (Sonarr/Radarr quality+tags cache), `diskScan`
   (disk-orphan scan over the mapped library paths, `lib/diskscan.ts` — gated in
   `lib/health.ts jobRelevant` on storage mappings existing), `backup`

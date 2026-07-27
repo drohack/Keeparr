@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deriveShowDirPath,
   lastSegment,
   normalizeName,
   parentPath,
@@ -55,6 +56,35 @@ describe('paths (foreign-path string helpers)', () => {
     expect(pathTail('/tv/Scrubs')).toBe('tv/Scrubs'); // nothing dropped → no ellipsis
     expect(pathTail('Scrubs')).toBe('Scrubs');
     expect(pathTail('/a/b/c/d', 3)).toBe('…/b/c/d');
+  });
+
+  it('deriveShowDirPath: show folder = first segment under a library root', () => {
+    const roots = ['/data/tv', '/data/anime'];
+    expect(
+      deriveShowDirPath(['/data/tv/Scrubs/Season 1/ep1.mkv'], roots)
+    ).toBe('/data/tv/Scrubs');
+    // Files directly in the show folder (no season dirs) work the same way.
+    expect(deriveShowDirPath(['/data/anime/FLCL/ep1.mkv'], roots)).toBe('/data/anime/FLCL');
+    // Root matching is case-insensitive but the ORIGINAL casing is preserved.
+    expect(
+      deriveShowDirPath(['/Data/TV/Scrubs/Season 1/ep1.mkv'], ['/data/tv'])
+    ).toBe('/Data/TV/Scrubs');
+    // Deeply nested extras still resolve to the top-level show folder.
+    expect(
+      deriveShowDirPath(['/data/tv/Scrubs/Season 1/Extras/cut.mkv'], roots)
+    ).toBe('/data/tv/Scrubs');
+  });
+
+  it('deriveShowDirPath: no matching root → parent dir, hopping season folders', () => {
+    expect(deriveShowDirPath(['/media/Shows/Scrubs/Season 2/ep.mkv'], [])).toBe(
+      '/media/Shows/Scrubs'
+    );
+    expect(deriveShowDirPath(['/media/Shows/Scrubs/Specials/ep.mkv'], [])).toBe(
+      '/media/Shows/Scrubs'
+    );
+    // Non-season subfolder: the parent IS the best guess.
+    expect(deriveShowDirPath(['/media/Shows/Scrubs/ep.mkv'], [])).toBe('/media/Shows/Scrubs');
+    expect(deriveShowDirPath([], ['/data/tv'])).toBeNull();
   });
 
   it('normalizeName case-folds and NFC-normalizes', () => {

@@ -101,15 +101,32 @@ export async function syncLibrary(): Promise<JobResult> {
       const batch: UpsertMediaInput[] = [];
       for (const show of items) {
         let size = knownSizes.get(show.ratingKey);
+        let derivedDir: string | null = null;
         if (size == null) {
           // New show — compute its size now so it never shows as 0 GB.
           try {
-            size = await backend.showSize(show.ratingKey);
+            const disk = await backend.showSize(show.ratingKey);
+            size = disk.sizeBytes;
+            derivedDir = disk.dirPath;
           } catch {
             size = 0;
           }
         }
-        batch.push(toInput({ ...show, sizeBytes: size }, section.id, 'show'));
+        // Some servers omit the show's Location from listings — fall back to
+        // the folder derived from episode paths (existing shows get theirs
+        // backfilled by the sizes job).
+        batch.push(
+          toInput(
+            {
+              ...show,
+              sizeBytes: size,
+              dirPath: show.dirPath ?? derivedDir,
+              dirName: show.dirName ?? lastSegment(derivedDir),
+            },
+            section.id,
+            'show'
+          )
+        );
       }
       itemsSynced += upsertMediaBatch(batch, syncStart);
     }
@@ -148,17 +165,31 @@ export async function syncRecentlyAdded(): Promise<JobResult> {
     const batch: UpsertMediaInput[] = [];
     for (const node of items) {
       let size = node.sizeBytes;
+      let derivedDir: string | null = null;
       if (kind === 'show') {
         size = knownSizes.get(node.ratingKey) ?? 0;
         if (size === 0) {
           try {
-            size = await backend.showSize(node.ratingKey);
+            const disk = await backend.showSize(node.ratingKey);
+            size = disk.sizeBytes;
+            derivedDir = disk.dirPath;
           } catch {
             size = 0;
           }
         }
       }
-      batch.push(toInput({ ...node, sizeBytes: size }, section.id, kind));
+      batch.push(
+        toInput(
+          {
+            ...node,
+            sizeBytes: size,
+            dirPath: node.dirPath ?? derivedDir,
+            dirName: node.dirName ?? lastSegment(derivedDir),
+          },
+          section.id,
+          kind
+        )
+      );
     }
     added += upsertMediaBatch(batch, syncStart);
   }
@@ -177,7 +208,10 @@ export async function syncSizes(): Promise<JobResult> {
   let updated = 0;
   for (const rk of keys) {
     try {
-      updateItemSize(rk, await backend.showSize(rk));
+      const disk = await backend.showSize(rk);
+      // Also backfill the show's on-disk folder — servers that omit Location
+      // from listings leave dir_path NULL until this derives it from episodes.
+      updateItemSize(rk, disk.sizeBytes, disk.dirPath);
       updated++;
     } catch {
       // a single failing show shouldn't abort the recompute

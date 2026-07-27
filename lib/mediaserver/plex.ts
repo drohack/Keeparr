@@ -8,8 +8,8 @@ import {
   sumPartSizes,
   type PlexMetadata,
 } from '../plex';
-import { getPlexBaseUrl, getServerToken } from '../settings';
-import { lastSegment, parentPath, parentSegment } from '../paths';
+import { getPlexBaseUrl, getPlexSections, getServerToken } from '../settings';
+import { deriveShowDirPath, lastSegment, parentPath, parentSegment } from '../paths';
 import type { LibraryKind } from '../types';
 import type { BackendItem, BackendSection, MediaBackend } from './types';
 
@@ -79,7 +79,19 @@ export const plexBackend: MediaBackend = {
   },
   async showSize(ratingKey) {
     const { baseUrl, token } = creds();
-    return sumLeafSizes(await getAllLeaves(baseUrl, token, ratingKey));
+    const leaves = await getAllLeaves(baseUrl, token, ratingKey);
+    // Derive the show folder from episode paths — some PMS versions omit the
+    // show's own Location from section listings, so this is the reliable source.
+    const files: string[] = [];
+    for (const leaf of leaves) {
+      const file = leaf.Media?.[0]?.Part?.[0]?.file;
+      if (file) files.push(file);
+    }
+    const roots = getPlexSections().flatMap((s) => s.paths ?? []);
+    return {
+      sizeBytes: sumLeafSizes(leaves),
+      dirPath: deriveShowDirPath(files, roots),
+    };
   },
   // Plex watch history comes from Tautulli (separate connector), not Plex itself.
   async getWatchData() {

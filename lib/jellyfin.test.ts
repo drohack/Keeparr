@@ -117,13 +117,18 @@ describe('paged /Items reads (StartIndex/Limit)', () => {
       // Server answers with fewer rows than asked — the loop must follow
       // TotalRecordCount, not assume one page covers everything.
       .mockResolvedValueOnce(
-        fakeRes({ Items: [ep('/a', 1 * GB), ep('/b', 2 * GB)], TotalRecordCount: 3 })
+        fakeRes({
+          Items: [ep('/tv/Show/Season 1/a.mkv', 1 * GB), ep('/tv/Show/Season 1/b.mkv', 2 * GB)],
+          TotalRecordCount: 3,
+        })
       )
       .mockResolvedValueOnce(
-        fakeRes({ Items: [ep('/c', 4 * GB)], TotalRecordCount: 3 })
+        fakeRes({ Items: [ep('/tv/Show/Season 2/c.mkv', 4 * GB)], TotalRecordCount: 3 })
       );
-    const size = await getSeriesSize('http://jf:8096', 'tok', 'series1');
-    expect(size).toBe(7 * GB);
+    const disk = await getSeriesSize('http://jf:8096', 'tok', 'series1');
+    expect(disk.sizeBytes).toBe(7 * GB);
+    // Series folder derived from episode paths (season folder hopped).
+    expect(disk.dirPath).toBe('/tv/Show');
     expect(spy).toHaveBeenCalledTimes(2);
     // The second page picked up where the first left off.
     expect(String(spy.mock.calls[1][0])).toContain('StartIndex=2');
@@ -133,7 +138,10 @@ describe('paged /Items reads (StartIndex/Limit)', () => {
     const spy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(fakeRes({ Items: [], TotalRecordCount: 0 }));
-    await expect(getSeriesSize('http://jf:8096', 'tok', 's')).resolves.toBe(0);
+    await expect(getSeriesSize('http://jf:8096', 'tok', 's')).resolves.toEqual({
+      sizeBytes: 0,
+      dirPath: null,
+    });
     expect(spy).toHaveBeenCalledTimes(1);
   });
 });

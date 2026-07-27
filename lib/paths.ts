@@ -51,3 +51,55 @@ export function pathTail(p: string, n = 2): string {
 export function normalizeName(name: string): string {
   return name.normalize('NFC').toLowerCase();
 }
+
+/** Cut a path right after its first `n` segments, preserving separators
+ *  ('/data/tv/Show/ep.mkv', 3 → '/data/tv/Show'). */
+function cutAfterSegments(p: string, n: number): string {
+  let idx = 0;
+  let seen = 0;
+  while (seen < n && idx < p.length) {
+    while (idx < p.length && /[/\\]/.test(p[idx])) idx++;
+    while (idx < p.length && !/[/\\]/.test(p[idx])) idx++;
+    seen++;
+  }
+  return p.slice(0, idx);
+}
+
+/** Conventional intermediate folders between a show folder and its files. */
+const SEASON_DIR_RE = /^(season([ ._-]|$)|specials$|staffel([ ._-]|$)|extras$)/i;
+
+/**
+ * Derive a show's folder from its EPISODE file paths — the fallback for media
+ * servers that omit the show's own Location/Path from listings (episode paths
+ * are always available; they're how show sizes are computed).
+ *
+ * Primary: the show folder is the first segment under a known library root
+ * (compared segment-wise, case-folded). Fallback without a matching root: the
+ * first file's parent, hopping over a conventional season/specials folder.
+ */
+export function deriveShowDirPath(
+  files: string[],
+  sectionRoots: string[]
+): string | null {
+  for (const file of files) {
+    const normSegs = pathSegments(file).map(normalizeName);
+    for (const root of sectionRoots) {
+      const rootSegs = pathSegments(root).map(normalizeName);
+      if (
+        rootSegs.length > 0 &&
+        normSegs.length > rootSegs.length + 1 && // root + show folder + file, at least
+        rootSegs.every((s, i) => normSegs[i] === s)
+      ) {
+        return cutAfterSegments(file, rootSegs.length + 1);
+      }
+    }
+  }
+  const first = files[0];
+  if (!first) return null;
+  let dir = parentPath(first);
+  const dirName = lastSegment(dir);
+  if (dir && dirName && SEASON_DIR_RE.test(normalizeName(dirName))) {
+    dir = parentPath(dir) ?? dir;
+  }
+  return dir;
+}

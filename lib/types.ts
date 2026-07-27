@@ -14,6 +14,11 @@ export interface MediaItem {
   added_at: number | null;
   guid_tmdb: string | null;
   guid_tvdb: string | null;
+  /** On-disk names/path captured from the media server (NULL until a library
+   *  scan records them). Optional: older row casts predate the columns. */
+  dir_name?: string | null;
+  file_name?: string | null;
+  dir_path?: string | null;
   last_synced: number;
   removed: number;
 }

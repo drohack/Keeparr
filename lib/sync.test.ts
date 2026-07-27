@@ -93,7 +93,7 @@ function backendWith(
     listSections: async () => sections,
     listSectionItems: async (id) => itemsBySection[id] ?? [],
     recentItems: async () => [],
-    showSize: async () => 0,
+    showSize: async () => ({ sizeBytes: 0, dirPath: null }),
     getWatchData: async () => null,
   };
 }
@@ -362,12 +362,16 @@ describe('syncRecentlyAdded', () => {
         sectionId === '1'
           ? [backendItem('m-new')]
           : [backendItem('sh-new', { sizeBytes: 0 })],
-      showSize: async () => 7 * GB,
+      showSize: async () => ({ sizeBytes: 7 * GB, dirPath: '/tv/New Show' }),
     };
     const res = await syncRecentlyAdded();
     expect(res.result).toBe(2);
     expect(getMediaItem('m-new')?.removed).toBe(0);
     expect(getMediaItem('sh-new')?.size_bytes).toBe(7 * GB); // new show sized inline
+    // The listing carried no Location (dirPath null) — the episode-derived
+    // folder from showSize() fills in dir_path/dir_name instead.
+    expect(getMediaItem('sh-new')?.dir_path).toBe('/tv/New Show');
+    expect(getMediaItem('sh-new')?.dir_name).toBe('New Show');
     expect(getMediaItem('old')?.removed).toBe(0); // no tombstoning here, ever
   });
 
@@ -382,7 +386,7 @@ describe('syncRecentlyAdded', () => {
         if (sectionId === '1') throw new Error('boom');
         return [backendItem('sh-new', { sizeBytes: 0 })];
       },
-      showSize: async () => 1 * GB,
+      showSize: async () => ({ sizeBytes: 1 * GB, dirPath: null }),
     };
     const res = await syncRecentlyAdded();
     expect(res.result).toBe(1);
@@ -401,7 +405,7 @@ describe('syncSizes', () => {
       ...backendWith([], {}),
       showSize: async (rk) => {
         if (rk === 'sh1') throw new Error('boom');
-        return 9 * GB;
+        return { sizeBytes: 9 * GB, dirPath: '/tv/Show sh2' };
       },
     };
     const res = await syncSizes();
@@ -409,6 +413,9 @@ describe('syncSizes', () => {
     expect(getMediaItem('sh2')?.size_bytes).toBe(9 * GB);
     expect(getMediaItem('sh1')?.size_bytes).toBe(1 * GB); // unchanged
     expect(getMediaItem('mv')?.size_bytes).toBe(1 * GB); // movies untouched
+    // The derived show folder is backfilled alongside the size (the fallback
+    // for servers that omit Location from listings).
+    expect(getMediaItem('sh2')?.dir_path).toBe('/tv/Show sh2');
   });
 });
 

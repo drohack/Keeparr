@@ -1,6 +1,6 @@
 import { fetchJson } from './http';
 import { getMediaDeviceId, type MediaServerType } from './settings';
-import { lastSegment, parentPath, parentSegment } from './paths';
+import { deriveShowDirPath, lastSegment, parentPath, parentSegment } from './paths';
 import type { LibraryKind } from './types';
 import type { BackendItem, BackendSection } from './mediaserver/types';
 
@@ -386,12 +386,13 @@ export async function getWatchHistory(
   return [...agg.values()];
 }
 
-/** Total on-disk size of a series: sum every episode's media, file-deduped. */
+/** Total on-disk size of a series (every episode's media, file-deduped) plus
+ *  the series folder derived from episode paths. */
 export async function getSeriesSize(
   baseUrl: string,
   token: string,
   seriesId: string
-): Promise<number> {
+): Promise<{ sizeBytes: number; dirPath: string | null }> {
   const qs = new URLSearchParams({
     ParentId: seriesId,
     Recursive: 'true',
@@ -403,5 +404,13 @@ export async function getSeriesSize(
     token,
     'Jellyfin episodes'
   );
-  return sumMediaSources(items);
+  // Derive the series folder from episode paths — the fallback for servers
+  // that omit the series' own Path from listings. JF sections report no
+  // library roots, so this relies on deriveShowDirPath's season-folder hop.
+  const files: string[] = [];
+  for (const it of items) {
+    const p = it.MediaSources?.[0]?.Path;
+    if (p) files.push(p);
+  }
+  return { sizeBytes: sumMediaSources(items), dirPath: deriveShowDirPath(files, []) };
 }

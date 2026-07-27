@@ -1,5 +1,6 @@
 import { getDb } from './db';
 import { FEED_MOVIE_RESERVE_MIN, FEED_MOVIE_RESERVE_RATIO } from './config';
+import { lastSegment } from './paths';
 import type {
   AdminUserRow,
   JobRun,
@@ -2136,11 +2137,29 @@ export function showRatingKeys(): string[] {
   return rows.map((r) => r.rating_key);
 }
 
-/** Update a single item's size on disk (used by the size-recompute job). */
-export function updateItemSize(ratingKey: string, sizeBytes: number): void {
+/** Update a single item's size on disk (used by the size-recompute job).
+ *  `dirPath` (derived from episode paths) also refreshes the on-disk folder
+ *  fields when present — the backfill for servers that omit a show's Location
+ *  from listings. Null leaves the stored values untouched. */
+export function updateItemSize(
+  ratingKey: string,
+  sizeBytes: number,
+  dirPath?: string | null
+): void {
   getDb()
-    .prepare('UPDATE media_items SET size_bytes = ? WHERE rating_key = ?')
-    .run(sizeBytes, ratingKey);
+    .prepare(
+      `UPDATE media_items SET
+         size_bytes = @sizeBytes,
+         dir_path   = COALESCE(@dirPath, dir_path),
+         dir_name   = COALESCE(@dirName, dir_name)
+       WHERE rating_key = @ratingKey`
+    )
+    .run({
+      ratingKey,
+      sizeBytes,
+      dirPath: dirPath ?? null,
+      dirName: lastSegment(dirPath ?? null),
+    });
 }
 
 // ---------------------------------------------------------------------------
