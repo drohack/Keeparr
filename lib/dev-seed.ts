@@ -161,6 +161,10 @@ function buildItems(): UpsertMediaInput[] {
       dirName: title,
       fileName: kind === 'movie' ? `${title}.mkv` : null,
       dirPath: `/media/${SECTIONS.find((s) => s.id === sectionId)!.title}/${title}`,
+      // Movies carry their file count. n=34 is the SECOND 17-multiple (17
+      // itself is the measured-disk demo): a merged two-part movie, so its
+      // divergent arr size demos the "Multi-part item — likely fine" badge.
+      fileCount: kind === 'movie' ? (n === 34 ? 2 : 1) : null,
     });
   };
 
@@ -480,7 +484,10 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
 
     // Cross-instance conflict: both Sonarr instances manage the first anime
     // title; the Anime instance won the match (it owns the arr_items row).
+    // Plus a SAME-instance conflict: two Radarr titles resolve to one movie —
+    // the merged multi-part case ("split apart in Plex" badge).
     const conflictSrc = mediaItems.find((m) => m.sectionId === '4')!;
+    const mergedSrc = mediaItems.find((m) => m.libraryKind === 'movie' && m.fileCount === 2)!;
     replaceArrConflicts([
       {
         ratingKey: conflictSrc.ratingKey,
@@ -492,6 +499,17 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
         instanceId: SONARR_MAIN.id,
         instanceName: SONARR_MAIN.name,
         sizeOnDisk: conflictSrc.sizeBytes,
+      },
+      {
+        ratingKey: mergedSrc.ratingKey,
+        title: `${mergedSrc.title}, Part II`,
+        firstSource: 'radarr',
+        firstInstanceId: RADARR_MAIN.id,
+        firstInstanceName: RADARR_MAIN.name,
+        source: 'radarr',
+        instanceId: RADARR_MAIN.id,
+        instanceName: RADARR_MAIN.name,
+        sizeOnDisk: Math.round(mergedSrc.sizeBytes / 2),
       },
     ]);
 

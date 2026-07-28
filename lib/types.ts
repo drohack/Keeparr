@@ -19,6 +19,8 @@ export interface MediaItem {
   dir_name?: string | null;
   file_name?: string | null;
   dir_path?: string | null;
+  /** Movie: distinct video files merged into the item (>1 = multi-part). */
+  file_count?: number | null;
   last_synced: number;
   removed: number;
 }

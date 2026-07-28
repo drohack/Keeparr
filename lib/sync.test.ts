@@ -69,6 +69,7 @@ function backendItem(ratingKey: string, over: Partial<BackendItem> = {}): Backen
     dirName: null,
     fileName: null,
     dirPath: null,
+    fileCount: null,
     ...over,
   };
 }
@@ -322,8 +323,17 @@ describe('syncArr cross-instance conflicts', () => {
     const conflicts = getArrConflicts();
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0].ratingKey).toBe('m1');
-    expect(conflicts[0].winner).toEqual({ source: 'radarr', instanceName: 'Radarr' });
-    expect(conflicts[0].loser).toEqual({ source: 'radarr', instanceName: 'Radarr 4K' });
+    expect(conflicts[0].winner).toEqual({
+      source: 'radarr',
+      instanceId: 'r1',
+      instanceName: 'Radarr',
+    });
+    expect(conflicts[0].loser).toEqual({
+      source: 'radarr',
+      instanceId: 'r2',
+      instanceName: 'Radarr 4K',
+    });
+    expect(conflicts[0].sameInstance).toBe(false);
     expect(conflicts[0].sizeOnDisk).toBe(2 * GB); // the loser's copy
     // arr_items kept the FIRST claimant.
     const row = queryLibrary({ plexUserId: 'u', limit: 10, offset: 0 }).find(
@@ -342,6 +352,24 @@ describe('syncArr cross-instance conflicts', () => {
       ]);
     await syncArr();
     expect(getArrConflicts().map((c) => c.loser.instanceName)).toEqual(['Radarr 4K']);
+  });
+
+  it('two titles of ONE instance resolving to one item → sameInstance conflict (merged multi-part)', async () => {
+    setRadarrInstances([{ id: 'r1', name: 'Radarr', url: 'http://r1', apiKey: 'k' }]);
+    vi.mocked(fetchRadarr).mockResolvedValueOnce([
+      // Part I claims the media item via the shared imdb id…
+      rec({ arrId: 1, title: 'Film, Part I', matchId: '404', imdbId: 'tt5' }),
+      // …then Part II — the item's real tmdb match — collides.
+      rec({ arrId: 2, title: 'Film, Part II', matchId: '22', sizeOnDisk: 2 * GB }),
+    ]);
+    await syncArr();
+    const conflicts = getArrConflicts();
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toMatchObject({
+      ratingKey: 'm1',
+      title: 'Film, Part II',
+      sameInstance: true,
+    });
   });
 
   it('a clean run sweeps stale conflict rows', async () => {

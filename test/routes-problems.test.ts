@@ -353,6 +353,7 @@ describe('GET /api/admin/problems', () => {
     upsertMediaBatch([
       media('1', {
         title: 'Wrong Match',
+        guidTmdb: '111',
         dirName: 'Real Title (1995)',
         dirPath: '/media/Movies/Real Title (1995)',
         sizeBytes: 4 * GB,
@@ -370,6 +371,7 @@ describe('GET /api/admin/problems', () => {
     expect(body.items[0].media).toMatchObject({
       title: 'Wrong Match',
       dirPath: '/media/Movies/Real Title (1995)',
+      guidTmdb: '111', // the server's own id — shown against the arr's extId
     });
     expect(body.items[0].media.thumbUrl).toContain('/api/image?path=');
     expect(body.items[0].arr).toMatchObject({
@@ -413,13 +415,20 @@ describe('GET /api/admin/problems', () => {
     await loginAs('admin', true);
     configureArr();
     setSonarrInstances([{ id: 's1', name: 'Sonarr', url: 'http://s1', apiKey: 'k' }]);
-    upsertMediaBatch([media('1', { sizeBytes: 10 * GB })]);
+    upsertMediaBatch([media('1', { sizeBytes: 10 * GB, fileCount: 2 })]);
     replaceArrItems([arrRow({ ratingKey: '1', arrSizeBytes: 4 * GB })]);
     replaceArrConflicts([
       {
         ratingKey: '1', title: 'Title 1', firstSource: 'radarr', firstInstanceId: 'r1',
         firstInstanceName: 'Radarr', source: 'sonarr', instanceId: 's1',
         instanceName: 'Sonarr', sizeOnDisk: 2 * GB,
+      },
+      // Same-instance collision (two Radarr titles → one item): flagged so the
+      // UI can suggest "split the merged item" instead of "remove from one".
+      {
+        ratingKey: '1', title: 'Title 1, Part II', firstSource: 'radarr', firstInstanceId: 'r1',
+        firstInstanceName: 'Radarr', source: 'radarr', instanceId: 'r1',
+        instanceName: 'Radarr', sizeOnDisk: 1 * GB,
       },
     ]);
 
@@ -431,6 +440,7 @@ describe('GET /api/admin/problems', () => {
       deltaBytes: 6 * GB,
       instanceName: 'Radarr',
       diskSizeBytes: null, // measured by the Disk scan job
+      fileCount: 2, // multi-part movie → the UI badges it "likely fine"
     });
 
     const cf = await problemsGet(listReq('type=arrConflicts')).then((r) => r.json());
@@ -438,8 +448,11 @@ describe('GET /api/admin/problems', () => {
       ratingKey: '1',
       winner: { source: 'radarr', instanceName: 'Radarr' },
       loser: { source: 'sonarr', instanceName: 'Sonarr' },
+      sameInstance: false,
       sizeOnDisk: 2 * GB,
     });
     expect(cf.items[0].thumbUrl).toContain('/api/image?path=');
+    const same = cf.items.find((c: { title: string }) => c.title === 'Title 1, Part II');
+    expect(same).toMatchObject({ sameInstance: true });
   });
 });

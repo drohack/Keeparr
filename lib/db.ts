@@ -28,6 +28,7 @@ export function applySchema(database: Database.Database): void {
       dir_path      TEXT,                       -- full server-side folder path (Problems Location)
       disk_size_bytes INTEGER,                  -- MEASURED folder size (diskScan; size-mismatch tiebreaker)
       disk_checked_at INTEGER,                  -- when it was measured
+      file_count    INTEGER,                    -- movie: video files in the item (>1 = merged multi-part); shows NULL
       last_synced   INTEGER NOT NULL,
       removed       INTEGER NOT NULL DEFAULT 0  -- tombstone if gone from Plex
     );
@@ -343,6 +344,12 @@ function migrate(database: Database.Database): void {
   }
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'disk_checked_at')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN disk_checked_at INTEGER`);
+  }
+  // media_items gained file_count (movies: number of video files in the item —
+  // >1 means the server merged several files, e.g. a two-part movie, so its
+  // size legitimately exceeds the *arr's). NULL until the next library scan.
+  if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'file_count')) {
+    database.exec(`ALTER TABLE media_items ADD COLUMN file_count INTEGER`);
   }
 
   // Migrate the legacy global keeps table (rating_key PK, kept_by) to per-user

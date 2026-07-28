@@ -466,5 +466,6 @@ function toInput(
     dirName: item.dirName,
     fileName: item.fileName,
     dirPath: item.dirPath,
+    fileCount: item.fileCount,
   };
 }

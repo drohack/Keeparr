@@ -1337,6 +1337,15 @@ describe('Problems page queries', () => {
       const zero = zeroSizeItems(100, 0).find((r) => r.ratingKey === 'z');
       expect(zero).toMatchObject({ arrBytes: 19 * GB, instanceName: 'Radarr' });
     });
+
+    it('rows expose fileCount (multi-part movies), and NULL re-upserts keep it', () => {
+      upsertMediaBatch([media('1', { sizeBytes: 10 * GB, fileCount: 2 })]);
+      expect(sizeMismatchItems(100, 0).find((r) => r.ratingKey === '1')?.fileCount).toBe(2);
+      // A scan that didn't report media (fileCount omitted → NULL) must not
+      // wipe the captured count — same COALESCE rule as the dir columns.
+      upsertMediaBatch([media('1', { sizeBytes: 10 * GB })]);
+      expect(sizeMismatchItems(100, 0).find((r) => r.ratingKey === '1')?.fileCount).toBe(2);
+    });
   });
 
   describe('notInArrItems / arrUnmatchedSummary', () => {
@@ -1587,6 +1596,10 @@ describe('Problems page queries', () => {
         ratingKey: '1',
         title: 'Les sangliers de papy',
         dirPath: '/media/Movies/The Langoliers (1995)',
+        // The server's own ids ride along so the UI can show the disagreement.
+        guidTmdb: '111',
+        guidTvdb: null,
+        guidImdb: null,
       });
       expect(items[0].arr).toMatchObject({
         title: 'The Langoliers',
@@ -1642,12 +1655,35 @@ describe('Problems page queries', () => {
       expect(rows.map((r) => r.ratingKey)).toEqual(['2', '1']); // size DESC
       expect(rows[1].thumb).toBe('/library/metadata/1/thumb'); // joined from media_items
       expect(rows[0].thumb).toBeNull(); // no media row for '2'
-      expect(rows[1].winner).toEqual({ source: 'sonarr', instanceName: 'Sonarr' });
-      expect(rows[1].loser).toEqual({ source: 'sonarr', instanceName: 'Sonarr (Anime)' });
+      expect(rows[1].winner).toEqual({
+        source: 'sonarr',
+        instanceId: 's1',
+        instanceName: 'Sonarr',
+      });
+      expect(rows[1].loser).toEqual({
+        source: 'sonarr',
+        instanceId: 's2',
+        instanceName: 'Sonarr (Anime)',
+      });
+      expect(rows[1].sameInstance).toBe(false);
       expect(arrConflictsSummary()).toEqual({ titles: 2, bytes: 13 * GB });
 
       replaceArrConflicts([]); // clean run sweeps the table
       expect(getArrConflicts()).toEqual([]);
+    });
+
+    it('sameInstance flags two titles of ONE instance resolving to one item (merged entry)', () => {
+      replaceArrConflicts([
+        conflict({
+          firstSource: 'radarr',
+          firstInstanceId: 'r1',
+          firstInstanceName: 'Radarr',
+          source: 'radarr',
+          instanceId: 'r1',
+          instanceName: 'Radarr',
+        }),
+      ]);
+      expect(getArrConflicts()[0].sameInstance).toBe(true);
     });
 
     it('preserve list keeps only the preserved instance rows', () => {

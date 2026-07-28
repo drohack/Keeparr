@@ -29,13 +29,12 @@ const problemLabels = (server: string): Record<ProblemType, string> => ({
 // One short line above the active table explaining what the category means
 // and what fixes it (the MatchHealthCard explainer convention).
 const problemHints = (server: string): Record<ProblemType, string> => ({
-  sizeMismatch: `${server} and Sonarr/Radarr report materially different sizes (>10% and >1 GB) for the same title. The "On disk" column is the measured truth (Disk scan job): whichever side it disagrees with needs a rescan.`,
+  sizeMismatch: `${server} and Sonarr/Radarr report materially different sizes (>10% and >1 GB) for the same title. The "On disk" column is the measured truth (Disk scan job): whichever side it disagrees with needs a rescan. Movies flagged multi-part are expected to differ — ${server} merged several files into one item and sums them all.`,
   notInArr: `These titles exist in ${server} but no Sonarr/Radarr instance manages them — nothing will upgrade or re-download them.`,
   missingFromPlex: `Sonarr/Radarr tracks these but ${server} doesn't. Check "On disk": a real folder inside a library means ${server} needs a scan (or the folder was matched to something else — see Identity mismatch); "not found"/"empty" means the *arr's record is stale (Refresh & Scan there) or the files never left the download folder (import them into a library).`,
-  identityMismatch: `The same folder is claimed under two different identities — ${server} matched it to one title, Sonarr/Radarr tracks another. Fix whichever match is wrong (usually ${server}’s: ⋯ → Fix Match).`,
+  identityMismatch: `The same folder is claimed under two different identities — ${server} matched it to one title/id, Sonarr/Radarr tracks another (each row shows both sides' ids). Fix whichever match is wrong (usually ${server}’s: ⋯ → Fix Match). Rows where you already fixed the match clear on the next Sonarr/Radarr sync — run it after a library sync so it sees the fresh ids.`,
   duplicates: `Two library entries share the same external id. The Location column shows where each copy lives — the same folder means a split/double-import in ${server} (merge the entries); different folders mean two real copies on disk. Click a path to copy it.`,
-  arrConflicts:
-    'Two Sonarr/Radarr instances both manage this title — they can download and upgrade it independently, wasting space and bandwidth.',
+  arrConflicts: `Two Sonarr/Radarr records resolve to the same ${server} item. Across two instances that means both download and upgrade it independently; within ONE instance it means two of its titles match one ${server} item — usually a merged multi-part entry in ${server} that carries both ids.`,
   zeroSize: `${server} lists the title but reports zero file bytes — broken/missing files or a dead metadata-only entry.`,
   removedButKept: `Gone from ${server} while someone still keeps it — something protected got deleted anyway (or the item’s id changed in a rebuild).`,
   missingIds: `No TheTVDB/TMDB/IMDb id at all, so the title can never match Sonarr/Radarr — fix the match in ${server}.`,
@@ -68,6 +67,9 @@ type SizeMismatchRow = MediaRowBase & {
   /** MEASURED size (Disk scan job) — the tiebreaker. Null until measured. */
   diskSizeBytes: number | null;
   diskCheckedAt: number | null;
+  /** Movie: distinct video files merged into the item (>1 = multi-part, so the
+   *  server's sum legitimately exceeds the *arr's one file). Null for shows. */
+  fileCount: number | null;
 };
 type NotInArrRow = MediaRowBase & {
   sizeBytes: number;
@@ -105,6 +107,9 @@ interface ArrConflictViewRow {
   thumbUrl: string | null;
   winner: { source: string; instanceName: string };
   loser: { source: string; instanceName: string };
+  /** Both claims from ONE instance: two *arr titles resolve to one server item
+   *  (usually a merged multi-part entry), not an instance overlap. */
+  sameInstance: boolean;
   sizeOnDisk: number;
 }
 type ZeroSizeRow = MediaRowBase & {
@@ -124,7 +129,14 @@ interface RemovedButKeptRow {
 }
 type MissingIdRow = MediaRowBase & { sizeBytes: number };
 interface IdentityMismatchRow {
-  media: MediaRowBase & { sizeBytes: number };
+  media: MediaRowBase & {
+    sizeBytes: number;
+    /** The server's OWN ids (CSV possible) — shown so the disagreement with the
+     *  *arr's id is visible instead of two identical-looking titles. */
+    guidTmdb: string | null;
+    guidTvdb: string | null;
+    guidImdb: string | null;
+  };
   arr: {
     title: string;
     source: string;
@@ -170,6 +182,11 @@ function mismatchVerdict(r: SizeMismatchRow, server: string): string {
   }
   return 'Matches neither claim — likely partial or corrupted files';
 }
+
+/** A merged multi-part movie mismatches by construction: the server sums every
+ *  file in the item, the *arr counts only its own. Nothing is stale. */
+const isMultiPart = (r: SizeMismatchRow) =>
+  r.libraryKind === 'movie' && r.fileCount != null && r.fileCount > 1;
 
 /** Per-table view options, sent to the API. `sort: null` = category default. */
 interface ViewState {
@@ -718,7 +735,13 @@ function ProblemTable({
                 </td>
                 <td className="px-3 py-2 text-slate-300">{instLabel(r.source, r.instanceName)}</td>
                 <td className="px-3 py-2">
-                  {r.diskSizeBytes == null ? (
+                  {isMultiPart(r) ? (
+                    <ActionBadge
+                      label={`Multi-part item (${r.fileCount} files) — likely fine`}
+                      tone="note"
+                      tip={`${server} merged ${r.fileCount} video files into this one item and sums them all; the *arr counts only its own file, so the sizes differ by design. If the merge is intentional, nothing to fix — otherwise split the item apart in ${server}.`}
+                    />
+                  ) : r.diskSizeBytes == null ? (
                     <ActionBadge
                       label="Run Disk scan"
                       tone="note"
@@ -888,11 +911,37 @@ function ProblemTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {rows.map((r, i) => {
+              const ids = [
+                r.media.guidTmdb ? `tmdb:${r.media.guidTmdb}` : null,
+                r.media.guidTvdb ? `tvdb:${r.media.guidTvdb}` : null,
+                r.media.guidImdb ? `imdb:${r.media.guidImdb}` : null,
+              ].filter(Boolean);
+              return (
               <tr key={`${r.media.ratingKey}-${r.arr.extId}-${i}`} className={ROW_CLS}>
                 <Poster url={r.media.thumbUrl} />
                 <PathCell path={r.media.dirPath} />
-                <TitleCell title={r.media.title} year={r.media.year} />
+                <td className="px-3 py-2">
+                  <span className="text-slate-300">{r.media.title}</span>
+                  {r.media.year != null ? (
+                    <span className="text-slate-500"> ({r.media.year})</span>
+                  ) : null}{' '}
+                  {ids.length > 0 ? (
+                    <span
+                      className="cursor-help font-mono text-xs text-slate-500"
+                      title={`${server}'s own external ids for this item — compare with the *arr's id in the next column`}
+                    >
+                      · {ids.join(' · ')}
+                    </span>
+                  ) : (
+                    <span
+                      className="cursor-help text-xs text-slate-600"
+                      title={`${server} has no tmdb/tvdb/imdb id for this item — it can never match the *arr's entry`}
+                    >
+                      · no external ids
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-2">
                   <span className="text-slate-300">{r.arr.title}</span>
                   <span className="text-slate-500">
@@ -926,7 +975,8 @@ function ProblemTable({
                   />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </>
       );
@@ -977,14 +1027,31 @@ function ProblemTable({
                 </td>
                 <td className="px-3 py-2 text-slate-300">
                   {instLabel(r.loser.source, r.loser.instanceName)}
+                  {r.sameInstance ? (
+                    <span
+                      className="cursor-help text-slate-500"
+                      title={`The same instance has a SECOND title ("${r.title}") that also resolves to this ${server} item`}
+                    >
+                      {' '}
+                      · 2nd title, same instance
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.sizeOnDisk)}</td>
                 <td className="px-3 py-2">
-                  <ActionBadge
-                    label="Remove from one instance"
-                    tone="fix"
-                    tip="Both instances download and upgrade this title independently — unmonitor or delete it in the instance that shouldn't own it."
-                  />
+                  {r.sameInstance ? (
+                    <ActionBadge
+                      label={`Merged item? Split apart in ${server}`}
+                      tone="fix"
+                      tip={`Two ${r.loser.source === 'sonarr' ? 'Sonarr' : 'Radarr'} titles both match this one ${server} item — usually ${server} merged several entries into one (e.g. a multi-part film carrying both ids). Split the item apart in ${server} so each title matches its own, or remove one of the two titles in the *arr.`}
+                    />
+                  ) : (
+                    <ActionBadge
+                      label="Remove from one instance"
+                      tone="fix"
+                      tip="Both instances download and upgrade this title independently — unmonitor or delete it in the instance that shouldn't own it."
+                    />
+                  )}
                 </td>
               </tr>
             ))}

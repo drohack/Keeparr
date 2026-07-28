@@ -27,11 +27,24 @@ export function mapItem(m: PlexMetadata, kind: LibraryKind, sizeBytes: number): 
   let dirName: string | null = null;
   let fileName: string | null = null;
   let dirPath: string | null = null;
+  let fileCount: number | null = null;
   if (kind === 'movie') {
     const file = m.Media?.[0]?.Part?.[0]?.file ?? null;
     dirName = parentSegment(file);
     fileName = lastSegment(file);
     dirPath = parentPath(file);
+    // Distinct video files merged into this item (multi-part movies, extra
+    // versions). Counted like sumPartSizes counts bytes: every Part, deduped
+    // by file path.
+    const files = new Set<string>();
+    let parts = 0;
+    for (const media of m.Media ?? []) {
+      for (const part of media.Part ?? []) {
+        parts += 1;
+        if (part.file) files.add(part.file);
+      }
+    }
+    fileCount = files.size > 0 ? files.size : parts > 0 ? parts : null;
   } else {
     const loc = m.Location?.[0]?.path ?? null;
     dirName = lastSegment(loc);
@@ -50,6 +63,7 @@ export function mapItem(m: PlexMetadata, kind: LibraryKind, sizeBytes: number): 
     dirName,
     fileName,
     dirPath,
+    fileCount,
   };
 }
 

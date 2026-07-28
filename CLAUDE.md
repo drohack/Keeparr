@@ -164,7 +164,11 @@ inside it with no page scroll.
   folders (the server merges multi-folder shows; every folder must count as
   known to the disk scan — split on '\n' when consuming).
   `disk_size_bytes`/`disk_checked_at` = the MEASURED size (diskScan walks
-  size-mismatched titles' folders — the tiebreaker column). ALL disk-name
+  size-mismatched titles' folders — the tiebreaker column). `file_count` =
+  movies only: distinct video files merged into the item (>1 = a multi-part/
+  multi-version item, so its Plex-vs-arr size mismatch is BY DESIGN — the
+  Problems page badges those "likely fine" instead of "rescan"); NULL for
+  shows and until a library scan captures it. ALL disk-name
   writes are COALESCE-style (upsertMediaBatch + updateItemSize): an incoming
   NULL keeps the stored value — scans that don't recompute a show (known size →
   no showSize call) must not wipe the sizes-job backfill (recentlyAdded runs
@@ -233,10 +237,15 @@ inside it with no page scroll.
   an *arr title invisible to the media server still occupies disk) + `path`
   (the full *arr-side folder path, shown as the category's Location cell) added
   via guarded `ALTER`s.
-- `arr_conflicts` — cross-instance *arr claim collisions: during the `arr` job the
-  first instance to claim a rating_key wins `arr_items`; each later claimant is
+- `arr_conflicts` — *arr claim collisions: during the `arr` job the
+  first record to claim a rating_key wins `arr_items`; each later claimant is
   recorded here (winner `first_*` cols + loser `source/instance_*` cols + the
-  loser's `size_on_disk`). Replaced per-instance like `arr_unmatched` (rows are
+  loser's `size_on_disk`). TWO flavors, distinguished by `getArrConflicts()`'s
+  computed `sameInstance` flag: cross-instance (two instances manage one title
+  — remove it from one) and SAME-instance (two titles of one instance resolve
+  to one media item — usually a merged multi-part entry in Plex carrying both
+  ids, e.g. a two-part film; the fix is splitting the item apart in Plex, and
+  the UI badges it that way). Replaced per-instance like `arr_unmatched` (rows are
   scoped to the LOSER's `instance_id`; failed instances keep their rows). Only
   observable in a run where both claimants were fetched — transient, self-healing.
   Surfaced on the admin Problems page.
@@ -438,10 +447,17 @@ when it has no tvdb/tmdb **and** no imdb.
   `{name, sectionId, path, isDir, sizeBytes, sizeSkipped, likely}` (`likely` =
   the library title the orphan looks like — usually a leftover copy);
   diagnosis fields: `sizeMismatch` rows carry `diskSizeBytes/diskCheckedAt`
-  (measured tiebreaker), `missingFromPlex` rows carry `onDisk/diskSizeBytes`
+  (measured tiebreaker) + `fileCount` (movies; >1 = merged multi-part item, the
+  mismatch is by design → badge "likely fine"), `missingFromPlex` rows carry
+  `onDisk/diskSizeBytes`
   (reality check) + `claimedByTitle`, `notInArr` rows carry `identityArrTitle`
   (both = "this row is half of an identity-mismatch pair — fix the match
-  there"), `zeroSize` rows carry `arrBytes/instanceName` (*arr context: the
+  there"), `identityMismatch` rows carry the media side's own
+  `guidTmdb/guidTvdb/guidImdb` (rendered beside the *arr's id so the
+  disagreement is visible), `arrConflicts` rows carry `sameInstance` (+
+  `instanceId` on winner/loser; true = two titles of ONE instance resolve to
+  one item — merged multi-part entry → badge "split apart in Plex"),
+  `zeroSize` rows carry `arrBytes/instanceName` (*arr context: the
   server sees no files but the *arr has N GB). Every table's last column is a
   **"What to do" ActionBadge** (client-derived from these fields; amber = fix
   needed, slate = informational/judgment). Zero-size items are EXCLUDED from

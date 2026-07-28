@@ -106,16 +106,23 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   Rows whose real fix lives in another check say so ("Fix match — see Identity
   mismatch") instead of giving generic advice. The checks:
   **size mismatch** (Plex vs *arr sizes diverge — plus the MEASURED on-disk size
-  as the tiebreaker, so the row says which side needs a rescan), **in the media
+  as the tiebreaker, so the row says which side needs a rescan; movies the
+  server merged from several files — a two-part film, extra versions — are
+  badged **"Multi-part item — likely fine"** since their mismatch is by
+  design), **in the media
   server but not in *arr** (nothing manages the title), **in *arr but not in the
   media server** (with an on-disk reality check: "not found"/"empty" = stale
   *arr record, Refresh & Scan there; a real size = the server needs a scan),
   **identity mismatch** (the same folder claimed under two different titles —
   e.g. Plex matched `The Langoliers (1995)` to some obscure film while Radarr
   tracks The Langoliers; one side's match is wrong, and the row shows both
-  claims side by side), **duplicates** (two
-  library entries sharing one external id), ***arr conflicts** (two instances
-  both managing the same title), **zero size** (the server lists it but reports
+  claims side by side **with each side's external ids**, so two
+  identical-looking titles reveal their differing tmdb/tvdb/imdb ids), **duplicates** (two
+  library entries sharing one external id), ***arr conflicts** (two *arr records
+  resolving to one library item — across two instances that's double management,
+  remove it from one; within ONE instance it means the server merged several
+  entries into one item, e.g. a multi-part film carrying both ids — the badge
+  says "split apart" instead), **zero size** (the server lists it but reports
   no file bytes), **removed but kept** (deleted despite someone's keep), and
   **missing IDs** (no tvdb/tmdb/imdb id, so it can never match *arr), and
   **on disk, in neither** — a weekly *Disk scan* job checks the top level of each

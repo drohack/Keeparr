@@ -53,6 +53,27 @@ describe('jellyfin mapping (pure)', () => {
     // Movie disk names fall back to MediaSources when the item has no Path.
     expect(row.dirName).toBe('movies');
     expect(row.fileName).toBe('matrix.mkv');
+    expect(row.fileCount).toBe(1);
+  });
+
+  it('toBackendItem movie fileCount counts distinct MediaSources paths', () => {
+    const merged = toBackendItem(
+      {
+        Id: 'm2',
+        Name: 'Two-Parter',
+        MediaSources: [
+          { Path: '/movies/tp/part1.mkv', Size: 1 },
+          { Path: '/movies/tp/part2.mkv', Size: 2 },
+        ],
+      },
+      true
+    );
+    expect(merged.fileCount).toBe(2);
+    // No sources → null; series never carry a count.
+    expect(toBackendItem({ Id: 'm3', Name: 'X' }, true).fileCount).toBeNull();
+    expect(
+      toBackendItem({ Id: 's1', Name: 'Show', Path: '/tv/Show' }, false).fileCount
+    ).toBeNull();
   });
 
   it('toBackendItem movie prefers the item Path for disk names', () => {

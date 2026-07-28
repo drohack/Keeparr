@@ -214,11 +214,17 @@ export function toBackendItem(it: JfItem, withSize: boolean): BackendItem {
   let dirName: string | null = null;
   let fileName: string | null = null;
   let dirPath: string | null = null;
+  let fileCount: number | null = null;
   if (withSize) {
     const file = it.Path ?? it.MediaSources?.[0]?.Path ?? null;
     dirName = parentSegment(file);
     fileName = lastSegment(file);
     dirPath = parentPath(file);
+    // Distinct video files merged into this movie (multi-part/multi-version),
+    // deduped by Path like sumMediaSources.
+    const sources = it.MediaSources ?? [];
+    const paths = new Set(sources.map((ms) => ms.Path).filter(Boolean));
+    fileCount = paths.size > 0 ? paths.size : sources.length > 0 ? sources.length : null;
   } else {
     dirName = lastSegment(it.Path ?? null);
     dirPath = it.Path ?? null;
@@ -236,6 +242,7 @@ export function toBackendItem(it: JfItem, withSize: boolean): BackendItem {
     dirName,
     fileName,
     dirPath,
+    fileCount,
   };
 }
 

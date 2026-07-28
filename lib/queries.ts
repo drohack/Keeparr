@@ -219,6 +219,9 @@ export interface UpsertMediaInput {
   fileName?: string | null;
   /** FULL server-side path of the item's folder (Problems page Location cells). */
   dirPath?: string | null;
+  /** Movie: distinct video files merged into the item (>1 = multi-part).
+   *  Null/omitted for shows — COALESCE keeps any stored value. */
+  fileCount?: number | null;
 }
 
 const upsertMediaStmt = () =>
@@ -226,10 +229,11 @@ const upsertMediaStmt = () =>
     `INSERT INTO media_items
        (rating_key, section_id, library_kind, title, year, thumb, size_bytes,
         added_at, guid_tmdb, guid_tvdb, guid_imdb, dir_name, file_name, dir_path,
-        last_synced, removed)
+        file_count, last_synced, removed)
      VALUES
        (@ratingKey, @sectionId, @libraryKind, @title, @year, @thumb, @sizeBytes,
-        @addedAt, @guidTmdb, @guidTvdb, @guidImdb, @dirName, @fileName, @dirPath, @ts, 0)
+        @addedAt, @guidTmdb, @guidTvdb, @guidImdb, @dirName, @fileName, @dirPath,
+        @fileCount, @ts, 0)
      ON CONFLICT(rating_key) DO UPDATE SET
        section_id   = excluded.section_id,
        library_kind = excluded.library_kind,
@@ -244,6 +248,7 @@ const upsertMediaStmt = () =>
        dir_name     = COALESCE(excluded.dir_name, dir_name),
        file_name    = COALESCE(excluded.file_name, file_name),
        dir_path     = COALESCE(excluded.dir_path, dir_path),
+       file_count   = COALESCE(excluded.file_count, file_count),
        last_synced  = excluded.last_synced,
        removed      = 0`
   );
@@ -275,6 +280,7 @@ export function upsertMediaBatch(
         dirName: r.dirName ?? null,
         fileName: r.fileName ?? null,
         dirPath: r.dirPath ?? null,
+        fileCount: r.fileCount ?? null,
         ts: syncedAt,
       });
     }
@@ -2042,8 +2048,11 @@ export interface ArrConflictRow {
   title: string;
   /** Poster path from media_items (the item IS in the media server). */
   thumb: string | null;
-  winner: { source: string; instanceName: string };
-  loser: { source: string; instanceName: string };
+  winner: { source: string; instanceId: string; instanceName: string };
+  loser: { source: string; instanceId: string; instanceName: string };
+  /** Both claims from ONE instance = two *arr titles resolve to one media item
+   *  (usually a merged multi-part entry on the server), not an instance overlap. */
+  sameInstance: boolean;
   sizeOnDisk: number;
   lastSynced: number;
 }
@@ -2053,8 +2062,8 @@ export function getArrConflicts(): ArrConflictRow[] {
   const rows = getDb()
     .prepare(
       `SELECT c.rating_key, c.title, m.thumb,
-              c.first_source, c.first_instance_name,
-              c.source, c.instance_name, c.size_on_disk, c.last_synced
+              c.first_source, c.first_instance_id, c.first_instance_name,
+              c.source, c.instance_id, c.instance_name, c.size_on_disk, c.last_synced
        FROM arr_conflicts c
        LEFT JOIN media_items m ON m.rating_key = c.rating_key
        ORDER BY c.size_on_disk DESC, c.title COLLATE NOCASE`
@@ -2064,8 +2073,10 @@ export function getArrConflicts(): ArrConflictRow[] {
     title: string;
     thumb: string | null;
     first_source: string;
+    first_instance_id: string;
     first_instance_name: string;
     source: string;
+    instance_id: string;
     instance_name: string;
     size_on_disk: number;
     last_synced: number;
@@ -2074,8 +2085,13 @@ export function getArrConflicts(): ArrConflictRow[] {
     ratingKey: r.rating_key,
     title: r.title,
     thumb: r.thumb,
-    winner: { source: r.first_source, instanceName: r.first_instance_name },
-    loser: { source: r.source, instanceName: r.instance_name },
+    winner: {
+      source: r.first_source,
+      instanceId: r.first_instance_id,
+      instanceName: r.first_instance_name,
+    },
+    loser: { source: r.source, instanceId: r.instance_id, instanceName: r.instance_name },
+    sameInstance: r.first_instance_id === r.instance_id,
     sizeOnDisk: r.size_on_disk,
     lastSynced: r.last_synced,
   }));
@@ -2294,6 +2310,10 @@ export interface SizeMismatchItem {
    *  Null until the Disk scan job has measured it. */
   diskSizeBytes: number | null;
   diskCheckedAt: number | null;
+  /** Movie: distinct video files merged into the item (>1 = multi-part — the
+   *  server sums them all, so exceeding the *arr's single file is expected).
+   *  Null for shows / until a library scan captures it. */
+  fileCount: number | null;
 }
 
 const SIZE_MISMATCH_SORT: Record<string, string> = {
@@ -2314,7 +2334,7 @@ export function sizeMismatchItems(
     .prepare(
       `SELECT m.rating_key, m.title, m.year, m.library_kind, m.section_id, m.thumb,
               m.dir_path, m.size_bytes, m.disk_size_bytes, m.disk_checked_at,
-              a.arr_size_bytes, a.source, a.instance_name
+              m.file_count, a.arr_size_bytes, a.source, a.instance_name
        FROM media_items m
        JOIN arr_items a ON a.rating_key = m.rating_key
        WHERE m.removed = 0 AND ${SIZE_MISMATCH_EXPR}${problemFilterSql(opts, params, 'm.')}
@@ -2332,6 +2352,7 @@ export function sizeMismatchItems(
     size_bytes: number;
     disk_size_bytes: number | null;
     disk_checked_at: number | null;
+    file_count: number | null;
     arr_size_bytes: number;
     source: string;
     instance_name: string;
@@ -2351,6 +2372,7 @@ export function sizeMismatchItems(
     instanceName: r.instance_name,
     diskSizeBytes: r.disk_size_bytes,
     diskCheckedAt: r.disk_checked_at,
+    fileCount: r.file_count,
   }));
 }
 
@@ -2840,6 +2862,11 @@ export interface IdentityMismatchItem {
     thumb: string | null;
     dirPath: string | null;
     sizeBytes: number;
+    /** The server's OWN external ids (CSV when it lists several; null = none of
+     *  that kind) — shown beside the *arr's id so the disagreement is visible. */
+    guidTmdb: string | null;
+    guidTvdb: string | null;
+    guidImdb: string | null;
   };
   arr: {
     title: string;
@@ -2867,7 +2894,7 @@ export function identityMismatchItems(): IdentityMismatchItem[] {
   const mediaRows = getDb()
     .prepare(
       `SELECT rating_key, title, year, library_kind, section_id, thumb, dir_path,
-              dir_name, size_bytes
+              dir_name, size_bytes, guid_tmdb, guid_tvdb, guid_imdb
        FROM media_items WHERE removed = 0 AND dir_name IS NOT NULL`
     )
     .all() as {
@@ -2880,6 +2907,9 @@ export function identityMismatchItems(): IdentityMismatchItem[] {
     dir_path: string | null;
     dir_name: string;
     size_bytes: number;
+    guid_tmdb: string | null;
+    guid_tvdb: string | null;
+    guid_imdb: string | null;
   }[];
 
   // folder name (normalized) → media items claiming it.
@@ -2908,6 +2938,9 @@ export function identityMismatchItems(): IdentityMismatchItem[] {
           thumb: m.thumb,
           dirPath: m.dir_path,
           sizeBytes: m.size_bytes,
+          guidTmdb: m.guid_tmdb,
+          guidTvdb: m.guid_tvdb,
+          guidImdb: m.guid_imdb,
         },
         arr: {
           title: u.title,

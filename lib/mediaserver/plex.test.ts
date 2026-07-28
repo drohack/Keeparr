@@ -51,4 +51,33 @@ describe('plex backend mapItem (on-disk name capture)', () => {
     expect(mapItem(node(), 'show', 0).dirName).toBeNull();
     expect(mapItem(node(), 'show', 0).dirPath).toBeNull();
   });
+
+  it('movie fileCount: counts distinct files across Media/Part (merged multi-part)', () => {
+    // A merged two-part movie: two Media entries, one file each.
+    const merged = mapItem(
+      node({
+        Media: [
+          { Part: [{ file: '/m/Film (1970)/part1.mkv', size: 1 }] },
+          { Part: [{ file: '/m/Film (1970) II/part2.mkv', size: 2 }] },
+        ],
+      }),
+      'movie',
+      3
+    );
+    expect(merged.fileCount).toBe(2);
+    // Single file → 1; duplicate file paths dedupe (like sumLeafSizes).
+    expect(
+      mapItem(node({ Media: [{ Part: [{ file: '/m/a.mkv' }] }] }), 'movie', 1).fileCount
+    ).toBe(1);
+    expect(
+      mapItem(
+        node({ Media: [{ Part: [{ file: '/m/a.mkv' }] }, { Part: [{ file: '/m/a.mkv' }] }] }),
+        'movie',
+        1
+      ).fileCount
+    ).toBe(1);
+    // No Media data → null; shows never carry a count.
+    expect(mapItem(node(), 'movie', 1).fileCount).toBeNull();
+    expect(mapItem(node({ Location: [{ path: '/tv/X' }] }), 'show', 0).fileCount).toBeNull();
+  });
 });

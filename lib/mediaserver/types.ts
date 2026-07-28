@@ -32,6 +32,10 @@ export interface BackendItem {
   dirName: string | null;
   /** Movie file basename (covers loose files in the library root); null for shows. */
   fileName: string | null;
+  /** Movie: how many distinct video files the server merged into this item
+   *  (>1 = multi-part/multi-version — its size legitimately exceeds the *arr's
+   *  single file). Null for shows and when the backend didn't report media. */
+  fileCount: number | null;
   /** FULL server-side path of the item's folder (as the media server sees it) —
    *  shown on the Problems page so problems can be located on disk. */
   dirPath: string | null;
