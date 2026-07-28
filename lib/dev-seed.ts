@@ -220,10 +220,10 @@ function buildArrItems(items: UpsertMediaInput[]): ArrItemInput[] {
 
 /** A few fake unmatched arr titles (downloaded but no Plex match) for Match health. */
 const ARR_UNMATCHED = [
-  { source: 'sonarr', instanceId: SONARR_MAIN.id, instanceName: 'Sonarr', title: 'Some Obscure Show', extKind: 'tvdb' as const, extId: '999001', sizeBytes: Math.round(42 * GB), path: '/tv/Some Obscure Show' },
-  { source: 'sonarr', instanceId: SONARR_ANIME.id, instanceName: 'Sonarr (Anime)', title: 'Niche OVA', extKind: 'tvdb' as const, extId: '999002', sizeBytes: Math.round(3.5 * GB), path: '/anime/Niche OVA' },
-  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Unreleased Indie Film', extKind: 'tmdb' as const, extId: '999003', sizeBytes: Math.round(8 * GB), path: '/movies/Unreleased Indie Film' },
-  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Festival Short', extKind: 'tmdb' as const, extId: '999004', sizeBytes: Math.round(0.9 * GB), path: '/movies/Festival Short' },
+  { source: 'sonarr', instanceId: SONARR_MAIN.id, instanceName: 'Sonarr', title: 'Some Obscure Show', extKind: 'tvdb' as const, extId: '999001', sizeBytes: Math.round(42 * GB), path: '/tv/Some Obscure Show', folderName: 'Some Obscure Show', downloaded: true },
+  { source: 'sonarr', instanceId: SONARR_ANIME.id, instanceName: 'Sonarr (Anime)', title: 'Niche OVA', extKind: 'tvdb' as const, extId: '999002', sizeBytes: Math.round(3.5 * GB), path: '/anime/Niche OVA', folderName: 'Niche OVA', downloaded: true },
+  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Unreleased Indie Film', extKind: 'tmdb' as const, extId: '999003', sizeBytes: Math.round(8 * GB), path: '/movies/Unreleased Indie Film', folderName: 'Unreleased Indie Film', downloaded: true },
+  { source: 'radarr', instanceId: RADARR_MAIN.id, instanceName: 'Radarr', title: 'Festival Short', extKind: 'tmdb' as const, extId: '999004', sizeBytes: Math.round(0.9 * GB), path: '/movies/Festival Short', folderName: 'Festival Short', downloaded: true },
 ];
 
 export interface SeedResult {
@@ -398,6 +398,36 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
         mtime: seedTs - 200 * 86400,
       },
     ]);
+
+    // Identity mismatch: a fileless Radarr entry claims the SAME folder as a
+    // seeded movie but under a different tmdb id (the "Plex misidentified the
+    // folder" case). Also a multi-folder show (episodes span two root folders,
+    // newline-joined dir_name) so the disk scan treats both as known.
+    const idMismatchSrc = mediaItems.find(
+      (m) => m.libraryKind === 'movie' && m.guidTmdb && m.ratingKey !== dupMovieSrc.ratingKey
+    )!;
+    replaceArrUnmatched(
+      [
+        ...ARR_UNMATCHED,
+        {
+          source: 'radarr',
+          instanceId: RADARR_MAIN.id,
+          instanceName: 'Radarr',
+          title: `${idMismatchSrc.title} (Director's Cut)`,
+          extKind: 'tmdb',
+          extId: '999006',
+          sizeBytes: 0,
+          folderName: idMismatchSrc.dirName!,
+          path: `/movies/${idMismatchSrc.dirName}`,
+          downloaded: false,
+        },
+      ]
+    );
+    const multiDirSrc = mediaItems.find((m) => m.libraryKind === 'show' && m.sectionId === '3')!;
+    upsertMediaBatch(
+      [{ ...multiDirSrc, dirName: `${multiDirSrc.title}\n${multiDirSrc.title} Specials` }],
+      seedTs
+    );
 
     // Cross-instance conflict: both Sonarr instances manage the first anime
     // title; the Anime instance won the match (it owns the arr_items row).

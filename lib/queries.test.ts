@@ -82,6 +82,8 @@ import {
   removedButKeptSummary,
   missingExternalIdItems,
   missingExternalIdsSummary,
+  identityMismatchItems,
+  identityMismatchSummary,
   replaceDiskOrphansForSection,
   getDiskOrphans,
   diskOrphansForSection,
@@ -1352,7 +1354,25 @@ describe('Problems page queries', () => {
       expect(unmatchedMediaSummary(true)).toMatchObject({ titles: 2, bytes: 10 * GB });
     });
 
-    it('arrUnmatchedSummary counts + sums without loading rows', () => {
+    it('sort + section/kind view options (allow-listed; unknown sort → default)', () => {
+      upsertMediaBatch([
+        media('a', { title: 'Zebra', sizeBytes: 1 * GB, addedAt: 300 }),
+        media('b', { title: 'Alpha', sizeBytes: 8 * GB, addedAt: 100 }),
+        media('c', { title: 'Mid', sizeBytes: 4 * GB, addedAt: 200, sectionId: '2', libraryKind: 'show' }),
+      ]);
+      const keys = (opts?: Parameters<typeof notInArrItems>[3]) =>
+        notInArrItems(100, 0, false, opts).map((r) => r.ratingKey);
+      expect(keys()).toEqual(['b', 'c', 'a']); // default: size DESC
+      expect(keys({ sort: 'title' })).toEqual(['b', 'c', 'a']); // Alpha, Mid, Zebra — asc default for title
+      expect(keys({ sort: 'title', dir: 'desc' })).toEqual(['a', 'c', 'b']);
+      expect(keys({ sort: 'added', dir: 'asc' })).toEqual(['b', 'c', 'a']);
+      expect(keys({ sort: 'nonsense' })).toEqual(['b', 'c', 'a']); // falls back to default
+      expect(keys({ sectionIds: ['2'] })).toEqual(['c']);
+      expect(keys({ kind: 'movie' })).toEqual(['b', 'a']);
+      expect(keys({ sectionIds: ['1'], kind: 'show' })).toEqual([]);
+    });
+
+    it('arrUnmatchedSummary + getArrUnmatched count DOWNLOADED rows only by default', () => {
       replaceArrUnmatched([
         {
           source: 'sonarr',
@@ -1372,8 +1392,22 @@ describe('Problems page queries', () => {
           extId: '2',
           sizeBytes: 5 * GB,
         },
+        {
+          // Fileless (wanted-but-not-downloaded) — feeds identity matching only.
+          source: 'radarr',
+          instanceId: 'r1',
+          instanceName: 'R',
+          title: 'C',
+          extKind: 'tmdb',
+          extId: '3',
+          sizeBytes: 0,
+          downloaded: false,
+        },
       ]);
       expect(arrUnmatchedSummary()).toEqual({ titles: 2, bytes: 8 * GB });
+      expect(getArrUnmatched().map((u) => u.title)).toEqual(['B', 'A']); // downloaded only
+      expect(getArrUnmatched(false)).toHaveLength(3); // everything
+      expect(getArrUnmatched(false).find((u) => u.title === 'C')?.downloaded).toBe(false);
     });
   });
 
@@ -1443,6 +1477,70 @@ describe('Problems page queries', () => {
       upsertMediaBatch([media('2', { guidTmdb: '603' })], 20);
       tombstoneStale(15); // tombstones '1'
       expect(duplicateGroups()).toEqual([]);
+    });
+  });
+
+  describe('identityMismatchItems', () => {
+    const unmatched = (over: Partial<Parameters<typeof replaceArrUnmatched>[0][0]>) => ({
+      source: 'radarr',
+      instanceId: 'r1',
+      instanceName: 'Radarr',
+      title: 'The Langoliers',
+      extKind: 'tmdb' as const,
+      extId: '999',
+      sizeBytes: 0,
+      folderName: 'The Langoliers (1995)',
+      path: '/movies/The Langoliers (1995)',
+      downloaded: false,
+      ...over,
+    });
+
+    it('pairs an unmatched arr title with the media item claiming the same folder', () => {
+      upsertMediaBatch([
+        media('1', {
+          title: 'Les sangliers de papy',
+          guidTmdb: '111',
+          dirName: 'The Langoliers (1995)',
+          dirPath: '/media/Movies/The Langoliers (1995)',
+          sizeBytes: 4 * GB,
+        }),
+        media('2', { title: 'Unrelated', dirName: 'Unrelated (2020)' }),
+      ]);
+      replaceArrUnmatched([unmatched({})]);
+      const items = identityMismatchItems();
+      expect(items).toHaveLength(1);
+      expect(items[0].media).toMatchObject({
+        ratingKey: '1',
+        title: 'Les sangliers de papy',
+        dirPath: '/media/Movies/The Langoliers (1995)',
+      });
+      expect(items[0].arr).toMatchObject({
+        title: 'The Langoliers',
+        extId: '999',
+        downloaded: false,
+      });
+      expect(identityMismatchSummary()).toEqual({ titles: 1, bytes: 4 * GB });
+    });
+
+    it('matches case-insensitively and across newline-joined multi-folder names', () => {
+      upsertMediaBatch([
+        media('1', {
+          libraryKind: 'show',
+          dirName: 'Main Folder\nTHE LANGOLIERS (1995)',
+          sizeBytes: 2 * GB,
+        }),
+      ]);
+      replaceArrUnmatched([unmatched({})]);
+      expect(identityMismatchItems()).toHaveLength(1);
+    });
+
+    it('no match when folder names differ; removed items excluded', () => {
+      upsertMediaBatch([media('1', { dirName: 'Something Else' })], 10);
+      replaceArrUnmatched([unmatched({})]);
+      expect(identityMismatchItems()).toEqual([]);
+      upsertMediaBatch([media('2', { dirName: 'The Langoliers (1995)' })], 10);
+      tombstoneStale(11); // both removed
+      expect(identityMismatchItems()).toEqual([]);
     });
   });
 
@@ -1585,9 +1683,9 @@ describe('Problems page queries', () => {
       });
     });
 
-    it('sectionDiskNameStats counts coverage and collects dir + file names', () => {
+    it('sectionDiskNameStats counts coverage; multi-folder dir_names split out', () => {
       upsertMediaBatch([
-        media('1', { dirName: 'Show A' }),
+        media('1', { dirName: 'Show A\nShow A Specials' }), // multi-folder show
         media('2', { dirName: 'Dune (2021)', fileName: 'dune.mkv' }),
         media('3'), // unnamed (builder default has no names)
         media('4', { sectionId: '2', dirName: 'Other Lib' }), // other section
@@ -1597,7 +1695,12 @@ describe('Problems page queries', () => {
       const stats = sectionDiskNameStats('1');
       expect(stats.total).toBe(3);
       expect(stats.named).toBe(2);
-      expect(stats.names.sort()).toEqual(['Dune (2021)', 'Show A', 'dune.mkv']);
+      expect(stats.names.sort()).toEqual([
+        'Dune (2021)',
+        'Show A',
+        'Show A Specials',
+        'dune.mkv',
+      ]);
     });
 
     it('arrFolderNames unions arr_items + arr_unmatched, distinct, nulls dropped', () => {

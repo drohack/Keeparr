@@ -6,6 +6,7 @@ import { formatRelative, formatSize } from '@/lib/format';
 import { copyText } from '@/lib/clipboard';
 import { pathSegments, pathTail } from '@/lib/paths';
 import { useToast } from './Toaster';
+import MultiSelect from './MultiSelect';
 
 // Labels/hints name the ACTUAL connected media server ("Plex", "Jellyfin"…) —
 // a bare "server" reads like the machine/filesystem. `server` comes from the
@@ -16,6 +17,7 @@ const problemLabels = (server: string): Record<ProblemType, string> => ({
   sizeMismatch: 'Size mismatch',
   notInArr: `In ${server}, not in *arr`,
   missingFromPlex: `In *arr, not in ${server}`,
+  identityMismatch: 'Identity mismatch',
   duplicates: 'Duplicates',
   arrConflicts: '*arr conflicts',
   zeroSize: 'Zero size',
@@ -30,6 +32,7 @@ const problemHints = (server: string): Record<ProblemType, string> => ({
   sizeMismatch: `${server} and Sonarr/Radarr report materially different sizes (>10% and >1 GB) for the same title — often a partial/broken file or one side needing a rescan.`,
   notInArr: `These titles exist in ${server} but no Sonarr/Radarr instance manages them — nothing will upgrade or re-download them.`,
   missingFromPlex: `Downloaded in Sonarr/Radarr (files on disk, per *arr) but not present in ${server} — usually a library path ${server} doesn’t scan, or a failed import.`,
+  identityMismatch: `The same folder is claimed under two different identities — ${server} matched it to one title, Sonarr/Radarr tracks another. Fix whichever match is wrong (usually ${server}’s: ⋯ → Fix Match).`,
   duplicates: `Two library entries share the same external id. The Location column shows where each copy lives — the same folder means a split/double-import in ${server} (merge the entries); different folders mean two real copies on disk. Click a path to copy it.`,
   arrConflicts:
     'Two Sonarr/Radarr instances both manage this title — they can download and upgrade it independently, wasting space and bandwidth.',
@@ -100,6 +103,18 @@ interface RemovedButKeptRow {
   keptBy: string[];
 }
 type MissingIdRow = MediaRowBase & { sizeBytes: number };
+interface IdentityMismatchRow {
+  media: MediaRowBase & { sizeBytes: number };
+  arr: {
+    title: string;
+    source: string;
+    instanceName: string;
+    extKind: string;
+    extId: string;
+    downloaded: boolean;
+    path: string | null;
+  };
+}
 interface DiskOrphanViewRow {
   name: string;
   sectionId: string;
@@ -114,6 +129,30 @@ const kindLabel = (k: LibraryKind) => (k === 'movie' ? 'Movie' : 'Series');
 const instLabel = (source: string, name: string) =>
   `${source === 'sonarr' ? 'Sonarr' : 'Radarr'} — ${name}`;
 
+/** Per-table view options, sent to the API. `sort: null` = category default. */
+interface ViewState {
+  hideMissingIds: boolean;
+  sort: string | null;
+  dir: 'asc' | 'desc';
+  sections: string[];
+  kind: '' | 'movie' | 'show';
+}
+const DEFAULT_VIEW: ViewState = {
+  hideMissingIds: true,
+  sort: null,
+  dir: 'desc',
+  sections: [],
+  kind: '',
+};
+
+/** Name-ish columns read better ascending on first click. */
+const defaultDirFor = (col: string): 'asc' | 'desc' =>
+  col === 'title' || col === 'name' || col === 'instance' ? 'asc' : 'desc';
+
+/** Categories whose rows aren't (single) media items — hide the N/A filters. */
+const NO_LIBRARY_FILTER = new Set<ProblemType>(['missingFromPlex', 'arrConflicts']);
+const NO_KIND_FILTER = new Set<ProblemType>(['diskOrphans', 'arrConflicts']);
+
 export default function ProblemsView() {
   const [categories, setCategories] = useState<ProblemCategorySummary[] | null>(null);
   const [serverName, setServerName] = useState('Plex');
@@ -122,9 +161,11 @@ export default function ProblemsView() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
-  // notInArr only: items with no external id can never match *arr, so they
-  // flood that view (they have their own Missing IDs category) — hidden by default.
-  const [hideMissingIds, setHideMissingIds] = useState(true);
+  // Per-table view: sort (null = category default), library/kind filters, and
+  // the notInArr-only "hide missing ids" toggle. Filters are sticky across
+  // category switches; sort resets to the category default.
+  const [view, setView] = useState<ViewState>(DEFAULT_VIEW);
+  const [libraries, setLibraries] = useState<{ id: string; title: string }[]>([]);
   const toast = useToast();
   // Guards against out-of-order responses: only the latest request may commit
   // state (a slow old response must not clobber a newer one).
@@ -148,13 +189,22 @@ export default function ProblemsView() {
   }, []);
 
   const load = useCallback(
-    async (type: ProblemType, reset: boolean, hideMissing: boolean = hideMissingIds) => {
+    async (type: ProblemType, reset: boolean, v: ViewState = view) => {
       const seq = ++fetchSeq.current;
       setLoading(true);
       const off = reset ? 0 : offset;
-      const extra = type === 'notInArr' && !hideMissing ? '&includeMissingIds=1' : '';
+      const qs = new URLSearchParams({ type, offset: String(off) });
+      if (type === 'notInArr' && !v.hideMissingIds) qs.set('includeMissingIds', '1');
+      if (v.sort) {
+        qs.set('sort', v.sort);
+        qs.set('dir', v.dir);
+      }
+      if (v.sections.length && !NO_LIBRARY_FILTER.has(type)) {
+        qs.set('sections', v.sections.join(','));
+      }
+      if (v.kind && !NO_KIND_FILTER.has(type)) qs.set('kind', v.kind);
       try {
-        const data = await fetch(`/api/admin/problems?type=${type}&offset=${off}${extra}`).then(
+        const data = await fetch(`/api/admin/problems?${qs.toString()}`).then(
           (r) => r.json()
         );
         if (seq !== fetchSeq.current) return; // superseded — drop it
@@ -170,7 +220,7 @@ export default function ProblemsView() {
         if (seq === fetchSeq.current) setLoading(false);
       }
     },
-    [offset, toast, hideMissingIds]
+    [offset, toast, view]
   );
 
   useEffect(() => {
@@ -178,14 +228,42 @@ export default function ProblemsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
+  useEffect(() => {
+    fetch('/api/sections')
+      .then((r) => r.json())
+      .then((d) => setLibraries(Array.isArray(d.sections) ? d.sections : []))
+      .catch(() => {});
+  }, []);
+
   // Row shapes differ per category, so the old category's rows must never
   // render under the new one's columns. Clearing here (not in the effect —
   // effects run AFTER the re-render) batches with setActive into one render.
+  // Sort resets to the new category's default; filters stay sticky.
   const selectCategory = (t: ProblemType) => {
     if (t === active) return;
+    setView((v) => ({ ...v, sort: null }));
     setItems([]);
     setHasMore(false);
     setActive(t);
+  };
+
+  /** Apply a view change and refetch page 1 with the NEW values (state alone
+   *  would give load a stale closure). */
+  const applyView = (patch: Partial<ViewState>) => {
+    const next = { ...view, ...patch };
+    setView(next);
+    if (!active) return;
+    setItems([]);
+    setHasMore(false);
+    load(active, true, next);
+  };
+
+  const onSort = (col: string) => {
+    if (view.sort === col) {
+      applyView({ dir: view.dir === 'asc' ? 'desc' : 'asc' });
+    } else {
+      applyView({ sort: col, dir: defaultDirFor(col) });
+    }
   };
 
   // Hide arr-gated categories entirely when unavailable (like Big Picture hides
@@ -245,29 +323,47 @@ export default function ProblemsView() {
 
         {/* What the selected check means — ABOVE the table so it's readable
             without scrolling past a long list. Per-category controls sit on the
-            same line, right-aligned. */}
+            same line, right-aligned (hidden where they don't apply). */}
         {active && (
           <div className="mb-3 flex items-start justify-between gap-6">
             <p className="text-sm text-slate-400">{hints[active]}</p>
-            {active === 'notInArr' && (
-              <label
-                className="flex shrink-0 items-center gap-2 text-sm text-slate-400"
-                title="Titles with no tvdb/tmdb/imdb id can never match Sonarr/Radarr — see the Missing IDs check"
-              >
-                <input
-                  type="checkbox"
-                  checked={hideMissingIds}
-                  onChange={(e) => {
-                    const v = e.target.checked;
-                    setHideMissingIds(v);
-                    setItems([]);
-                    setHasMore(false);
-                    load('notInArr', true, v);
-                  }}
+            <div className="flex shrink-0 items-center gap-3">
+              {active === 'notInArr' && (
+                <label
+                  className="flex items-center gap-2 text-sm text-slate-400"
+                  title="Titles with no tvdb/tmdb/imdb id can never match Sonarr/Radarr — see the Missing IDs check"
+                >
+                  <input
+                    type="checkbox"
+                    checked={view.hideMissingIds}
+                    onChange={(e) => applyView({ hideMissingIds: e.target.checked })}
+                  />
+                  Hide titles with missing IDs
+                </label>
+              )}
+              {!NO_KIND_FILTER.has(active) && (
+                <select
+                  value={view.kind}
+                  onChange={(e) => applyView({ kind: e.target.value as ViewState['kind'] })}
+                  className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                >
+                  <option value="">Movies & series</option>
+                  <option value="movie">Movies</option>
+                  <option value="show">Series</option>
+                </select>
+              )}
+              {!NO_LIBRARY_FILTER.has(active) && libraries.length > 0 && (
+                <MultiSelect
+                  placeholder="All libraries"
+                  summaryName="Libraries"
+                  groups={[
+                    { options: libraries.map((l) => ({ value: l.id, label: l.title })) },
+                  ]}
+                  selected={view.sections}
+                  onChange={(next) => applyView({ sections: next })}
                 />
-                Hide titles with missing IDs
-              </label>
-            )}
+              )}
+            </div>
           </div>
         )}
 
@@ -279,7 +375,14 @@ export default function ProblemsView() {
           active && (
             <div className="rounded-lg border border-slate-800 overflow-hidden">
               <table className="w-full text-sm">
-                <ProblemTable type={active} items={items} server={serverName} />
+                <ProblemTable
+                  type={active}
+                  items={items}
+                  server={serverName}
+                  sort={view.sort}
+                  dir={view.dir}
+                  onSort={onSort}
+                />
               </table>
             </div>
           )
@@ -412,6 +515,39 @@ const th = (label: string, align: 'left' | 'right' = 'left', extra = '') => (
     {label}
   </th>
 );
+
+/** A sortable column header: click to sort, shows the active arrow.
+ *  (LibraryBrowser's SortTh, generalized over string sort keys.) */
+function SortTh({
+  col,
+  align = 'left',
+  sort,
+  dir,
+  onSort,
+  children,
+}: {
+  col: string;
+  align?: 'left' | 'right';
+  sort: string | null;
+  dir: 'asc' | 'desc';
+  onSort: (c: string) => void;
+  children: string;
+}) {
+  const active = sort === col;
+  const arrow = active ? (dir === 'desc' ? ' ↓' : ' ↑') : '';
+  return (
+    <th
+      className={`cursor-pointer select-none px-3 py-2 font-medium hover:text-slate-300 ${
+        align === 'right' ? 'text-right' : 'text-left'
+      } ${active ? 'text-slate-300' : ''}`}
+      onClick={() => onSort(col)}
+      title="Sort by this column"
+    >
+      {children}
+      {arrow}
+    </th>
+  );
+}
 const HEAD_CLS = 'bg-rail text-slate-500 text-xs uppercase tracking-wide';
 const ROW_CLS = 'border-t border-slate-800 hover:bg-slate-900/60';
 
@@ -420,11 +556,18 @@ function ProblemTable({
   type,
   items,
   server,
+  sort,
+  dir,
+  onSort,
 }: {
   type: ProblemType;
   items: unknown[];
   server: string;
+  sort: string | null;
+  dir: 'asc' | 'desc';
+  onSort: (c: string) => void;
 }) {
+  const sortProps = { sort, dir, onSort };
   switch (type) {
     case 'sizeMismatch': {
       const rows = items as SizeMismatchRow[];
@@ -433,12 +576,12 @@ function ProblemTable({
           <thead className={HEAD_CLS}>
             <tr>
               {th('', 'left', 'w-8')}
-              {th('Title')}
+              <SortTh col="title" {...sortProps}>Title</SortTh>
               {th('Kind')}
               {th('Location')}
-              {th(`${server} size`, 'right')}
-              {th('*arr size', 'right')}
-              {th('Δ', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>{`${server} size`}</SortTh>
+              <SortTh col="arrSize" align="right" {...sortProps}>*arr size</SortTh>
+              <SortTh col="delta" align="right" {...sortProps}>Δ</SortTh>
               {th('Instance')}
             </tr>
           </thead>
@@ -478,11 +621,11 @@ function ProblemTable({
           <thead className={HEAD_CLS}>
             <tr>
               {th('', 'left', 'w-8')}
-              {th('Title')}
+              <SortTh col="title" {...sortProps}>Title</SortTh>
               {th('Kind')}
               {th('Location')}
-              {th('Size', 'right')}
-              {th('Added', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>Size</SortTh>
+              <SortTh col="added" align="right" {...sortProps}>Added</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -506,11 +649,11 @@ function ProblemTable({
         <>
           <thead className={HEAD_CLS}>
             <tr>
-              {th('Title')}
-              {th('Instance')}
+              <SortTh col="title" {...sortProps}>Title</SortTh>
+              <SortTh col="instance" {...sortProps}>Instance</SortTh>
               {th('Location')}
               {th('External id')}
-              {th('Size in *arr', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>Size in *arr</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -523,6 +666,57 @@ function ProblemTable({
                   {r.extKind}:{r.extId}
                 </td>
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.sizeBytes)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </>
+      );
+    }
+    case 'identityMismatch': {
+      const rows = items as IdentityMismatchRow[];
+      return (
+        <>
+          <thead className={HEAD_CLS}>
+            <tr>
+              {th('', 'left', 'w-8')}
+              {th('Folder')}
+              <SortTh col="title" {...sortProps}>{`${server} says`}</SortTh>
+              {th('*arr says')}
+              {th('Downloaded', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>Size</SortTh>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={`${r.media.ratingKey}-${r.arr.extId}-${i}`} className={ROW_CLS}>
+                <Poster url={r.media.thumbUrl} />
+                <PathCell path={r.media.dirPath} />
+                <TitleCell title={r.media.title} year={r.media.year} />
+                <td className="px-3 py-2">
+                  <span className="text-slate-300">{r.arr.title}</span>
+                  <span className="text-slate-500">
+                    {' '}
+                    · {instLabel(r.arr.source, r.arr.instanceName)} ·{' '}
+                    <span className="font-mono text-xs">
+                      {r.arr.extKind}:{r.arr.extId}
+                    </span>
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {r.arr.downloaded ? (
+                    <span className="text-slate-300">✓</span>
+                  ) : (
+                    <span
+                      className="cursor-help text-slate-600"
+                      title="In *arr but no files — added, never imported"
+                    >
+                      —
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right font-mono">
+                  {formatSize(r.media.sizeBytes)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -558,10 +752,10 @@ function ProblemTable({
           <thead className={HEAD_CLS}>
             <tr>
               {th('', 'left', 'w-8')}
-              {th('Title')}
+              <SortTh col="title" {...sortProps}>Title</SortTh>
               {th('Matched to')}
               {th('Also claimed by')}
-              {th('Size on disk', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>Size on disk</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -589,10 +783,10 @@ function ProblemTable({
           <thead className={HEAD_CLS}>
             <tr>
               {th('', 'left', 'w-8')}
-              {th('Title')}
+              <SortTh col="title" {...sortProps}>Title</SortTh>
               {th('Kind')}
               {th('Location')}
-              {th('Added', 'right')}
+              <SortTh col="added" align="right" {...sortProps}>Added</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -615,10 +809,10 @@ function ProblemTable({
         <>
           <thead className={HEAD_CLS}>
             <tr>
-              {th('Title')}
+              <SortTh col="title" {...sortProps}>Title</SortTh>
               {th('Kind')}
               {th('Last known location')}
-              {th('Last known size', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>Last known size</SortTh>
               {th('Kept by')}
             </tr>
           </thead>
@@ -642,10 +836,10 @@ function ProblemTable({
         <>
           <thead className={HEAD_CLS}>
             <tr>
-              {th('Name')}
+              <SortTh col="name" {...sortProps}>Name</SortTh>
               {th('Kind')}
               {th('Path')}
-              {th('Size', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>Size</SortTh>
             </tr>
           </thead>
           <tbody>
@@ -679,10 +873,10 @@ function ProblemTable({
           <thead className={HEAD_CLS}>
             <tr>
               {th('', 'left', 'w-8')}
-              {th('Title')}
+              <SortTh col="title" {...sortProps}>Title</SortTh>
               {th('Kind')}
               {th('Location')}
-              {th('Size', 'right')}
+              <SortTh col="size" align="right" {...sortProps}>Size</SortTh>
             </tr>
           </thead>
           <tbody>

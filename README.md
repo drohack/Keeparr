@@ -101,7 +101,11 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   a count + size per category, so you don't have to dig through Browse filters and
   Settings panels: **size mismatch** (Plex vs *arr sizes diverge), **in the media
   server but not in *arr** (nothing manages the title), **in *arr but not in the
-  media server** (downloaded per Sonarr/Radarr but the server can't see it), **duplicates** (two
+  media server** (downloaded per Sonarr/Radarr but the server can't see it),
+  **identity mismatch** (the same folder claimed under two different titles —
+  e.g. Plex matched `The Langoliers (1995)` to some obscure film while Radarr
+  tracks The Langoliers; one side's match is wrong, and the row shows both
+  claims side by side), **duplicates** (two
   library entries sharing one external id), ***arr conflicts** (two instances
   both managing the same title), **zero size** (the server lists it but reports
   no file bytes), **removed but kept** (deleted despite someone's keep), and
@@ -118,7 +122,9 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   **where the item lives on disk** — a compact path with the full one on hover;
   click to copy — and duplicate groups highlight the folder that differs, so you
   can tell a double-import (same folder) from two real copies (different
-  folders) at a glance. The *arr-based
+  folders) at a glance. Every table has **click-to-sort column headers** and
+  **library / movie-vs-series filters**, so you can slice a category down to
+  one library while cross-referencing against Sonarr/Radarr. The *arr-based
   categories appear only when Sonarr/Radarr is connected. Report-only, like
   everything else in Keeparr.
 - **Size on disk** — series totals are summed across every episode; movies across

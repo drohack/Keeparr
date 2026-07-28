@@ -48,10 +48,13 @@ export interface WatchRow {
 /** A show's on-disk footprint, computed from its episodes. */
 export interface ShowDisk {
   sizeBytes: number;
-  /** Show folder derived from episode file paths — the fallback when the
-   *  backend omits the show's own Location/Path from listings. Null when no
-   *  episode carried a usable path. */
+  /** PRIMARY show folder derived from episode file paths — the fallback when
+   *  the backend omits the show's own Location/Path from listings. Null when
+   *  no episode carried a usable path. */
   dirPath: string | null;
+  /** Basenames of EVERY folder the show's episodes span (media servers merge
+   *  multi-folder shows) — all of them must count as "known" on disk. */
+  dirNames: string[];
 }
 
 export interface MediaBackend {

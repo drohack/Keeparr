@@ -102,26 +102,30 @@ export async function syncLibrary(): Promise<JobResult> {
       for (const show of items) {
         let size = knownSizes.get(show.ratingKey);
         let derivedDir: string | null = null;
+        let derivedNames: string[] = [];
         if (size == null) {
           // New show — compute its size now so it never shows as 0 GB.
           try {
             const disk = await backend.showSize(show.ratingKey);
             size = disk.sizeBytes;
             derivedDir = disk.dirPath;
+            derivedNames = disk.dirNames;
           } catch {
             size = 0;
           }
         }
         // Some servers omit the show's Location from listings — fall back to
-        // the folder derived from episode paths (existing shows get theirs
-        // backfilled by the sizes job).
+        // the folder(s) derived from episode paths (existing shows get theirs
+        // backfilled by the sizes job). Multi-folder shows store EVERY folder
+        // name, newline-joined.
         batch.push(
           toInput(
             {
               ...show,
               sizeBytes: size,
               dirPath: show.dirPath ?? derivedDir,
-              dirName: show.dirName ?? lastSegment(derivedDir),
+              dirName:
+                show.dirName ?? (derivedNames.length ? derivedNames.join('\n') : null),
             },
             section.id,
             'show'
@@ -166,6 +170,7 @@ export async function syncRecentlyAdded(): Promise<JobResult> {
     for (const node of items) {
       let size = node.sizeBytes;
       let derivedDir: string | null = null;
+      let derivedNames: string[] = [];
       if (kind === 'show') {
         size = knownSizes.get(node.ratingKey) ?? 0;
         if (size === 0) {
@@ -173,6 +178,7 @@ export async function syncRecentlyAdded(): Promise<JobResult> {
             const disk = await backend.showSize(node.ratingKey);
             size = disk.sizeBytes;
             derivedDir = disk.dirPath;
+            derivedNames = disk.dirNames;
           } catch {
             size = 0;
           }
@@ -184,7 +190,8 @@ export async function syncRecentlyAdded(): Promise<JobResult> {
             ...node,
             sizeBytes: size,
             dirPath: node.dirPath ?? derivedDir,
-            dirName: node.dirName ?? lastSegment(derivedDir),
+            dirName:
+              node.dirName ?? (derivedNames.length ? derivedNames.join('\n') : null),
           },
           section.id,
           kind
@@ -209,9 +216,10 @@ export async function syncSizes(): Promise<JobResult> {
   for (const rk of keys) {
     try {
       const disk = await backend.showSize(rk);
-      // Also backfill the show's on-disk folder — servers that omit Location
-      // from listings leave dir_path NULL until this derives it from episodes.
-      updateItemSize(rk, disk.sizeBytes, disk.dirPath);
+      // Also backfill the show's on-disk folder(s) — servers that omit
+      // Location from listings leave dir_path NULL until this derives it from
+      // episodes. Multi-folder shows record every folder name.
+      updateItemSize(rk, disk.sizeBytes, disk.dirPath, disk.dirNames);
       updated++;
     } catch {
       // a single failing show shouldn't abort the recompute
@@ -339,23 +347,22 @@ export async function syncArr(): Promise<JobResult> {
       // matched to IMDb (no tmdb/tvdb) still resolve.
       const rk = idMap.get(r.matchId) ?? (r.imdbId ? imdbMap.get(r.imdbId) : undefined);
       if (!rk) {
-        // No Plex item carries this title's tvdb/tmdb id. Only record it if it's
-        // actually DOWNLOADED (has files on disk) — that's media on disk Plex
-        // can't see (actionable). Wanted-but-not-downloaded titles are just
-        // missing media and aren't Keeparr's concern, so we skip them.
-        if (r.sizeOnDisk > 0) {
-          unmatchedRecs.push({
-            source: r.source,
-            instanceId: r.instanceId,
-            instanceName: r.instanceName,
-            title: r.title,
-            extKind: r.source === 'sonarr' ? 'tvdb' : 'tmdb',
-            extId: r.matchId,
-            sizeBytes: r.sizeOnDisk,
-            folderName: lastSegment(r.path),
-            path: r.path,
-          });
-        }
+        // No Plex item carries this title's tvdb/tmdb id. Downloaded ones are
+        // media on disk the server can't see (the "In *arr, not in <server>"
+        // category); fileless ones are recorded too but only feed the
+        // identity-mismatch check (folder-name collisions with server items).
+        unmatchedRecs.push({
+          source: r.source,
+          instanceId: r.instanceId,
+          instanceName: r.instanceName,
+          title: r.title,
+          extKind: r.source === 'sonarr' ? 'tvdb' : 'tmdb',
+          extId: r.matchId,
+          sizeBytes: r.sizeOnDisk,
+          folderName: lastSegment(r.path),
+          path: r.path,
+          downloaded: r.sizeOnDisk > 0,
+        });
         continue;
       }
       const first = seen.get(rk);
@@ -417,7 +424,7 @@ export async function syncArr(): Promise<JobResult> {
   replaceArrItems(matched, failedInstanceIds);
   replaceArrUnmatched(unmatchedRecs, failedInstanceIds);
   replaceArrConflicts(conflictRecs, failedInstanceIds);
-  const unmatched = unmatchedRecs.length;
+  const unmatched = unmatchedRecs.filter((u) => u.downloaded).length;
   const conflictNote = conflictRecs.length
     ? `, ${conflictRecs.length} cross-instance conflict(s)`
     : '';

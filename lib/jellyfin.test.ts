@@ -141,6 +141,7 @@ describe('paged /Items reads (StartIndex/Limit)', () => {
     await expect(getSeriesSize('http://jf:8096', 'tok', 's')).resolves.toEqual({
       sizeBytes: 0,
       dirPath: null,
+      dirNames: [],
     });
     expect(spy).toHaveBeenCalledTimes(1);
   });

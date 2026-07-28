@@ -9,7 +9,7 @@ import {
   type PlexMetadata,
 } from '../plex';
 import { getPlexBaseUrl, getPlexSections, getServerToken } from '../settings';
-import { deriveShowDirPath, lastSegment, parentPath, parentSegment } from '../paths';
+import { deriveShowDirPaths, lastSegment, parentPath, parentSegment } from '../paths';
 import type { LibraryKind } from '../types';
 import type { BackendItem, BackendSection, MediaBackend } from './types';
 
@@ -88,9 +88,11 @@ export const plexBackend: MediaBackend = {
       if (file) files.push(file);
     }
     const roots = getPlexSections().flatMap((s) => s.paths ?? []);
+    const dirs = deriveShowDirPaths(files, roots);
     return {
       sizeBytes: sumLeafSizes(leaves),
-      dirPath: deriveShowDirPath(files, roots),
+      dirPath: dirs[0] ?? null,
+      dirNames: dirs.map((d) => lastSegment(d)).filter((n): n is string => !!n),
     };
   },
   // Plex watch history comes from Tautulli (separate connector), not Plex itself.

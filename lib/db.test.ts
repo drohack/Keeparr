@@ -129,6 +129,13 @@ describe('migrate: arr_unmatched gained columns', () => {
       (d.prepare('SELECT folder_name FROM arr_unmatched').get() as { folder_name: string | null })
         .folder_name
     ).toBeNull();
+    // downloaded lands with default 1 — every pre-existing row WAS downloaded
+    // (the old sync skipped fileless titles entirely).
+    expect(cols).toContain('downloaded');
+    expect(
+      (d.prepare('SELECT downloaded FROM arr_unmatched').get() as { downloaded: number })
+        .downloaded
+    ).toBe(1);
   });
 });
 

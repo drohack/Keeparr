@@ -1,6 +1,6 @@
 import { fetchJson } from './http';
 import { getMediaDeviceId, type MediaServerType } from './settings';
-import { deriveShowDirPath, lastSegment, parentPath, parentSegment } from './paths';
+import { deriveShowDirPaths, lastSegment, parentPath, parentSegment } from './paths';
 import type { LibraryKind } from './types';
 import type { BackendItem, BackendSection } from './mediaserver/types';
 
@@ -387,12 +387,12 @@ export async function getWatchHistory(
 }
 
 /** Total on-disk size of a series (every episode's media, file-deduped) plus
- *  the series folder derived from episode paths. */
+ *  the series folder(s) derived from episode paths. */
 export async function getSeriesSize(
   baseUrl: string,
   token: string,
   seriesId: string
-): Promise<{ sizeBytes: number; dirPath: string | null }> {
+): Promise<{ sizeBytes: number; dirPath: string | null; dirNames: string[] }> {
   const qs = new URLSearchParams({
     ParentId: seriesId,
     Recursive: 'true',
@@ -412,5 +412,10 @@ export async function getSeriesSize(
     const p = it.MediaSources?.[0]?.Path;
     if (p) files.push(p);
   }
-  return { sizeBytes: sumMediaSources(items), dirPath: deriveShowDirPath(files, []) };
+  const dirs = deriveShowDirPaths(files, []);
+  return {
+    sizeBytes: sumMediaSources(items),
+    dirPath: dirs[0] ?? null,
+    dirNames: dirs.map((d) => lastSegment(d)).filter((n): n is string => !!n),
+  };
 }

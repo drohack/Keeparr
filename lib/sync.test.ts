@@ -93,7 +93,7 @@ function backendWith(
     listSections: async () => sections,
     listSectionItems: async (id) => itemsBySection[id] ?? [],
     recentItems: async () => [],
-    showSize: async () => ({ sizeBytes: 0, dirPath: null }),
+    showSize: async () => ({ sizeBytes: 0, dirPath: null, dirNames: [] }),
     getWatchData: async () => null,
   };
 }
@@ -241,6 +241,21 @@ describe('syncArr per-instance replace', () => {
     // The unmatched record also keeps its FULL *arr-side path (Problems Location).
     expect(getArrUnmatched().map((u) => u.path)).toEqual(['/movies/Lost Film']);
   });
+
+  it('records FILELESS unmatched titles too, but only counts downloaded in the message', async () => {
+    vi.mocked(fetchSonarr).mockResolvedValue([]);
+    vi.mocked(fetchRadarr).mockResolvedValue([
+      rec({}), // matches m1
+      rec({ arrId: 2, matchId: '404', title: 'Downloaded Orphan', sizeOnDisk: 2 * GB, path: '/movies/DO' }),
+      rec({ arrId: 3, matchId: '405', title: 'Wanted Only', sizeOnDisk: 0, path: '/movies/WO' }),
+    ]);
+    const res = await syncArr();
+    expect(res.message).toContain('(1 downloaded but not in Plex)'); // fileless not counted
+    expect(getArrUnmatched().map((u) => u.title)).toEqual(['Downloaded Orphan']);
+    const all = getArrUnmatched(false);
+    expect(all.map((u) => u.title).sort()).toEqual(['Downloaded Orphan', 'Wanted Only']);
+    expect(all.find((u) => u.title === 'Wanted Only')?.downloaded).toBe(false);
+  });
 });
 
 describe('syncArr cross-instance conflicts', () => {
@@ -362,7 +377,7 @@ describe('syncRecentlyAdded', () => {
         sectionId === '1'
           ? [backendItem('m-new')]
           : [backendItem('sh-new', { sizeBytes: 0 })],
-      showSize: async () => ({ sizeBytes: 7 * GB, dirPath: '/tv/New Show' }),
+      showSize: async () => ({ sizeBytes: 7 * GB, dirPath: '/tv/New Show', dirNames: ['New Show'] }),
     };
     const res = await syncRecentlyAdded();
     expect(res.result).toBe(2);
@@ -383,7 +398,7 @@ describe('syncRecentlyAdded', () => {
     upsertMediaBatch([media('sh1', { sectionId: '2', libraryKind: 'show', sizeBytes: 5 * GB })]);
     fakeBackend = {
       ...backendWith([], {}),
-      showSize: async () => ({ sizeBytes: 5 * GB, dirPath: '/tv/Airing Show' }),
+      showSize: async () => ({ sizeBytes: 5 * GB, dirPath: '/tv/Airing Show', dirNames: ['Airing Show'] }),
     };
     await syncSizes(); // backfills dir_path
     expect(getMediaItem('sh1')?.dir_path).toBe('/tv/Airing Show');
@@ -412,7 +427,7 @@ describe('syncRecentlyAdded', () => {
         if (sectionId === '1') throw new Error('boom');
         return [backendItem('sh-new', { sizeBytes: 0 })];
       },
-      showSize: async () => ({ sizeBytes: 1 * GB, dirPath: null }),
+      showSize: async () => ({ sizeBytes: 1 * GB, dirPath: null, dirNames: [] }),
     };
     const res = await syncRecentlyAdded();
     expect(res.result).toBe(1);
@@ -431,7 +446,11 @@ describe('syncSizes', () => {
       ...backendWith([], {}),
       showSize: async (rk) => {
         if (rk === 'sh1') throw new Error('boom');
-        return { sizeBytes: 9 * GB, dirPath: '/tv/Show sh2' };
+        return {
+          sizeBytes: 9 * GB,
+          dirPath: '/tv/Show sh2',
+          dirNames: ['Show sh2', 'Show sh2 Specials'], // multi-folder show
+        };
       },
     };
     const res = await syncSizes();
@@ -440,8 +459,10 @@ describe('syncSizes', () => {
     expect(getMediaItem('sh1')?.size_bytes).toBe(1 * GB); // unchanged
     expect(getMediaItem('mv')?.size_bytes).toBe(1 * GB); // movies untouched
     // The derived show folder is backfilled alongside the size (the fallback
-    // for servers that omit Location from listings).
+    // for servers that omit Location from listings); EVERY folder the show
+    // spans lands in dir_name, newline-joined.
     expect(getMediaItem('sh2')?.dir_path).toBe('/tv/Show sh2');
+    expect(getMediaItem('sh2')?.dir_name).toBe('Show sh2\nShow sh2 Specials');
   });
 });
 

@@ -161,9 +161,10 @@ export function applySchema(database: Database.Database): void {
       title         TEXT NOT NULL,
       ext_kind      TEXT NOT NULL,              -- 'tvdb' | 'tmdb'
       ext_id        TEXT NOT NULL,
-      size_bytes    INTEGER NOT NULL DEFAULT 0, -- on-disk size in *arr (only "downloaded" rows are stored)
+      size_bytes    INTEGER NOT NULL DEFAULT 0, -- on-disk size in *arr (0 when not downloaded)
       folder_name   TEXT,                       -- title's own *arr folder basename
       path          TEXT,                       -- full folder path as the *arr sees it
+      downloaded    INTEGER NOT NULL DEFAULT 1, -- sizeOnDisk > 0 in the *arr (fileless rows feed identity matching only)
       last_synced   INTEGER NOT NULL
     );
 
@@ -280,6 +281,14 @@ function migrate(database: Database.Database): void {
   // page's Location cell). Cache table; NULL until the next arr run.
   if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'path')) {
     database.exec(`ALTER TABLE arr_unmatched ADD COLUMN path TEXT`);
+  }
+  // arr_unmatched gained downloaded: fileless unmatched titles are now recorded
+  // too (they feed the identity-mismatch check). Old rows were all downloaded
+  // by construction (the sync used to skip fileless ones) → default 1.
+  if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'downloaded')) {
+    database.exec(
+      `ALTER TABLE arr_unmatched ADD COLUMN downloaded INTEGER NOT NULL DEFAULT 1`
+    );
   }
 
   // arr_items gained folder_name for the same reason (rebuilt by the arr job).

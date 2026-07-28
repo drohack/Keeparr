@@ -7,6 +7,7 @@ import {
   getArrConflicts,
   getArrUnmatched,
   getDiskOrphans,
+  identityMismatchItems,
   missingExternalIdItems,
   notInArrItems,
   removedButKeptItems,
@@ -25,6 +26,7 @@ const QUERYABLE: ProblemType[] = [
   'sizeMismatch',
   'notInArr',
   'missingFromPlex',
+  'identityMismatch',
   'duplicates',
   'arrConflicts',
   'zeroSize',
@@ -37,6 +39,7 @@ const ARR_GATED = new Set<ProblemType>([
   'sizeMismatch',
   'notInArr',
   'missingFromPlex',
+  'identityMismatch',
   'arrConflicts',
 ]);
 
@@ -45,9 +48,32 @@ function withPoster<T extends { thumb: string | null }>({ thumb, ...rest }: T) {
   return { ...rest, thumbUrl: thumbUrl(thumb) };
 }
 
-/** Paged list for one problem category. Query: type=<category>, offset.
- *  Unlike /api/stats there is NO default view — an unknown/absent type is a
- *  400 (falling back to an arbitrary category could return the whole library). */
+/** String/number comparator factory for the JS-sliced categories. */
+function jsSort<T>(
+  rows: T[],
+  get: (r: T) => string | number | null,
+  dir: 'asc' | 'desc'
+): T[] {
+  const mul = dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = get(a);
+    const bv = get(b);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1; // nulls last regardless of direction
+    if (bv == null) return -1;
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return mul * av.localeCompare(bv);
+    }
+    return mul * ((av as number) - (bv as number));
+  });
+}
+
+/** Paged list for one problem category. Query: type=<category>, offset, plus
+ *  view options: sort/dir (per-category allow-list; unknown → default order),
+ *  sections (comma library ids), kind (movie|show) — filters apply where the
+ *  rows are media items (or carry an equivalent, e.g. extKind for
+ *  missingFromPlex). Unlike /api/stats there is NO default view — an
+ *  unknown/absent type is a 400. */
 export async function GET(req: Request) {
   try {
     await requireAdmin();
@@ -64,9 +90,35 @@ export async function GET(req: Request) {
     }
     const offset = Math.max(0, Number(p.get('offset')) || 0);
 
+    // View options (sort keys are validated per category by the queries'
+    // allow-lists / the jsSort call sites below).
+    const dirParam = p.get('dir');
+    const dir: 'asc' | 'desc' | undefined =
+      dirParam === 'asc' ? 'asc' : dirParam === 'desc' ? 'desc' : undefined;
+    const sort = p.get('sort') ?? undefined;
+    const sectionIds = (p.get('sections') ?? '').split(',').filter(Boolean);
+    const kindParam = p.get('kind');
+    const kind: 'movie' | 'show' | undefined =
+      kindParam === 'movie' || kindParam === 'show' ? kindParam : undefined;
+    const opts = {
+      sort,
+      dir,
+      sectionIds: sectionIds.length ? sectionIds : undefined,
+      kind,
+    };
+    /** Filter for JS-sliced rows that carry sectionId/libraryKind. */
+    const mediaFilter = <T extends { sectionId?: string; libraryKind?: string }>(
+      rows: T[]
+    ): T[] =>
+      rows.filter(
+        (r) =>
+          (!opts.sectionIds || (r.sectionId != null && opts.sectionIds.includes(r.sectionId))) &&
+          (!kind || r.libraryKind === kind)
+      );
+
     let items: { rows: unknown[]; hasMore: boolean };
     if (type === 'sizeMismatch') {
-      const rows = sizeMismatchItems(PAGE + 1, offset);
+      const rows = sizeMismatchItems(PAGE + 1, offset, opts);
       items = {
         rows: rows.slice(0, PAGE).map(withPoster),
         hasMore: rows.length > PAGE,
@@ -76,21 +128,47 @@ export async function GET(req: Request) {
       // view — excluded unless the client opts in (includeMissingIds=1; the UI
       // checkbox defaults to hiding them).
       const includeMissingIds = p.get('includeMissingIds') === '1';
-      const rows = notInArrItems(PAGE + 1, offset, !includeMissingIds);
+      const rows = notInArrItems(PAGE + 1, offset, !includeMissingIds, opts);
       items = {
         rows: rows.slice(0, PAGE).map(withPoster),
         hasMore: rows.length > PAGE,
       };
     } else if (type === 'missingFromPlex') {
-      // Not in the media server, so no poster to proxy.
-      const all = getArrUnmatched();
+      // Not in the media server, so no poster to proxy. Kind filters via the
+      // ext id axis (tvdb = series, tmdb = movie).
+      let all = getArrUnmatched();
+      if (kind) all = all.filter((r) => r.extKind === (kind === 'show' ? 'tvdb' : 'tmdb'));
+      all = jsSort(
+        all,
+        sort === 'title' ? (r) => r.title : sort === 'instance' ? (r) => r.instanceName : (r) => r.sizeBytes,
+        dir ?? (sort === 'title' || sort === 'instance' ? 'asc' : 'desc')
+      );
       items = {
         rows: all.slice(offset, offset + PAGE),
         hasMore: all.length > offset + PAGE,
       };
+    } else if (type === 'identityMismatch') {
+      let all = identityMismatchItems().filter(
+        (r) =>
+          (!opts.sectionIds || opts.sectionIds.includes(r.media.sectionId)) &&
+          (!kind || r.media.libraryKind === kind)
+      );
+      all = jsSort(
+        all,
+        sort === 'title' ? (r) => r.media.title : (r) => r.media.sizeBytes,
+        dir ?? (sort === 'title' ? 'asc' : 'desc')
+      );
+      items = {
+        rows: all.slice(offset, offset + PAGE).map((r) => ({
+          ...r,
+          media: { ...withPoster(r.media) },
+        })),
+        hasMore: all.length > offset + PAGE,
+      };
     } else if (type === 'duplicates') {
-      // Grouped in JS; one "item" is a whole duplicate group.
-      const all = duplicateGroups();
+      // Grouped in JS; one "item" is a whole duplicate group. A group stays
+      // when ANY member passes the filters (members can span libraries).
+      const all = duplicateGroups().filter((g) => mediaFilter(g.items).length > 0);
       items = {
         rows: all.slice(offset, offset + PAGE).map((g) => ({
           ...g,
@@ -99,20 +177,31 @@ export async function GET(req: Request) {
         hasMore: all.length > offset + PAGE,
       };
     } else if (type === 'arrConflicts') {
-      const all = getArrConflicts();
+      let all = getArrConflicts();
+      all = jsSort(
+        all,
+        sort === 'title' ? (r) => r.title : (r) => r.sizeOnDisk,
+        dir ?? (sort === 'title' ? 'asc' : 'desc')
+      );
       items = {
         rows: all.slice(offset, offset + PAGE).map(withPoster),
         hasMore: all.length > offset + PAGE,
       };
     } else if (type === 'zeroSize') {
-      const rows = zeroSizeItems(PAGE + 1, offset);
+      const rows = zeroSizeItems(PAGE + 1, offset, opts);
       items = {
         rows: rows.slice(0, PAGE).map(withPoster),
         hasMore: rows.length > PAGE,
       };
     } else if (type === 'diskOrphans') {
       // Real filesystem entries — nothing to proxy a poster from.
-      const all = getDiskOrphans();
+      let all = getDiskOrphans();
+      if (opts.sectionIds) all = all.filter((r) => opts.sectionIds!.includes(r.sectionId));
+      all = jsSort(
+        all,
+        sort === 'name' ? (r) => r.name : (r) => r.sizeBytes,
+        dir ?? (sort === 'name' ? 'asc' : 'desc')
+      );
       items = {
         rows: all.slice(offset, offset + PAGE).map((r) => ({
           name: r.name,
@@ -126,7 +215,12 @@ export async function GET(req: Request) {
       };
     } else if (type === 'removedButKept') {
       // Removed from the media server — a proxied thumb would 404, so no poster.
-      const all = removedButKeptItems();
+      let all = mediaFilter(removedButKeptItems());
+      all = jsSort(
+        all,
+        sort === 'title' ? (r) => r.title : (r) => r.sizeBytes,
+        dir ?? (sort === 'title' ? 'asc' : 'desc')
+      );
       items = {
         rows: all.slice(offset, offset + PAGE).map((r) => ({
           ...r,
@@ -136,7 +230,7 @@ export async function GET(req: Request) {
         hasMore: all.length > offset + PAGE,
       };
     } else {
-      const rows = missingExternalIdItems(PAGE + 1, offset);
+      const rows = missingExternalIdItems(PAGE + 1, offset, opts);
       items = {
         rows: rows.slice(0, PAGE).map(withPoster),
         hasMore: rows.length > PAGE,

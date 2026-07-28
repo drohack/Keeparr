@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   deriveShowDirPath,
+  deriveShowDirPaths,
   lastSegment,
   normalizeName,
   parentPath,
@@ -85,6 +86,22 @@ describe('paths (foreign-path string helpers)', () => {
     // Non-season subfolder: the parent IS the best guess.
     expect(deriveShowDirPath(['/media/Shows/Scrubs/ep.mkv'], [])).toBe('/media/Shows/Scrubs');
     expect(deriveShowDirPath([], ['/data/tv'])).toBeNull();
+  });
+
+  it('deriveShowDirPaths returns EVERY folder a show spans, deduped', () => {
+    const roots = ['/data/tv'];
+    expect(
+      deriveShowDirPaths(
+        [
+          '/data/tv/Lupin the 3rd/Season 1/e1.mkv',
+          '/data/tv/Lupin the 3rd/Season 2/e1.mkv', // same folder → deduped
+          '/data/tv/Lupin III Movies & Specials/special1.mkv', // second folder
+          '/data/tv/LUPIN THE 3RD/Season 3/e1.mkv', // case-variant → deduped
+        ],
+        roots
+      )
+    ).toEqual(['/data/tv/Lupin the 3rd', '/data/tv/Lupin III Movies & Specials']);
+    expect(deriveShowDirPaths([], roots)).toEqual([]);
   });
 
   it('normalizeName case-folds and NFC-normalizes', () => {

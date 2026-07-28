@@ -148,10 +148,13 @@ inside it with no page scroll.
   server-side folder path (the Problems page's clickable Location cells). All
   NULL until a library scan captures them. **Some PMS versions omit `Location`
   from show listings entirely** — shows then get dir_path/dir_name DERIVED from
-  episode file paths (`deriveShowDirPath` in lib/paths.ts: first segment under a
+  episode file paths (`deriveShowDirPaths` in lib/paths.ts: first segment under a
   known section root, else parent-of-file hopping season folders) via
-  `backend.showSize()`, which returns `{sizeBytes, dirPath}`: new shows fill at
-  scan time, existing shows are backfilled by the `sizes` job. ALL disk-name
+  `backend.showSize()`, which returns `{sizeBytes, dirPath, dirNames}`: new
+  shows fill at scan time, existing shows are backfilled by the `sizes` job.
+  A show's `dir_name` is **newline-joined** when its episodes span several root
+  folders (the server merges multi-folder shows; every folder must count as
+  known to the disk scan — split on '\n' when consuming). ALL disk-name
   writes are COALESCE-style (upsertMediaBatch + updateItemSize): an incoming
   NULL keeps the stored value — scans that don't recompute a show (known size →
   no showSize call) must not wipe the sizes-job backfill (recentlyAdded runs
@@ -201,10 +204,12 @@ inside it with no page scroll.
   a run keep their cached rows; instances removed from settings drop out next
   run. LEFT-JOINed by `queryLibrary`
   to power Browse's List view + quality/tag/monitored/status/size-mismatch filters.
-- `arr_unmatched` — Sonarr/Radarr titles that matched no Plex item. Only
-  **downloaded** ones (`sizeOnDisk > 0`, stored as `size_bytes`) are recorded — they're
-  media on disk Plex can't see (actionable); wanted-but-not-downloaded titles are skipped
-  (just missing media). Replaced per-instance by the `arr` job (like
+- `arr_unmatched` — Sonarr/Radarr titles that matched no Plex item. ALL of them
+  are recorded with a `downloaded` flag (`sizeOnDisk > 0`): downloaded ones are
+  media on disk Plex can't see (the "In *arr, not in <server>" category +
+  Match health count — `getArrUnmatched()` defaults to downloaded-only);
+  fileless ones only feed the identityMismatch folder-name join. Replaced
+  per-instance by the `arr` job (like
   `arr_items`); full list on the Problems page ("In *arr, not in <server>",
   largest-first with sizes); Settings → Match health shows only summary counts +
   a link there. (`mediaMissingExternalIds()` reports the inverse:
@@ -398,17 +403,24 @@ when it has no tvdb/tmdb **and** no imdb.
   `diskOrphans` needs storage mappings + a completed diskScan run — until then
   `available:false` with `reason: storage_not_configured|not_scanned`, which the
   UI renders as a dimmed pill with a fix-it tooltip) +
-  `GET /api/admin/problems?type=&offset=&includeMissingIds=` (paged list for one
-  category — `notInArr` hides titles with no external id by DEFAULT (they can
-  never match *arr and have their own missingIds category; the pill count matches
-  via `unmatchedMediaSummary(true)`), `includeMissingIds=1` opts back in;
+  `GET /api/admin/problems?type=&offset=&includeMissingIds=&sort=&dir=&sections=&kind=`
+  (paged list for one category — `notInArr` hides titles with no external id by
+  DEFAULT (they can never match *arr and have their own missingIds category; the
+  pill count matches via `unmatchedMediaSummary(true)`), `includeMissingIds=1`
+  opts back in; `sort`/`dir` per-category allow-lists (unknown → default order;
+  SQL categories via `problemOrder`, JS-sliced via route comparators),
+  `sections` (comma library ids) + `kind` (movie|show) filter where rows are
+  media items (duplicates keep groups with ANY matching member; missingFromPlex
+  filters kind via extKind; diskOrphans sections only; arrConflicts none);
   categories:
-  `sizeMismatch|notInArr|missingFromPlex|duplicates|arrConflicts|zeroSize|`
-  `removedButKept|missingIds|diskOrphans`; NO default view: missing/unknown type
+  `sizeMismatch|notInArr|missingFromPlex|identityMismatch|duplicates|arrConflicts|`
+  `zeroSize|removedButKept|missingIds|diskOrphans`; NO default view:
+  missing/unknown type
   → 400 `unknown_type`, arr-gated type without arr → 400 `arr_not_configured`,
   `diskOrphans` without mappings → 400 `storage_not_configured`; returns
   `{type, items, hasMore, nextOffset}`, item shape varies per category —
-  `duplicates` items are groups, `diskOrphans` items are filesystem entries
+  `duplicates` items are groups, `identityMismatch` items pair `{media, arr}`
+  claims on one folder, `diskOrphans` items are filesystem entries
   `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`; media-item rows
   carry `dirPath` (full server-side folder path; `path` on missingFromPlex) →
   the UI's Location cells: tail display, full path on hover, click-to-copy,

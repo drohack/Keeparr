@@ -85,6 +85,7 @@ const CATEGORY_ORDER = [
   'sizeMismatch',
   'notInArr',
   'missingFromPlex',
+  'identityMismatch',
   'duplicates',
   'arrConflicts',
   'zeroSize',
@@ -94,7 +95,7 @@ const CATEGORY_ORDER = [
 ];
 
 describe('GET /api/admin/problems/summary', () => {
-  it('returns all 9 categories in display order + the server type for labels', async () => {
+  it('returns all 10 categories in display order + the server type for labels', async () => {
     await loginAs('admin', true);
     const body = await summaryGet().then((r) => r.json());
     expect(body.categories.map((c: ProblemCategorySummary) => c.type)).toEqual(CATEGORY_ORDER);
@@ -108,7 +109,7 @@ describe('GET /api/admin/problems/summary', () => {
     const byType = new Map<string, ProblemCategorySummary>(
       body.categories.map((c: ProblemCategorySummary) => [c.type, c])
     );
-    for (const t of ['sizeMismatch', 'notInArr', 'missingFromPlex', 'arrConflicts']) {
+    for (const t of ['sizeMismatch', 'notInArr', 'missingFromPlex', 'identityMismatch', 'arrConflicts']) {
       expect(byType.get(t)).toMatchObject({ available: false, titles: 0, bytes: 0 });
     }
     for (const t of ['duplicates', 'zeroSize', 'removedButKept', 'missingIds']) {
@@ -231,7 +232,7 @@ describe('GET /api/admin/problems', () => {
 
   it('400 arr_not_configured for arr-gated types without Sonarr/Radarr', async () => {
     await loginAs('admin', true);
-    for (const t of ['sizeMismatch', 'notInArr', 'missingFromPlex', 'arrConflicts']) {
+    for (const t of ['sizeMismatch', 'notInArr', 'missingFromPlex', 'identityMismatch', 'arrConflicts']) {
       const res = await problemsGet(listReq(`type=${t}`));
       expect(res.status).toBe(400);
       expect((await res.json()).error).toBe('arr_not_configured');
@@ -270,6 +271,67 @@ describe('GET /api/admin/problems', () => {
       r.json()
     );
     expect(all.items.map((i: { ratingKey: string }) => i.ratingKey)).toEqual(['1', '2']);
+  });
+
+  it('sort/dir/sections/kind view options apply (SQL-paged + JS-sliced)', async () => {
+    await loginAs('admin', true);
+    upsertMediaBatch([
+      media('z1', { title: 'Zebra', sizeBytes: 0, addedAt: 100 }),
+      media('z2', { title: 'Alpha', sizeBytes: 0, addedAt: 300, sectionId: '2', libraryKind: 'show' }),
+    ]);
+    // SQL-paged (zeroSize): sort by title asc + kind filter.
+    const byTitle = await problemsGet(listReq('type=zeroSize&sort=title')).then((r) => r.json());
+    expect(byTitle.items.map((i: { title: string }) => i.title)).toEqual(['Alpha', 'Zebra']);
+    const movies = await problemsGet(listReq('type=zeroSize&kind=movie')).then((r) => r.json());
+    expect(movies.items.map((i: { title: string }) => i.title)).toEqual(['Zebra']);
+    const sec2 = await problemsGet(listReq('type=zeroSize&sections=2')).then((r) => r.json());
+    expect(sec2.items.map((i: { title: string }) => i.title)).toEqual(['Alpha']);
+
+    // JS-sliced (missingFromPlex): sort by title + kind via extKind.
+    configureArr();
+    replaceArrUnmatched([
+      { source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'B Movie', extKind: 'tmdb', extId: '1', sizeBytes: 1 * GB },
+      { source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'A Movie', extKind: 'tmdb', extId: '2', sizeBytes: 2 * GB },
+      { source: 'sonarr', instanceId: 'r1', instanceName: 'R', title: 'Some Show', extKind: 'tvdb', extId: '3', sizeBytes: 3 * GB },
+    ]);
+    const mfp = await problemsGet(listReq('type=missingFromPlex&sort=title')).then((r) => r.json());
+    expect(mfp.items.map((i: { title: string }) => i.title)).toEqual(['A Movie', 'B Movie', 'Some Show']);
+    const mfpMovies = await problemsGet(listReq('type=missingFromPlex&kind=movie')).then((r) =>
+      r.json()
+    );
+    expect(mfpMovies.items.map((i: { title: string }) => i.title)).toEqual(['A Movie', 'B Movie']); // size DESC
+  });
+
+  it('identityMismatch pairs media + arr claims on one folder', async () => {
+    await loginAs('admin', true);
+    configureArr();
+    upsertMediaBatch([
+      media('1', {
+        title: 'Wrong Match',
+        dirName: 'Real Title (1995)',
+        dirPath: '/media/Movies/Real Title (1995)',
+        sizeBytes: 4 * GB,
+      }),
+    ]);
+    replaceArrUnmatched([
+      {
+        source: 'radarr', instanceId: 'r1', instanceName: 'Radarr', title: 'Real Title',
+        extKind: 'tmdb', extId: '999', sizeBytes: 0, folderName: 'Real Title (1995)',
+        path: '/movies/Real Title (1995)', downloaded: false,
+      },
+    ]);
+    const body = await problemsGet(listReq('type=identityMismatch')).then((r) => r.json());
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].media).toMatchObject({
+      title: 'Wrong Match',
+      dirPath: '/media/Movies/Real Title (1995)',
+    });
+    expect(body.items[0].media.thumbUrl).toContain('/api/image?path=');
+    expect(body.items[0].arr).toMatchObject({
+      title: 'Real Title',
+      extId: '999',
+      downloaded: false,
+    });
   });
 
   it('duplicates returns groups with members incl. their locations', async () => {

@@ -140,6 +140,7 @@ export type ProblemType =
   | 'sizeMismatch' // Plex vs *arr size diverges >10% AND >1 GB
   | 'notInArr' // in the media server, matched by no Sonarr/Radarr instance
   | 'missingFromPlex' // downloaded in *arr but not in the media server (arr_unmatched)
+  | 'identityMismatch' // same folder claimed under two different external ids (server vs *arr)
   | 'duplicates' // two+ media items sharing an external id
   | 'arrConflicts' // two *arr instances claiming the same media item
   | 'zeroSize' // media server reports the title but no file bytes

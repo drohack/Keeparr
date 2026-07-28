@@ -68,38 +68,56 @@ function cutAfterSegments(p: string, n: number): string {
 /** Conventional intermediate folders between a show folder and its files. */
 const SEASON_DIR_RE = /^(season([ ._-]|$)|specials$|staffel([ ._-]|$)|extras$)/i;
 
-/**
- * Derive a show's folder from its EPISODE file paths — the fallback for media
- * servers that omit the show's own Location/Path from listings (episode paths
- * are always available; they're how show sizes are computed).
- *
- * Primary: the show folder is the first segment under a known library root
- * (compared segment-wise, case-folded). Fallback without a matching root: the
- * first file's parent, hopping over a conventional season/specials folder.
- */
-export function deriveShowDirPath(
-  files: string[],
-  sectionRoots: string[]
-): string | null {
-  for (const file of files) {
-    const normSegs = pathSegments(file).map(normalizeName);
-    for (const root of sectionRoots) {
-      const rootSegs = pathSegments(root).map(normalizeName);
-      if (
-        rootSegs.length > 0 &&
-        normSegs.length > rootSegs.length + 1 && // root + show folder + file, at least
-        rootSegs.every((s, i) => normSegs[i] === s)
-      ) {
-        return cutAfterSegments(file, rootSegs.length + 1);
-      }
+/** Derive ONE file's show folder: the first segment under a known library root
+ *  (segment-wise, case-folded compare), else the file's parent hopping over a
+ *  conventional season/specials folder. */
+function deriveOneShowDir(file: string, sectionRoots: string[]): string | null {
+  const normSegs = pathSegments(file).map(normalizeName);
+  for (const root of sectionRoots) {
+    const rootSegs = pathSegments(root).map(normalizeName);
+    if (
+      rootSegs.length > 0 &&
+      normSegs.length > rootSegs.length + 1 && // root + show folder + file, at least
+      rootSegs.every((s, i) => normSegs[i] === s)
+    ) {
+      return cutAfterSegments(file, rootSegs.length + 1);
     }
   }
-  const first = files[0];
-  if (!first) return null;
-  let dir = parentPath(first);
+  let dir = parentPath(file);
   const dirName = lastSegment(dir);
   if (dir && dirName && SEASON_DIR_RE.test(normalizeName(dirName))) {
     dir = parentPath(dir) ?? dir;
   }
   return dir;
+}
+
+/**
+ * Derive a show's folder(s) from its EPISODE file paths — the fallback for
+ * media servers that omit the show's own Location/Path from listings (episode
+ * paths are always available; they're how show sizes are computed).
+ *
+ * Returns EVERY distinct folder, first-seen order/casing kept: a show whose
+ * episodes span several root folders (the media server merges locations) has
+ * all of them on disk, and each must count as "known" to the disk-orphan scan.
+ */
+export function deriveShowDirPaths(files: string[], sectionRoots: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const file of files) {
+    const dir = deriveOneShowDir(file, sectionRoots);
+    if (!dir) continue;
+    const key = normalizeName(dir);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(dir);
+  }
+  return out;
+}
+
+/** The show's primary folder (first derived) — the display path. */
+export function deriveShowDirPath(
+  files: string[],
+  sectionRoots: string[]
+): string | null {
+  return deriveShowDirPaths(files, sectionRoots)[0] ?? null;
 }

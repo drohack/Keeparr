@@ -9,6 +9,7 @@ import {
   diskOrphansSummary,
   duplicateGroups,
   getJobState,
+  identityMismatchSummary,
   missingExternalIdsSummary,
   removedButKeptSummary,
   sizeMismatchSummary,
@@ -51,6 +52,11 @@ export async function GET() {
         bytes: notInArr.bytes,
       },
       { type: 'missingFromPlex', available: arr, ...(arr ? arrUnmatchedSummary() : ZERO) },
+      {
+        type: 'identityMismatch',
+        available: arr,
+        ...(arr ? identityMismatchSummary() : ZERO),
+      },
       {
         type: 'duplicates',
         available: true,
