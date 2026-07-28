@@ -99,9 +99,17 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   each (and a "still kept" flag where someone else's keep still protects it).
 - **Problems** (admin) — one page that gathers every "something's off" check with
   a count + size per category, so you don't have to dig through Browse filters and
-  Settings panels: **size mismatch** (Plex vs *arr sizes diverge), **in the media
+  Settings panels. The categories are grouped into three families (media server
+  ↔ Sonarr/Radarr · within the server · on disk), and **every row ends in a
+  "What to do" badge** — the concrete next step ("Rescan Plex", "Refresh & Scan
+  in *arr", "Leftover copy — verify & delete") with the full reasoning on hover.
+  Rows whose real fix lives in another check say so ("Fix match — see Identity
+  mismatch") instead of giving generic advice. The checks:
+  **size mismatch** (Plex vs *arr sizes diverge — plus the MEASURED on-disk size
+  as the tiebreaker, so the row says which side needs a rescan), **in the media
   server but not in *arr** (nothing manages the title), **in *arr but not in the
-  media server** (downloaded per Sonarr/Radarr but the server can't see it),
+  media server** (with an on-disk reality check: "not found"/"empty" = stale
+  *arr record, Refresh & Scan there; a real size = the server needs a scan),
   **identity mismatch** (the same folder claimed under two different titles —
   e.g. Plex matched `The Langoliers (1995)` to some obscure film while Radarr
   tracks The Langoliers; one side's match is wrong, and the row shows both
@@ -113,6 +121,9 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   **on disk, in neither** — a weekly *Disk scan* job checks the top level of each
   mapped library path for folders/files that neither the media server nor
   Sonarr/Radarr account for (forgotten downloads, leftovers from deletions).
+  Each orphan is name-matched against your library: a **"Looks like"** column
+  flags leftover old copies ("the library already has The Avengers at 16 GB in
+  another folder — this 1 GB folder is a leftover; delete it").
   Matching is by folder/file **name** per library root (the three systems see
   different absolute paths for the same folder), well-known junk (`@eaDir`,
   `#recycle`, dotfiles…) is ignored, only unaccounted-for entries are sized, and

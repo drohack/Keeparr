@@ -14,6 +14,8 @@ import {
   replaceArrItems,
   replaceArrUnmatched,
   replaceDiskOrphansForSection,
+  updateArrUnmatchedDisk,
+  updateItemDiskCheck,
   replaceSeerrRequests,
   setJobState,
   tombstoneStale,
@@ -304,7 +306,6 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     const mediaItems = buildItems();
     const seedTs = Math.floor(Date.now() / 1000);
     upsertMediaBatch(mediaItems, seedTs);
-    replaceArrItems(buildArrItems(mediaItems));
     replaceArrUnmatched(ARR_UNMATCHED);
 
     // --- Problems-page demo rows (mismatch/notInArr/unmatched/missingIds are
@@ -346,6 +347,27 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
       ],
       seedTs
     );
+    // arr_items (after the extra media rows above exist — FK on rating_key).
+    // Radarr still holds bytes for the zero-size demo item, so its Problems row
+    // shows the "Plex sees no files — rescan" action.
+    replaceArrItems([
+      ...buildArrItems(mediaItems),
+      {
+        ratingKey: 'dev-zero-1',
+        source: 'radarr',
+        instanceId: RADARR_MAIN.id,
+        instanceName: 'Radarr',
+        arrId: 990001,
+        monitored: true,
+        status: 'released',
+        quality: 'Bluray-1080p',
+        qualityKind: 'file',
+        rootFolder: '/movies',
+        arrSizeBytes: Math.round(19 * GB),
+        tags: [],
+        folderName: 'Corrupted Import Demo',
+      },
+    ]);
     // Removed but kept: seed it slightly "older", keep it, then tombstone it —
     // the same path a real deletion takes (full sync tombstones stale rows).
     upsertMediaBatch(
@@ -388,6 +410,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
         mtime: seedTs - 30 * 86400,
       },
     ]);
+    const leftoverSrc = mediaItems.find((m) => m.libraryKind === 'movie')!;
     replaceDiskOrphansForSection('1', [
       {
         name: 'Some.Movie.2019.1080p.WEB-DL.mkv',
@@ -397,14 +420,29 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
         sizeSkipped: false,
         mtime: seedTs - 200 * 86400,
       },
+      {
+        // A leftover old copy of a title the library already has — demos the
+        // "Looks like" diagnosis.
+        name: `${leftoverSrc.title} (2004) [XviD]`,
+        path: `/media/Movies/${leftoverSrc.title} (2004) [XviD]`,
+        isDir: true,
+        sizeBytes: Math.round(0.7 * GB),
+        sizeSkipped: false,
+        mtime: seedTs - 300 * 86400,
+      },
     ]);
+
 
     // Identity mismatch: a fileless Radarr entry claims the SAME folder as a
     // seeded movie but under a different tmdb id (the "Plex misidentified the
     // folder" case). Also a multi-folder show (episodes span two root folders,
     // newline-joined dir_name) so the disk scan treats both as known.
+    // Pick an arr-UNMATCHED movie (every 9th is skipped by buildArrItems) that
+    // still carries a tmdb id — its "In Plex, not in *arr" row then shows the
+    // "Fix match — see Identity mismatch" cross-link badge.
     const idMismatchSrc = mediaItems.find(
-      (m) => m.libraryKind === 'movie' && m.guidTmdb && m.ratingKey !== dupMovieSrc.ratingKey
+      (m, i) =>
+        (i + 1) % 9 === 0 && m.libraryKind === 'movie' && m.guidTmdb && m.ratingKey !== dupMovieSrc.ratingKey
     )!;
     replaceArrUnmatched(
       [
@@ -428,6 +466,17 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
       [{ ...multiDirSrc, dirName: `${multiDirSrc.title}\n${multiDirSrc.title} Specials` }],
       seedTs
     );
+
+    // Disk reality-check demos (AFTER the final replaceArrUnmatched above so
+    // the verdicts survive): one *arr orphan's folder is MISSING on disk
+    // (stale record), one is really there; and one size-mismatch title gets a
+    // measured size agreeing with the *arr (verdict: rescan the server).
+    updateArrUnmatchedDisk([
+      { instanceId: SONARR_MAIN.id, extKind: 'tvdb', extId: '999001', onDisk: false, diskSizeBytes: null },
+      { instanceId: RADARR_MAIN.id, extKind: 'tmdb', extId: '999003', onDisk: true, diskSizeBytes: Math.round(8 * GB) },
+    ]);
+    const mmDemo = mediaItems.find((_, i) => (i + 1) % 17 === 0)!; // buildArrItems' mismatch rule
+    updateItemDiskCheck(mmDemo.ratingKey, Math.round(mmDemo.sizeBytes * 0.3), seedTs);
 
     // Cross-instance conflict: both Sonarr instances manage the first anime
     // title; the Anime instance won the match (it owns the arr_items row).

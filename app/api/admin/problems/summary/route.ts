@@ -57,13 +57,13 @@ export async function GET() {
         available: arr,
         ...(arr ? identityMismatchSummary() : ZERO),
       },
+      { type: 'arrConflicts', available: arr, ...(arr ? arrConflictsSummary() : ZERO) },
       {
         type: 'duplicates',
         available: true,
         titles: dupes.length, // GROUP count — the UI labels it "N groups"
         bytes: dupes.reduce((s, g) => s + g.totalBytes, 0),
       },
-      { type: 'arrConflicts', available: arr, ...(arr ? arrConflictsSummary() : ZERO) },
       { type: 'zeroSize', available: true, titles: zeroSizeCount(), bytes: 0 },
       { type: 'removedButKept', available: true, ...removedButKeptSummary() },
       { type: 'missingIds', available: true, ...missingExternalIdsSummary() },

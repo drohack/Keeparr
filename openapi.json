@@ -557,7 +557,7 @@
           { "name": "kind", "in": "query", "schema": { "type": "string", "enum": ["movie", "show"] } }
         ],
         "responses": {
-          "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (`duplicates` items are groups with members; `diskOrphans` items are filesystem entries `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`). Media-item rows carry `dirPath` — the full server-side folder path (null until a library scan captures it); `missingFromPlex` rows carry the *arr-side `path`." },
+          "200": { "description": "`{type, items[], hasMore, nextOffset}` — item shape varies per category (`duplicates` items are groups with members; `identityMismatch` items pair `{media, arr}` claims on one folder; `diskOrphans` items are filesystem entries with `likely` = the library title the orphan looks like). Media-item rows carry `dirPath` (full server-side folder path; `path` on missingFromPlex). Diagnosis fields: `sizeMismatch` rows carry `diskSizeBytes/diskCheckedAt` (measured on-disk tiebreaker); `missingFromPlex` rows carry `onDisk/diskSizeBytes` (null until verified) + `claimedByTitle`; `notInArr` rows carry `identityArrTitle` (both cross-link the row to its identity-mismatch pair); `zeroSize` rows carry `arrBytes/instanceName`. Zero-size items are excluded from `sizeMismatch` (they diagnose under `zeroSize`)." },
           "400": { "description": "`unknown_type` (missing/unknown type — no default view), `arr_not_configured` (arr-gated type without Sonarr/Radarr), or `storage_not_configured` (`diskOrphans` without storage mappings)" }
         }
       }

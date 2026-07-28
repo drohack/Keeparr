@@ -3,13 +3,15 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync, utimesSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { __setTestDbToMemory, __closeDb } from './db';
-import { runDiskScan } from './diskscan';
+import { runDiskScan, verifyArrUnmatchedOnDisk } from './diskscan';
 import { setStorageMappings } from './settings';
 import {
+  getArrUnmatched,
   getDiskOrphans,
   replaceArrUnmatched,
   replaceArrItems,
   replaceDiskOrphansForSection,
+  sizeMismatchItems,
   upsertMediaBatch,
   type UpsertMediaInput,
 } from './queries';
@@ -166,6 +168,75 @@ describe('runDiskScan', () => {
     const res = await runDiskScan();
     expect(res.message).toContain('unreadable');
     expect(getDiskOrphans().map((r) => r.name)).toEqual(['Prior']);
+  });
+
+  it('verifyArrUnmatchedOnDisk: found folders sized, empty found, missing flagged', async () => {
+    const root = makeRoot();
+    mkdirSync(join(root, 'Real Download'));
+    writeFileSync(join(root, 'Real Download', 'file.mkv'), 'x'.repeat(120));
+    mkdirSync(join(root, 'Empty Husk'));
+    upsertMediaBatch([media('A', { dirName: 'Show A' })]); // unrelated
+    replaceArrUnmatched([
+      {
+        source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'Real',
+        extKind: 'tmdb', extId: '1', sizeBytes: 5 * 1024, folderName: 'Real Download',
+      },
+      {
+        source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'Husk',
+        extKind: 'tmdb', extId: '2', sizeBytes: 5 * 1024, folderName: 'Empty Husk',
+      },
+      {
+        source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'Gone',
+        extKind: 'tmdb', extId: '3', sizeBytes: 5 * 1024, folderName: 'Deleted Folder',
+      },
+    ]);
+
+    // Without mappings: skipped entirely, rows stay unverified.
+    expect(await verifyArrUnmatchedOnDisk()).toBeNull();
+    expect(getArrUnmatched(false).every((r) => r.onDisk === null)).toBe(true);
+
+    setStorageMappings([{ sectionId: '1', path: root }]);
+    const res = await verifyArrUnmatchedOnDisk();
+    expect(res).toEqual({ checked: 3, missing: 1 });
+    const byTitle = new Map(getArrUnmatched(false).map((r) => [r.title, r]));
+    expect(byTitle.get('Real')).toMatchObject({ onDisk: true, diskSizeBytes: 120 });
+    expect(byTitle.get('Husk')).toMatchObject({ onDisk: true, diskSizeBytes: 0 });
+    expect(byTitle.get('Gone')).toMatchObject({ onDisk: false, diskSizeBytes: null });
+  });
+
+  it('runDiskScan measures size-mismatched titles (multi-folder sum + loose file)', async () => {
+    const root = makeRoot();
+    mkdirSync(join(root, 'Show A'));
+    writeFileSync(join(root, 'Show A', 'e1.mkv'), 'x'.repeat(100));
+    mkdirSync(join(root, 'Show A Specials'));
+    writeFileSync(join(root, 'Show A Specials', 's1.mkv'), 'x'.repeat(40));
+    writeFileSync(join(root, 'Loose Movie.mkv'), 'x'.repeat(70));
+
+    const GB = 1024 ** 3;
+    upsertMediaBatch([
+      media('sh', { libraryKind: 'show', dirName: 'Show A\nShow A Specials', sizeBytes: 10 * GB }),
+      media('mv', { libraryKind: 'movie', dirName: null, fileName: 'Loose Movie.mkv', sizeBytes: 8 * GB }),
+    ]);
+    // Both mismatch hard vs the arr claim (2 GB), so both get measured.
+    replaceArrItems([
+      {
+        ratingKey: 'sh', source: 'sonarr', instanceId: 's1', instanceName: 'S', arrId: 1,
+        monitored: true, status: 'ended', quality: 'HD', qualityKind: 'profile',
+        rootFolder: '/tv', arrSizeBytes: 2 * GB, tags: [],
+      },
+      {
+        ratingKey: 'mv', source: 'radarr', instanceId: 'r1', instanceName: 'R', arrId: 2,
+        monitored: true, status: 'released', quality: 'HD', qualityKind: 'file',
+        rootFolder: '/m', arrSizeBytes: 2 * GB, tags: [],
+      },
+    ]);
+    setStorageMappings([{ sectionId: '1', path: root }]);
+
+    const res = await runDiskScan();
+    expect(res.message).toContain('measured 2 mismatched title(s)');
+    const rows = sizeMismatchItems(10, 0);
+    expect(rows.find((r) => r.ratingKey === 'sh')?.diskSizeBytes).toBe(140); // both folders summed
+    expect(rows.find((r) => r.ratingKey === 'mv')?.diskSizeBytes).toBe(70); // loose file lstat
   });
 
   it('mtime size cache: unchanged orphan dirs reuse the cached size', async () => {

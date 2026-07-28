@@ -84,6 +84,10 @@ import {
   missingExternalIdsSummary,
   identityMismatchItems,
   identityMismatchSummary,
+  updateArrUnmatchedDisk,
+  updateItemDiskCheck,
+  sizeMismatchDiskTargets,
+  getDiskOrphansAnnotated,
   replaceDiskOrphansForSection,
   getDiskOrphans,
   diskOrphansForSection,
@@ -1321,6 +1325,18 @@ describe('Problems page queries', () => {
       expect(sizeMismatchItems(1, 1).map((r) => r.ratingKey)).toEqual(['1']);
       expect(sizeMismatchSummary()).toEqual({ titles: 2, bytes: 24 * GB });
     });
+
+    it('zero-size items are NOT mismatches — they live in Zero size with arr context', () => {
+      upsertMediaBatch([media('z', { sizeBytes: 0 })]);
+      replaceArrItems(
+        [arrRow({ ratingKey: 'z', arrSizeBytes: 19 * GB })],
+        ['r1', 's1'] // keep the fixture rows
+      );
+      expect(sizeMismatchItems(100, 0).map((r) => r.ratingKey)).not.toContain('z');
+      expect(sizeMismatchSummary().titles).toBe(2); // unchanged
+      const zero = zeroSizeItems(100, 0).find((r) => r.ratingKey === 'z');
+      expect(zero).toMatchObject({ arrBytes: 19 * GB, instanceName: 'Radarr' });
+    });
   });
 
   describe('notInArrItems / arrUnmatchedSummary', () => {
@@ -1477,6 +1493,64 @@ describe('Problems page queries', () => {
       upsertMediaBatch([media('2', { guidTmdb: '603' })], 20);
       tombstoneStale(15); // tombstones '1'
       expect(duplicateGroups()).toEqual([]);
+    });
+  });
+
+  describe('disk reality checks', () => {
+    it('updateArrUnmatchedDisk keys by instance + ext id and round-trips', () => {
+      replaceArrUnmatched([
+        { source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'A', extKind: 'tmdb', extId: '1', sizeBytes: 1 * GB },
+        { source: 'radarr', instanceId: 'r2', instanceName: 'R4K', title: 'A', extKind: 'tmdb', extId: '1', sizeBytes: 2 * GB },
+      ]);
+      updateArrUnmatchedDisk([
+        { instanceId: 'r1', extKind: 'tmdb', extId: '1', onDisk: false, diskSizeBytes: null },
+        { instanceId: 'r2', extKind: 'tmdb', extId: '1', onDisk: true, diskSizeBytes: 5 * GB },
+      ]);
+      const rows = getArrUnmatched(false);
+      expect(rows.find((r) => r.instanceId === 'r1')).toMatchObject({ onDisk: false, diskSizeBytes: null });
+      expect(rows.find((r) => r.instanceId === 'r2')).toMatchObject({ onDisk: true, diskSizeBytes: 5 * GB });
+      // Fresh (unverified) rows report null, not false.
+      replaceArrUnmatched([
+        { source: 'radarr', instanceId: 'r1', instanceName: 'R', title: 'B', extKind: 'tmdb', extId: '9', sizeBytes: 1 * GB },
+      ]);
+      expect(getArrUnmatched(false)[0].onDisk).toBeNull();
+    });
+
+    it('updateItemDiskCheck feeds sizeMismatchItems + sizeMismatchDiskTargets splits names', () => {
+      upsertMediaBatch([
+        media('1', { sizeBytes: 10 * GB, libraryKind: 'show', dirName: 'Show A\nShow A Specials', fileName: null }),
+      ]);
+      replaceArrItems([arrRow({ ratingKey: '1', arrSizeBytes: 4 * GB })]);
+      expect(sizeMismatchDiskTargets()).toEqual([
+        { ratingKey: '1', sectionId: '1', dirNames: ['Show A', 'Show A Specials'], fileName: null },
+      ]);
+      updateItemDiskCheck('1', 4 * GB, 12345);
+      const row = sizeMismatchItems(10, 0)[0];
+      expect(row.diskSizeBytes).toBe(4 * GB);
+      expect(row.diskCheckedAt).toBe(12345);
+    });
+
+    it('getDiskOrphansAnnotated matches leftovers to library titles (biggest wins)', () => {
+      upsertMediaBatch([
+        media('small', { title: 'The Avengers', sizeBytes: 2 * GB }),
+        media('big', { title: 'The Avengers', sizeBytes: 16 * GB }),
+        media('other', { title: 'Something Else' }),
+      ]);
+      upsertMediaBatch([media('gone', { title: 'Old Title' })], 10);
+      tombstoneStale(11); // removed items never match
+      replaceDiskOrphansForSection('1', [
+        { name: 'The Avengers (2012)', path: '/m/The Avengers (2012)', isDir: true, sizeBytes: 1 * GB, sizeSkipped: false, mtime: 1 },
+        { name: 'Old Title (1999)', path: '/m/Old Title (1999)', isDir: true, sizeBytes: 1 * GB, sizeSkipped: false, mtime: 1 },
+        { name: 'total-mystery', path: '/m/total-mystery', isDir: true, sizeBytes: 1 * GB, sizeSkipped: false, mtime: 1 },
+      ]);
+      const rows = getDiskOrphansAnnotated();
+      const byName = new Map(rows.map((r) => [r.name, r.likely]));
+      expect(byName.get('The Avengers (2012)')).toMatchObject({
+        ratingKey: 'big', // biggest candidate wins
+        sizeBytes: 16 * GB,
+      });
+      expect(byName.get('Old Title (1999)')).toBeNull(); // removed item ignored
+      expect(byName.get('total-mystery')).toBeNull();
     });
   });
 

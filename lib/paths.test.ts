@@ -8,6 +8,7 @@ import {
   parentSegment,
   pathSegments,
   pathTail,
+  titleKey,
 } from './paths';
 
 describe('paths (foreign-path string helpers)', () => {
@@ -102,6 +103,21 @@ describe('paths (foreign-path string helpers)', () => {
       )
     ).toEqual(['/data/tv/Lupin the 3rd', '/data/tv/Lupin III Movies & Specials']);
     expect(deriveShowDirPaths([], roots)).toEqual([]);
+  });
+
+  it('titleKey matches folder/file names to library titles', () => {
+    // Year/bracket groups + release tags stripped.
+    expect(titleKey('The Avengers (2012)')).toBe(titleKey('The Avengers'));
+    expect(titleKey('Pulp Fiction (1994) [XviD]')).toBe(titleKey('Pulp Fiction'));
+    expect(titleKey('Scrubs (2026) {tvdb-465690}')).toBe(titleKey('Scrubs'));
+    // Dotted release name + extension.
+    expect(titleKey('Some.Movie.2019.mkv')).toBe(titleKey('Some Movie'));
+    // Trailing article moves to the front.
+    expect(titleKey('40 Year Old Virgin The (2005)')).toBe(
+      titleKey('The 40-Year-Old Virgin')
+    );
+    // Non-matches stay distinct.
+    expect(titleKey('The Avengers')).not.toBe(titleKey('Avengers Endgame'));
   });
 
   it('normalizeName case-folds and NFC-normalizes', () => {

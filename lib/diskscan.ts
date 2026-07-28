@@ -5,8 +5,12 @@ import { normalizeName } from './paths';
 import {
   arrFolderNames,
   diskOrphansForSection,
+  getArrUnmatched,
   replaceDiskOrphansForSection,
   sectionDiskNameStats,
+  sizeMismatchDiskTargets,
+  updateArrUnmatchedDisk,
+  updateItemDiskCheck,
   type DiskOrphanInput,
 } from './queries';
 import { formatSize } from './format';
@@ -73,6 +77,131 @@ export async function sizeOfDir(absPath: string, depth = 0): Promise<number> {
     }
   }
   return total;
+}
+
+/** One mapping root's top-level entries, indexed by normalized name. */
+async function listRoot(
+  path: string
+): Promise<Map<string, { abs: string; isDir: boolean }> | null> {
+  try {
+    const entries = await fsp.readdir(path, { withFileTypes: true });
+    const map = new Map<string, { abs: string; isDir: boolean }>();
+    for (const e of entries) {
+      map.set(normalizeName(e.name), { abs: join(path, e.name), isDir: e.isDirectory() });
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+/** Size one located entry (dir walk / file lstat); errors → 0. */
+async function sizeEntry(entry: { abs: string; isDir: boolean }): Promise<number> {
+  if (entry.isDir) return sizeOfDir(entry.abs);
+  try {
+    return (await fsp.lstat(entry.abs)).size;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Reality-check the unmatched *arr titles against the mapped library roots:
+ * does each title's folder actually exist, and how big is it REALLY? Answers
+ * "is this *arr record stale?" for the "In *arr, not in <server>" rows.
+ * Runs after every arr sync AND inside the diskScan job (the arr replace wipes
+ * the columns). Null when no storage mappings are configured.
+ */
+export async function verifyArrUnmatchedOnDisk(): Promise<{
+  checked: number;
+  missing: number;
+} | null> {
+  const mappings = getStorageMappings().filter((m) => m.path && m.path.trim());
+  if (mappings.length === 0) return null;
+  const rows = getArrUnmatched(false).filter((u) => u.folderName);
+  if (rows.length === 0) return { checked: 0, missing: 0 };
+
+  const roots: Map<string, { abs: string; isDir: boolean }>[] = [];
+  for (const m of mappings) {
+    const listing = await listRoot(m.path);
+    if (listing) roots.push(listing);
+  }
+  if (roots.length === 0) return null; // every root unreadable — can't verify
+
+  const updates: Parameters<typeof updateArrUnmatchedDisk>[0] = [];
+  let missing = 0;
+  for (const u of rows) {
+    const key = normalizeName(u.folderName!);
+    let entry: { abs: string; isDir: boolean } | undefined;
+    for (const root of roots) {
+      entry = root.get(key);
+      if (entry) break;
+    }
+    if (!entry) {
+      missing++;
+      updates.push({
+        instanceId: u.instanceId,
+        extKind: u.extKind,
+        extId: u.extId,
+        onDisk: false,
+        diskSizeBytes: null,
+      });
+    } else {
+      updates.push({
+        instanceId: u.instanceId,
+        extKind: u.extKind,
+        extId: u.extId,
+        onDisk: true,
+        diskSizeBytes: await sizeEntry(entry),
+      });
+    }
+  }
+  updateArrUnmatchedDisk(updates);
+  return { checked: rows.length, missing };
+}
+
+/**
+ * Measure the ACTUAL on-disk size of every current size-mismatch title — the
+ * tiebreaker between the server's claim and the *arr's. Locates the title's
+ * folder(s)/file by name under its own section's mapped root; unlocatable
+ * titles are set NULL (the UI shows an em-dash).
+ */
+async function measureSizeMismatches(): Promise<number> {
+  const targets = sizeMismatchDiskTargets();
+  if (targets.length === 0) return 0;
+  const mappingBySection = new Map(
+    getStorageMappings()
+      .filter((m) => m.path && m.path.trim())
+      .map((m) => [m.sectionId, m.path])
+  );
+  const listings = new Map<string, Map<string, { abs: string; isDir: boolean }> | null>();
+  let measured = 0;
+  for (const t of targets) {
+    const rootPath = mappingBySection.get(t.sectionId);
+    if (!rootPath) continue; // unmapped section — leave as-is
+    if (!listings.has(rootPath)) listings.set(rootPath, await listRoot(rootPath));
+    const listing = listings.get(rootPath);
+    if (!listing) continue; // unreadable root
+    let total = 0;
+    let found = false;
+    for (const name of t.dirNames) {
+      const entry = listing.get(normalizeName(name));
+      if (entry) {
+        total += await sizeEntry(entry);
+        found = true;
+      }
+    }
+    if (!found && t.fileName) {
+      const entry = listing.get(normalizeName(t.fileName));
+      if (entry) {
+        total += await sizeEntry(entry);
+        found = true;
+      }
+    }
+    updateItemDiskCheck(t.ratingKey, found ? total : null);
+    if (found) measured++;
+  }
+  return measured;
 }
 
 /** The 'diskScan' job body. */
@@ -169,9 +298,18 @@ export async function runDiskScan(): Promise<JobResult> {
     replaceDiskOrphansForSection(m.sectionId, rows);
   }
 
+  // Reality-check passes: verify the unmatched *arr folders and measure the
+  // size-mismatched titles' real on-disk footprint.
+  const verified = await verifyArrUnmatchedOnDisk();
+  const measured = await measureSizeMismatches();
+  const verifyNote = verified
+    ? `; verified ${verified.checked} *arr folder(s) (${verified.missing} missing)`
+    : '';
+  const measureNote = measured ? `; measured ${measured} mismatched title(s)` : '';
+
   const noteSuffix = notes.length ? ` — ${notes.join('; ')}` : '';
   return {
     result: orphans,
-    message: `Found ${orphans} orphaned item(s) (${formatSize(bytes)}) across ${scannedRoots} mapped root(s)${noteSuffix}.`,
+    message: `Found ${orphans} orphaned item(s) (${formatSize(bytes)}) across ${scannedRoots} mapped root(s)${verifyNote}${measureNote}${noteSuffix}.`,
   };
 }

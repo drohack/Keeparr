@@ -52,6 +52,27 @@ export function normalizeName(name: string): string {
   return name.normalize('NFC').toLowerCase();
 }
 
+/**
+ * Comparison key for near-matching a folder/file NAME to a library TITLE
+ * ("The Avengers (2012)" ↔ "The Avengers"; "40 Year Old Virgin The (2005)" ↔
+ * "The 40-Year-Old Virgin"): strip a file extension and bracketed groups,
+ * treat ./_/- as spaces, case-fold, move a trailing ", The"-style article to
+ * the front, and drop a trailing standalone year. Exact-key equality only —
+ * no fuzzy scoring.
+ */
+export function titleKey(name: string): string {
+  let s = name.normalize('NFC').toLowerCase();
+  s = s.replace(/\.[a-z0-9]{2,4}$/, ''); // file extension
+  s = s.replace(/[([{][^)\]}]*[)\]}]/g, ' '); // (...) [...] {...} groups
+  s = s.replace(/[._\-,]/g, ' ');
+  s = s.replace(/[^\p{L}\p{N} ]/gu, ' '); // remaining punctuation
+  s = s.replace(/\s+/g, ' ').trim();
+  s = s.replace(/\s(19|20)\d\d$/, ''); // trailing standalone year
+  const m = s.match(/^(.*)\s(the|a|an)$/); // "title the" → "the title"
+  if (m) s = `${m[2]} ${m[1]}`;
+  return s;
+}
+
 /** Cut a path right after its first `n` segments, preserving separators
  *  ('/data/tv/Show/ep.mkv', 3 → '/data/tv/Show'). */
 function cutAfterSegments(p: string, n: number): string {

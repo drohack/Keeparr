@@ -1,4 +1,7 @@
 import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { __setTestDbToMemory, __closeDb } from './db';
 import {
   arrFolderNames,
@@ -22,6 +25,7 @@ import {
   setPlexSections,
   setRadarrInstances,
   setSonarrInstances,
+  setStorageMappings,
   writeSetting,
 } from './settings';
 import type { BackendItem, BackendSection, MediaBackend } from './mediaserver';
@@ -240,6 +244,26 @@ describe('syncArr per-instance replace', () => {
     expect(arrFolderNames().sort()).toEqual(['Dune (2021)', 'Lost Film']);
     // The unmatched record also keeps its FULL *arr-side path (Problems Location).
     expect(getArrUnmatched().map((u) => u.path)).toEqual(['/movies/Lost Film']);
+  });
+
+  it('reality-checks unmatched folders against mapped roots right after the sync', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'keeparr-arr-verify-'));
+    try {
+      mkdirSync(join(root, 'On Disk Orphan'));
+      writeFileSync(join(root, 'On Disk Orphan', 'f.mkv'), 'x'.repeat(50));
+      setStorageMappings([{ sectionId: '1', path: root }]);
+      vi.mocked(fetchSonarr).mockResolvedValue([]);
+      vi.mocked(fetchRadarr).mockResolvedValue([
+        rec({ arrId: 2, matchId: '404', title: 'On Disk Orphan', sizeOnDisk: 2 * GB, path: '/movies/On Disk Orphan' }),
+        rec({ arrId: 3, matchId: '405', title: 'Ghost Record', sizeOnDisk: 1 * GB, path: '/movies/Ghost Record' }),
+      ]);
+      await syncArr();
+      const byTitle = new Map(getArrUnmatched(false).map((u) => [u.title, u]));
+      expect(byTitle.get('On Disk Orphan')).toMatchObject({ onDisk: true, diskSizeBytes: 50 });
+      expect(byTitle.get('Ghost Record')).toMatchObject({ onDisk: false, diskSizeBytes: null });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('records FILELESS unmatched titles too, but only counts downloaded in the message', async () => {

@@ -81,13 +81,14 @@ const listReq = (qs: string) => new Request(`http://localhost/api/admin/problems
 const configureArr = () =>
   setRadarrInstances([{ id: 'r1', name: 'Radarr', url: 'http://r1', apiKey: 'k' }]);
 
+// Grouped: server ↔ *arr · within the server · on disk.
 const CATEGORY_ORDER = [
   'sizeMismatch',
   'notInArr',
   'missingFromPlex',
   'identityMismatch',
-  'duplicates',
   'arrConflicts',
+  'duplicates',
   'zeroSize',
   'removedButKept',
   'missingIds',
@@ -226,8 +227,14 @@ describe('GET /api/admin/problems', () => {
       isDir: true,
       sizeBytes: 9 * GB,
       sizeSkipped: false,
+      likely: null, // nothing in the library shares this title
     });
     expect(body.items[1]).toMatchObject({ sizeSkipped: true, isDir: false });
+
+    // An orphan whose name matches a library title gets the "Looks like" diagnosis.
+    upsertMediaBatch([media('av', { title: 'Big Leftover', sizeBytes: 16 * GB })]);
+    const again = await problemsGet(listReq('type=diskOrphans')).then((r) => r.json());
+    expect(again.items[0].likely).toMatchObject({ ratingKey: 'av', sizeBytes: 16 * GB });
   });
 
   it('400 arr_not_configured for arr-gated types without Sonarr/Radarr', async () => {
@@ -300,6 +307,44 @@ describe('GET /api/admin/problems', () => {
       r.json()
     );
     expect(mfpMovies.items.map((i: { title: string }) => i.title)).toEqual(['A Movie', 'B Movie']); // size DESC
+    // Rows carry the disk reality check (null until a job verifies them).
+    expect(mfpMovies.items[0].onDisk).toBeNull();
+    expect(mfpMovies.items[0].diskSizeBytes).toBeNull();
+  });
+
+  it('cross-links: notInArr + missingFromPlex rows point at their identity pair', async () => {
+    await loginAs('admin', true);
+    configureArr();
+    upsertMediaBatch([
+      media('1', {
+        title: 'Wrong Match',
+        dirName: 'Real Title (1995)',
+        sizeBytes: 4 * GB,
+      }),
+      media('2', { title: 'Plain Unmanaged', dirName: 'Plain Unmanaged (2001)' }),
+    ]);
+    replaceArrUnmatched([
+      {
+        source: 'radarr', instanceId: 'r1', instanceName: 'Radarr', title: 'Real Title',
+        extKind: 'tmdb', extId: '999', sizeBytes: 2 * GB, folderName: 'Real Title (1995)',
+        downloaded: true,
+      },
+    ]);
+    const nia = await problemsGet(listReq('type=notInArr')).then((r) => r.json());
+    const byRk = new Map(nia.items.map((i: { ratingKey: string; identityArrTitle: string | null }) => [i.ratingKey, i.identityArrTitle]));
+    expect(byRk.get('1')).toBe('Real Title'); // half of the identity pair
+    expect(byRk.get('2')).toBeNull(); // genuinely unmanaged
+
+    const mfp = await problemsGet(listReq('type=missingFromPlex')).then((r) => r.json());
+    expect(mfp.items[0].claimedByTitle).toBe('Wrong Match');
+  });
+
+  it('zeroSize rows expose the arr context', async () => {
+    await loginAs('admin', true);
+    upsertMediaBatch([media('z', { sizeBytes: 0 })]);
+    replaceArrItems([arrRow({ ratingKey: 'z', arrSizeBytes: 19 * GB })]);
+    const body = await problemsGet(listReq('type=zeroSize')).then((r) => r.json());
+    expect(body.items[0]).toMatchObject({ ratingKey: 'z', arrBytes: 19 * GB, instanceName: 'Radarr' });
   });
 
   it('identityMismatch pairs media + arr claims on one folder', async () => {
@@ -385,6 +430,7 @@ describe('GET /api/admin/problems', () => {
       arrBytes: 4 * GB,
       deltaBytes: 6 * GB,
       instanceName: 'Radarr',
+      diskSizeBytes: null, // measured by the Disk scan job
     });
 
     const cf = await problemsGet(listReq('type=arrConflicts')).then((r) => r.json());

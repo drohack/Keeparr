@@ -36,6 +36,7 @@ import {
   type UpsertMediaInput,
 } from './queries';
 import { lastSegment } from './paths';
+import { verifyArrUnmatchedOnDisk } from './diskscan';
 import type { LibraryKind } from './types';
 
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -424,6 +425,14 @@ export async function syncArr(): Promise<JobResult> {
   replaceArrItems(matched, failedInstanceIds);
   replaceArrUnmatched(unmatchedRecs, failedInstanceIds);
   replaceArrConflicts(conflictRecs, failedInstanceIds);
+  // Reality-check the fresh unmatched rows against the mapped library roots
+  // (the replace wiped the previous verdicts). Non-fatal: a filesystem hiccup
+  // must not fail the arr sync — the diskScan job re-verifies anyway.
+  try {
+    await verifyArrUnmatchedOnDisk();
+  } catch {
+    /* verified next diskScan run */
+  }
   const unmatched = unmatchedRecs.filter((u) => u.downloaded).length;
   const conflictNote = conflictRecs.length
     ? `, ${conflictRecs.length} cross-instance conflict(s)`

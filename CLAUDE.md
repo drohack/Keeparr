@@ -73,12 +73,18 @@ lib/
   paths.ts           pure separator-agnostic path-string helpers (lastSegment/
                      parentSegment/normalizeName) — foreign server-side paths may be
                      Windows-style, so never node:path
-  diskscan.ts        the diskScan job: per mapped library root, readdir top-level
-                     entries and flag names no media item or *arr title claims
-                     (orphans get a recursive size walk — known entries are never
-                     descended into). Safety guard (skip mostly-unnamed sections),
-                     wrong-mapping circuit breaker (record names, skip sizing),
-                     mtime size cache, junk skip-list (JUNK_NAMES)
+  diskscan.ts        the diskScan job — the REALITY-CHECK pass: (1) per mapped
+                     library root, readdir top-level entries and flag names no
+                     media item or *arr title claims (orphans get a recursive
+                     size walk — known entries are never descended into);
+                     (2) verifyArrUnmatchedOnDisk(): does each unmatched *arr
+                     title's folder actually exist, and how big is it really
+                     (arr_unmatched.on_disk/disk_size_bytes — also called after
+                     every syncArr); (3) measure the real on-disk size of every
+                     size-mismatched title (media_items.disk_size_bytes — the
+                     Plex-vs-arr tiebreaker). Safety guard (skip mostly-unnamed
+                     sections), wrong-mapping circuit breaker (record names,
+                     skip sizing), mtime size cache, junk skip-list (JUNK_NAMES)
   version.ts         update check vs GitHub Releases (compareSemver + getVersionInfo,
                      in-memory ~6h cache, never throws — /api/about + health check)
   health.ts          healthIssues(): standing admin warnings derived from job_state/
@@ -99,7 +105,9 @@ lib/
                      empty-but-200 sections; syncArr keeps a failed instance's cache
                      + records cross-instance claim collisions into arr_conflicts
                      (first instance to claim a rating_key wins arr_items; later
-                     claimants are recorded, not silently dropped)
+                     claimants are recorded, not silently dropped) + reality-checks
+                     the fresh unmatched rows on disk (verifyArrUnmatchedOnDisk,
+                     non-fatal)
   jobs.ts            job registry + runJob/runWithState (single-flight) + isDue/dueJobs
   scheduler.ts       per-job scheduler (interval or daily HH:MM); fires due jobs each
                      minute; resets stale 'running' job rows at boot (resetInterruptedJobs)
@@ -154,7 +162,9 @@ inside it with no page scroll.
   shows fill at scan time, existing shows are backfilled by the `sizes` job.
   A show's `dir_name` is **newline-joined** when its episodes span several root
   folders (the server merges multi-folder shows; every folder must count as
-  known to the disk scan — split on '\n' when consuming). ALL disk-name
+  known to the disk scan — split on '\n' when consuming).
+  `disk_size_bytes`/`disk_checked_at` = the MEASURED size (diskScan walks
+  size-mismatched titles' folders — the tiebreaker column). ALL disk-name
   writes are COALESCE-style (upsertMediaBatch + updateItemSize): an incoming
   NULL keeps the stored value — scans that don't recompute a show (known size →
   no showSize call) must not wipe the sizes-job backfill (recentlyAdded runs
@@ -208,7 +218,11 @@ inside it with no page scroll.
   are recorded with a `downloaded` flag (`sizeOnDisk > 0`): downloaded ones are
   media on disk Plex can't see (the "In *arr, not in <server>" category +
   Match health count — `getArrUnmatched()` defaults to downloaded-only);
-  fileless ones only feed the identityMismatch folder-name join. Replaced
+  fileless ones only feed the identityMismatch folder-name join.
+  `on_disk`/`disk_size_bytes` are the disk reality check (NULL = not verified;
+  written by verifyArrUnmatchedOnDisk after each arr sync + diskScan) — the
+  "In *arr, not in <server>" table's On-disk column ("not found"/"empty" =
+  stale *arr record). Replaced
   per-instance by the `arr` job (like
   `arr_items`); full list on the Problems page ("In *arr, not in <server>",
   largest-first with sizes); Settings → Match health shows only summary counts +
@@ -421,7 +435,21 @@ when it has no tvdb/tmdb **and** no imdb.
   `{type, items, hasMore, nextOffset}`, item shape varies per category —
   `duplicates` items are groups, `identityMismatch` items pair `{media, arr}`
   claims on one folder, `diskOrphans` items are filesystem entries
-  `{name, sectionId, path, isDir, sizeBytes, sizeSkipped}`; media-item rows
+  `{name, sectionId, path, isDir, sizeBytes, sizeSkipped, likely}` (`likely` =
+  the library title the orphan looks like — usually a leftover copy);
+  diagnosis fields: `sizeMismatch` rows carry `diskSizeBytes/diskCheckedAt`
+  (measured tiebreaker), `missingFromPlex` rows carry `onDisk/diskSizeBytes`
+  (reality check) + `claimedByTitle`, `notInArr` rows carry `identityArrTitle`
+  (both = "this row is half of an identity-mismatch pair — fix the match
+  there"), `zeroSize` rows carry `arrBytes/instanceName` (*arr context: the
+  server sees no files but the *arr has N GB). Every table's last column is a
+  **"What to do" ActionBadge** (client-derived from these fields; amber = fix
+  needed, slate = informational/judgment). Zero-size items are EXCLUDED from
+  sizeMismatch (SIZE_MISMATCH_EXPR requires size_bytes > 0 — affects the
+  Browse filter identically, by design); they carry their diagnosis in
+  zeroSize instead. Categories are ordered/grouped into three families
+  (server↔*arr / within-server / on-disk; PILL_GROUPS in ProblemsView renders
+  labeled clusters); media-item rows
   carry `dirPath` (full server-side folder path; `path` on missingFromPlex) →
   the UI's Location cells: tail display, full path on hover, click-to-copy,
   and duplicates dim the group's common prefix so the differing folder pops),

@@ -23,9 +23,11 @@ export function applySchema(database: Database.Database): void {
       guid_tmdb     TEXT,                       -- external ids (CSV when Plex lists several)
       guid_tvdb     TEXT,
       guid_imdb     TEXT,                       -- imdb id(s) ("tt…"); extra arr-match axis
-      dir_name      TEXT,                       -- on-disk folder name (disk-orphan matching)
+      dir_name      TEXT,                       -- on-disk folder name(s) (disk-orphan matching; shows: newline-joined)
       file_name     TEXT,                       -- movie file basename (loose files)
       dir_path      TEXT,                       -- full server-side folder path (Problems Location)
+      disk_size_bytes INTEGER,                  -- MEASURED folder size (diskScan; size-mismatch tiebreaker)
+      disk_checked_at INTEGER,                  -- when it was measured
       last_synced   INTEGER NOT NULL,
       removed       INTEGER NOT NULL DEFAULT 0  -- tombstone if gone from Plex
     );
@@ -165,6 +167,8 @@ export function applySchema(database: Database.Database): void {
       folder_name   TEXT,                       -- title's own *arr folder basename
       path          TEXT,                       -- full folder path as the *arr sees it
       downloaded    INTEGER NOT NULL DEFAULT 1, -- sizeOnDisk > 0 in the *arr (fileless rows feed identity matching only)
+      on_disk       INTEGER,                    -- reality check: NULL not verified, 0 folder missing, 1 found
+      disk_size_bytes INTEGER,                  -- measured size when found (walked, not claimed)
       last_synced   INTEGER NOT NULL
     );
 
@@ -290,6 +294,15 @@ function migrate(database: Database.Database): void {
       `ALTER TABLE arr_unmatched ADD COLUMN downloaded INTEGER NOT NULL DEFAULT 1`
     );
   }
+  // arr_unmatched gained the disk reality check (verified by the arr + diskScan
+  // jobs): on_disk NULL = not verified yet, 0 = folder not found under any
+  // mapped root, 1 = found (disk_size_bytes = walked size).
+  if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'on_disk')) {
+    database.exec(`ALTER TABLE arr_unmatched ADD COLUMN on_disk INTEGER`);
+  }
+  if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'disk_size_bytes')) {
+    database.exec(`ALTER TABLE arr_unmatched ADD COLUMN disk_size_bytes INTEGER`);
+  }
 
   // arr_items gained folder_name for the same reason (rebuilt by the arr job).
   const arrItemCols = database
@@ -322,6 +335,14 @@ function migrate(database: Database.Database): void {
   // Problems page's Location cells). NULL until the next library scan.
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'dir_path')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN dir_path TEXT`);
+  }
+  // media_items gained the measured on-disk size (diskScan walks the folders of
+  // size-mismatched titles — the tiebreaker between the Plex and *arr claims).
+  if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'disk_size_bytes')) {
+    database.exec(`ALTER TABLE media_items ADD COLUMN disk_size_bytes INTEGER`);
+  }
+  if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'disk_checked_at')) {
+    database.exec(`ALTER TABLE media_items ADD COLUMN disk_checked_at INTEGER`);
   }
 
   // Migrate the legacy global keeps table (rating_key PK, kept_by) to per-user

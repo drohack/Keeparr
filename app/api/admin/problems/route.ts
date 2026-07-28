@@ -6,7 +6,7 @@ import {
   duplicateGroups,
   getArrConflicts,
   getArrUnmatched,
-  getDiskOrphans,
+  getDiskOrphansAnnotated,
   identityMismatchItems,
   missingExternalIdItems,
   notInArrItems,
@@ -129,8 +129,16 @@ export async function GET(req: Request) {
       // checkbox defaults to hiding them).
       const includeMissingIds = p.get('includeMissingIds') === '1';
       const rows = notInArrItems(PAGE + 1, offset, !includeMissingIds, opts);
+      // Cross-link: a row whose folder an unmatched *arr title claims is really
+      // an identity mismatch — the fix lives there, not "add to *arr".
+      const pairByRk = new Map(
+        identityMismatchItems().map((im) => [im.media.ratingKey, im.arr.title])
+      );
       items = {
-        rows: rows.slice(0, PAGE).map(withPoster),
+        rows: rows.slice(0, PAGE).map((r) => ({
+          ...withPoster(r),
+          identityArrTitle: pairByRk.get(r.ratingKey) ?? null,
+        })),
         hasMore: rows.length > PAGE,
       };
     } else if (type === 'missingFromPlex') {
@@ -143,8 +151,19 @@ export async function GET(req: Request) {
         sort === 'title' ? (r) => r.title : sort === 'instance' ? (r) => r.instanceName : (r) => r.sizeBytes,
         dir ?? (sort === 'title' || sort === 'instance' ? 'asc' : 'desc')
       );
+      // Cross-link: if a media item claims this title's folder, the row is the
+      // *arr half of an identity mismatch.
+      const pairByExt = new Map(
+        identityMismatchItems().map((im) => [
+          `${im.arr.source}|${im.arr.extKind}|${im.arr.extId}`,
+          im.media.title,
+        ])
+      );
       items = {
-        rows: all.slice(offset, offset + PAGE),
+        rows: all.slice(offset, offset + PAGE).map((r) => ({
+          ...r,
+          claimedByTitle: pairByExt.get(`${r.source}|${r.extKind}|${r.extId}`) ?? null,
+        })),
         hasMore: all.length > offset + PAGE,
       };
     } else if (type === 'identityMismatch') {
@@ -194,8 +213,10 @@ export async function GET(req: Request) {
         hasMore: rows.length > PAGE,
       };
     } else if (type === 'diskOrphans') {
-      // Real filesystem entries — nothing to proxy a poster from.
-      let all = getDiskOrphans();
+      // Real filesystem entries — nothing to proxy a poster from. `likely` is
+      // the diagnosis: the library title this orphan LOOKS like (usually a
+      // leftover old copy).
+      let all = getDiskOrphansAnnotated();
       if (opts.sectionIds) all = all.filter((r) => opts.sectionIds!.includes(r.sectionId));
       all = jsSort(
         all,
@@ -210,6 +231,7 @@ export async function GET(req: Request) {
           isDir: r.isDir,
           sizeBytes: r.sizeBytes,
           sizeSkipped: r.sizeSkipped,
+          likely: r.likely,
         })),
         hasMore: all.length > offset + PAGE,
       };
