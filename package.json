@@ -23,7 +23,7 @@
   "dependencies": {
     "@scalar/api-reference-react": "^0.9.53",
     "better-sqlite3": "^11.8.1",
-    "next": "^15.5.19",
+    "next": "^16.2.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
