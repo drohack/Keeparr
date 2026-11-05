@@ -69,7 +69,7 @@ describe('plex backend mapItem (on-disk name capture)', () => {
       3
     );
     expect(merged.fileCount).toBe(2);
-    // Single file → 1; duplicate file paths dedupe (like sumLeafSizes).
+    // Single file -> 1; duplicate file paths dedupe (like sumLeafSizes).
     expect(
       mapItem(node({ Media: [{ Part: [{ file: '/m/a.mkv' }] }] }), 'movie', 1).fileCount
     ).toBe(1);
@@ -80,7 +80,7 @@ describe('plex backend mapItem (on-disk name capture)', () => {
         1
       ).fileCount
     ).toBe(1);
-    // No Media data → null; shows never carry a count.
+    // No Media data -> null; shows never carry a count.
     expect(mapItem(node(), 'movie', 1).fileCount).toBeNull();
     expect(mapItem(node({ Location: [{ path: '/tv/X' }] }), 'show', 0).fileCount).toBeNull();
   });
@@ -92,13 +92,13 @@ describe('plex backend getWatchData (owner attribution)', () => {
     writeSetting('plex_base_url', 'http://plex:32400');
     writeSetting('plex_server_token', 'tok');
     // Keeparr was set up by a SHARED user, so plex_owner_id is NOT the person
-    // who owns the Plex server. This is the real-world case that made the
-    // original getOwnerId()-based remap mis-attribute history.
+    // who owns the Plex server; a getOwnerId()-based remap would mis-attribute
+    // the owner's history.
     writeSetting('plex_owner_id', '3629986');
     upsertUser({
-      plexUserId: '22839572',
-      username: 'juncothebird',
-      email: 'junco3@gmail.com',
+      plexUserId: '10000001',
+      username: 'serverowner',
+      email: 'owner@example.com',
       thumb: null,
       isAdmin: true,
     });
@@ -107,11 +107,11 @@ describe('plex backend getWatchData (owner attribution)', () => {
   afterAll(() => __closeDb());
 
   it('remaps PMS account 1 to the SERVER owner, not to plex_owner_id', async () => {
-    vi.spyOn(plexApi, 'plexOwnerLogin').mockResolvedValue('junco3@gmail.com');
+    vi.spyOn(plexApi, 'plexOwnerLogin').mockResolvedValue('owner@example.com');
     const spy = vi.spyOn(plexApi, 'plexWatchHistory').mockResolvedValue([]);
     await plexBackend.getWatchData();
     expect(spy).toHaveBeenCalledWith('http://plex:32400', 'tok', {
-      ownerId: '22839572',
+      ownerId: '10000001',
     });
     // The trap: plex_owner_id is 3629986 and must NOT be used here.
     expect(spy.mock.calls[0][2]).not.toMatchObject({ ownerId: '3629986' });

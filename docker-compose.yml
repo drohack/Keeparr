@@ -7,12 +7,12 @@ services:
     container_name: keeparr
     restart: unless-stopped
     ports:
-      # host:container — change the host port to taste / put behind your reverse proxy
+      # host:container - change the host port to taste / put behind your reverse proxy
       - "8767:3000"
     environment:
-      # OPTIONAL — leave unset and the container auto-generates a secret on
+      # OPTIONAL - leave unset and the container auto-generates a secret on
       # first boot, persisted at /data/.session-secret (set it only to manage
-      # the secret yourself; never change it once data exists — it encrypts
+      # the secret yourself; never change it once data exists - it encrypts
       # your stored service tokens).
       SESSION_SECRET: "${SESSION_SECRET:-}"
       # Optional: public URL of this app, used to build the Plex auth forwardUrl.
@@ -25,9 +25,9 @@ services:
       # Persist the SQLite db. On unraid point this at e.g.
       # /mnt/user/appdata/keeparr/data
       - ./data:/data
-      # OPTIONAL — to show array capacity / free space on the home page, mount
+      # OPTIONAL - to show array capacity / free space on the home page, mount
       # your media share(s) READ-ONLY, then map each library to its container
-      # path in Settings → Storage. Use the same container path you enter there.
+      # path in Settings -> Connections, under Storage / free space.
       #   - /mnt/user/Movies:/media/movies:ro
       #   - /mnt/user/TV:/media/tv:ro
     dns:

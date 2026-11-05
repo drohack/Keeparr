@@ -86,7 +86,7 @@ describe('/api/admin/backups', () => {
     expect(del.status).toBe(400);
   });
 
-  it('unknown action → 400', async () => {
+  it('unknown action -> 400', async () => {
     expect((await backupsPost(postReq({ action: 'nope' }))).status).toBe(400);
   });
 

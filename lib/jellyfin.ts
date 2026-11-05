@@ -6,16 +6,16 @@ import type { BackendItem, BackendSection } from './mediaserver/types';
 
 /**
  * Jellyfin / Emby client. Both speak the same "MediaBrowser" API (Jellyfin is an
- * Emby fork), so one client serves both — `kind` only tweaks the auth header's
- * product version. Node-only (used from route handlers + the sync engine).
+ * Emby fork), so one client serves both with the same requests and auth
+ * header. Node-only (used from route handlers + the sync engine).
  *
  * Endpoints verified against Seerr's `server/api/jellyfin.ts`:
- *   POST /Users/AuthenticateByName        — login (username/password)
- *   GET  /System/Info/Public              — unauthenticated server identity (Test)
- *   GET  /System/Info                     — authenticated server identity
- *   GET  /Users                           — server users (for import)
- *   GET  /Library/MediaFolders            — libraries           (Phase 3)
- *   GET  /Items?Recursive=true&fields=…   — items + sizes + ids (Phase 3)
+ *   POST /Users/AuthenticateByName        - login (username/password)
+ *   GET  /System/Info/Public              - unauthenticated server identity (Test)
+ *   GET  /System/Info                     - authenticated server identity
+ *   GET  /Users                           - server users (for watch history)
+ *   GET  /Library/MediaFolders            - libraries
+ *   GET  /Items?Recursive=true&fields=... - items + sizes + ids
  */
 
 const PRODUCT = 'Keeparr';
@@ -71,7 +71,7 @@ export async function authenticateByName(
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status === 401) throw new Error('Invalid username or password.');
-  if (!res.ok) throw new Error(`Jellyfin auth → HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Jellyfin auth failed: HTTP ${res.status}`);
   const d = (await res.json()) as {
     AccessToken?: string;
     User?: { Id?: string; Name?: string; Policy?: { IsAdministrator?: boolean } };
@@ -94,7 +94,7 @@ export interface MediaServerInfo {
   name: string;
 }
 
-/** Unauthenticated server identity — for the "Test" button before login. */
+/** Unauthenticated server identity - for the "Test" button before login. */
 export async function getPublicServerInfo(baseUrl: string): Promise<MediaServerInfo> {
   const d = await fetchJson<{ Id?: string; ServerName?: string }>(
     `${base(baseUrl)}/System/Info/Public`,
@@ -122,7 +122,7 @@ export interface JellyfinUserRow {
   isAdmin: boolean;
 }
 
-/** List the server's user accounts (for the admin "import users" screen). */
+/** List the server's user accounts (getWatchHistory reads each one's plays). */
 export async function getUsers(
   baseUrl: string,
   token: string
@@ -152,12 +152,11 @@ export async function testJellyfin(
   }
 }
 
-// `kind` is accepted by callers for clarity / future Emby-specific tweaks; the
-// API surface used here is identical between Jellyfin and Emby.
+// The API surface used here is identical between Jellyfin and Emby.
 export type JellyfinKind = Extract<MediaServerType, 'jellyfin' | 'emby'>;
 
 // ---------------------------------------------------------------------------
-// Read API (libraries / items / sizes) — used by the sync engine via the
+// Read API (libraries / items / sizes) - used by the sync engine via the
 // MediaBackend in lib/mediaserver/jellyfin.ts.
 // ---------------------------------------------------------------------------
 
@@ -189,7 +188,7 @@ function isoToUnix(iso: string | undefined): number | null {
 }
 
 /** Sum MediaSources sizes, counting each physical file once (multi-episode files
- *  share a Path and would otherwise be over-counted — mirrors Plex sumLeafSizes).
+ *  share a Path and would otherwise be over-counted - mirrors Plex sumLeafSizes).
  *  Exported for tests. */
 export function sumMediaSources(items: JfItem[]): number {
   const seen = new Set<string>();
@@ -308,7 +307,7 @@ export async function getItems(
 
 /**
  * Page through an /Items-style endpoint (StartIndex/Limit, TotalRecordCount
- * envelope) until exhausted — same loop as getItems. A flat Limit silently
+ * envelope) until exhausted - same loop as getItems. A flat Limit silently
  * truncates large result sets (episodes dominate watch history).
  */
 async function fetchAllPages<T>(
@@ -336,7 +335,7 @@ async function fetchAllPages<T>(
 /**
  * Native watch history across all server users. Movies key on their item id;
  * episodes roll up to their series (SeriesId) so a series counts as watched if
- * any episode is — mirroring how the Tautulli path aggregates to grandparent.
+ * any episode is - mirroring how the Tautulli path aggregates to grandparent.
  * Returns rows ready for `upsertWatchBatch`.
  */
 export async function getWatchHistory(
@@ -411,7 +410,7 @@ export async function getSeriesSize(
     token,
     'Jellyfin episodes'
   );
-  // Derive the series folder from episode paths — the fallback for servers
+  // Derive the series folder from episode paths - the fallback for servers
   // that omit the series' own Path from listings. JF sections report no
   // library roots, so this relies on deriveShowDirPath's season-folder hop.
   const files: string[] = [];

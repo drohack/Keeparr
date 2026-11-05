@@ -5,7 +5,7 @@ import { arrFacets } from '@/lib/queries';
 
 export const runtime = 'nodejs';
 
-/** Distinct Sonarr/Radarr instances / tags / qualities — for the Browse filters. */
+/** Distinct Sonarr/Radarr instances / tags / qualities - for the Browse filters. */
 export async function GET() {
   try {
     await requireUser();

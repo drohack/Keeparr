@@ -8,7 +8,7 @@ import { normalizeName, pathSegments, pathTail } from '@/lib/paths';
 import { useToast } from './Toaster';
 import MultiSelect from './MultiSelect';
 
-// Labels/hints name the ACTUAL connected media server ("Plex", "Jellyfin"…) —
+// Labels/hints name the ACTUAL connected media server ("Plex", "Jellyfin"...) -
 // a bare "server" reads like the machine/filesystem. `server` comes from the
 // summary endpoint's serverType.
 const SERVER_NAME: Record<string, string> = { plex: 'Plex', jellyfin: 'Jellyfin', emby: 'Emby' };
@@ -29,23 +29,23 @@ const problemLabels = (server: string): Record<ProblemType, string> => ({
 // One short line above the active table explaining what the category means
 // and what fixes it (the MatchHealthCard explainer convention).
 const problemHints = (server: string): Record<ProblemType, string> => ({
-  sizeMismatch: `${server} and Sonarr/Radarr report materially different sizes (>10% and >1 GB) for the same title. The "On disk" column is the measured truth (Disk scan job): whichever side it disagrees with needs a rescan. Movies flagged multi-part are expected to differ — ${server} merged several files into one item and sums them all.`,
-  notInArr: `These titles exist in ${server} but no Sonarr/Radarr instance manages them — nothing will upgrade or re-download them.`,
-  missingFromPlex: `Sonarr/Radarr tracks these but ${server} doesn't. Check "On disk": a real folder inside a library means ${server} needs a scan (or the folder was matched to something else — see Identity mismatch); "not found"/"empty" means the *arr's record is stale (Refresh & Scan there) or the files never left the download folder (import them into a library).`,
-  identityMismatch: `The same folder is claimed under two different identities — ${server} matched it to one title/id, Sonarr/Radarr tracks another (each row shows both sides' ids). Fix whichever match is wrong (usually ${server}’s: ⋯ → Fix Match). Rows where you already fixed the match clear on the next Sonarr/Radarr sync — run it after a library sync so it sees the fresh ids.`,
-  duplicates: `Two library entries share the same external id. The Location column shows where each copy lives — the same folder means a split/double-import in ${server} (merge the entries); different folders mean two real copies on disk. Click a path to copy it.`,
-  arrConflicts: `Two Sonarr/Radarr records resolve to the same ${server} item. Across two instances that means both download and upgrade it independently; within ONE instance it means two of its titles match one ${server} item — usually a merged multi-part entry in ${server} that carries both ids.`,
-  zeroSize: `${server} lists the title but reports zero file bytes — broken/missing files or a dead metadata-only entry.`,
-  removedButKept: `Gone from ${server} while someone still keeps it — something protected got deleted anyway (or the item’s id changed in a rebuild).`,
-  missingIds: `No TheTVDB/TMDB/IMDb id at all, so the title can never match Sonarr/Radarr — fix the match in ${server}.`,
-  diskOrphans: `Top-level folders and files under your mapped library paths that neither ${server} nor Sonarr/Radarr account for. A "Looks like" match usually means a leftover old copy — the library already has that title in another folder, so verify and delete the leftover. If nearly everything here looks orphaned, check that library's storage mapping. Populated by the Disk scan job.`,
+  sizeMismatch: `${server} and Sonarr/Radarr report materially different sizes (>10% and >1 GB) for the same title. The "On disk" column is the measured truth (Disk scan job): whichever side it disagrees with needs a rescan. Movies flagged multi-part are expected to differ - ${server} merged several files into one item and sums them all.`,
+  notInArr: `These titles exist in ${server} but no Sonarr/Radarr instance manages them - nothing will upgrade or re-download them.`,
+  missingFromPlex: `Sonarr/Radarr tracks these but ${server} doesn't. Check "On disk": a real folder inside a library means ${server} needs a scan (or the folder was matched to something else - see Identity mismatch); "not found"/"empty" means the *arr's record is stale (Refresh & Scan there) or the files never left the download folder (import them into a library).`,
+  identityMismatch: `The same folder is claimed under two different identities - ${server} matched it to one title/id, Sonarr/Radarr tracks another (each row shows both sides' ids). Fix whichever match is wrong (usually ${server}'s: ⋯ -> Fix Match). Rows where you already fixed the match clear on the next Sonarr/Radarr sync - run it after a library sync so it sees the fresh ids.`,
+  duplicates: `Two library entries share the same external id. The Location column shows where each copy lives - the same folder means a split/double-import in ${server} (merge the entries); different folders mean two real copies on disk. Click a path to copy it.`,
+  arrConflicts: `Two Sonarr/Radarr records resolve to the same ${server} item. Across two instances that means both download and upgrade it independently; within ONE instance it means two of its titles match one ${server} item - usually a merged multi-part entry in ${server} that carries both ids.`,
+  zeroSize: `${server} lists the title but reports zero file bytes - broken/missing files or a dead metadata-only entry.`,
+  removedButKept: `Gone from ${server} while someone still keeps it - something protected got deleted anyway (or the item's id changed in a rebuild).`,
+  missingIds: `No TheTVDB/TMDB/IMDb id at all, so the title can never match Sonarr/Radarr - fix the match in ${server}.`,
+  diskOrphans: `Top-level folders and files under your mapped library paths that neither ${server} nor Sonarr/Radarr account for. A "Looks like" match usually means a leftover old copy - the library already has that title in another folder, so verify and delete the leftover. If nearly everything here looks orphaned, check that library's storage mapping. Populated by the Disk scan job.`,
 });
 
 /** Fix-it instructions for pills that are visible but not yet runnable. */
 const REASON_TIP: Record<NonNullable<ProblemCategorySummary['reason']>, string> = {
   storage_not_configured:
-    'Map your libraries to disk paths in Settings → Connections, then run the Disk scan job.',
-  not_scanned: 'Run the Disk scan job in Settings → Jobs (it also runs weekly).',
+    'Map your libraries to disk paths in Settings -> Connections, then run the Disk scan job.',
+  not_scanned: 'Run the Disk scan job in Settings -> Jobs (it also runs weekly).',
 };
 
 // --- Row shapes as /api/admin/problems returns them, per category ---
@@ -64,7 +64,7 @@ type SizeMismatchRow = MediaRowBase & {
   deltaBytes: number;
   source: string;
   instanceName: string;
-  /** MEASURED size (Disk scan job) — the tiebreaker. Null until measured. */
+  /** MEASURED size (Disk scan job) - the tiebreaker. Null until measured. */
   diskSizeBytes: number | null;
   diskCheckedAt: number | null;
   /** Movie: distinct video files merged into the item (>1 = multi-part, so the
@@ -74,7 +74,7 @@ type SizeMismatchRow = MediaRowBase & {
 type NotInArrRow = MediaRowBase & {
   sizeBytes: number;
   addedAt: number | null;
-  /** Set when an unmatched *arr title claims this item's folder — the row is
+  /** Set when an unmatched *arr title claims this item's folder - the row is
    *  really the media half of an identity mismatch. */
   identityArrTitle: string | null;
 };
@@ -91,7 +91,7 @@ interface MissingFromPlexRow {
   onDisk: boolean | null;
   /** Measured size when found. */
   diskSizeBytes: number | null;
-  /** Set when a media item claims this title's folder — the row is really the
+  /** Set when a media item claims this title's folder - the row is really the
    *  *arr half of an identity mismatch. */
   claimedByTitle: string | null;
 }
@@ -131,7 +131,7 @@ type MissingIdRow = MediaRowBase & { sizeBytes: number };
 interface IdentityMismatchRow {
   media: MediaRowBase & {
     sizeBytes: number;
-    /** The server's OWN ids (CSV possible) — shown so the disagreement with the
+    /** The server's OWN ids (CSV possible) - shown so the disagreement with the
      *  *arr's id is visible instead of two identical-looking titles. */
     guidTmdb: string | null;
     guidTvdb: string | null;
@@ -155,7 +155,7 @@ interface DiskOrphanViewRow {
   sizeBytes: number;
   /** Circuit breaker recorded the name but skipped sizing (suspect mapping). */
   sizeSkipped: boolean;
-  /** The library title this orphan LOOKS like — usually a leftover old copy. */
+  /** The library title this orphan LOOKS like - usually a leftover old copy. */
   likely: {
     ratingKey: string;
     title: string;
@@ -175,12 +175,12 @@ const within10 = (a: number, b: number) => Math.abs(a - b) <= 0.1 * Math.max(a, 
 function mismatchVerdict(r: SizeMismatchRow, server: string): string {
   if (r.diskSizeBytes == null) return '';
   if (within10(r.diskSizeBytes, r.arrBytes)) {
-    return `Disk agrees with the *arr — ${server}'s size is stale: Scan Library Files in ${server}`;
+    return `Disk agrees with the *arr - ${server}'s size is stale: Scan Library Files in ${server}`;
   }
   if (within10(r.diskSizeBytes, r.plexBytes)) {
-    return `Disk agrees with ${server} — the *arr's record is stale: Refresh & Scan there`;
+    return `Disk agrees with ${server} - the *arr's record is stale: Refresh & Scan there`;
   }
-  return 'Matches neither claim — likely partial or corrupted files';
+  return 'Matches neither claim - likely partial or corrupted files';
 }
 
 /** A merged multi-part movie mismatches by construction: the server sums every
@@ -208,7 +208,7 @@ const DEFAULT_VIEW: ViewState = {
 const defaultDirFor = (col: string): 'asc' | 'desc' =>
   col === 'title' || col === 'name' || col === 'instance' ? 'asc' : 'desc';
 
-/** Categories whose rows aren't (single) media items — hide the N/A filters. */
+/** Categories whose rows aren't (single) media items - hide the N/A filters. */
 const NO_LIBRARY_FILTER = new Set<ProblemType>(['missingFromPlex', 'arrConflicts']);
 const NO_KIND_FILTER = new Set<ProblemType>(['diskOrphans', 'arrConflicts']);
 
@@ -273,12 +273,12 @@ export default function ProblemsView() {
         setCategories(cats);
         setServerName(SERVER_NAME[d.serverType] ?? 'Plex');
         // Open on the first category that actually has problems; fall back to
-        // the first runnable one so the page never opens on the stub.
+        // the first runnable one so the page never opens on a dimmed pill.
         const runnable = cats.filter((c) => c.available && !c.planned);
         const first = runnable.find((c) => c.titles > 0) ?? runnable[0];
         if (first) setActive(first.type);
       })
-      .catch(() => toast("Couldn't load the problem summary — is the server reachable?", 'error'));
+      .catch(() => toast("Couldn't load the problem summary - is the server reachable?", 'error'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -301,15 +301,15 @@ export default function ProblemsView() {
         const data = await fetch(`/api/admin/problems?${qs.toString()}`).then(
           (r) => r.json()
         );
-        if (seq !== fetchSeq.current) return; // superseded — drop it
-        // An error response has no `items` — guard against a crash.
+        if (seq !== fetchSeq.current) return; // superseded - drop it
+        // An error response has no `items` - guard against a crash.
         const list = Array.isArray(data.items) ? data.items : [];
         setHasMore(!!data.hasMore);
         if (typeof data.nextOffset === 'number') setOffset(data.nextOffset);
         setItems((prev) => (reset ? list : [...prev, ...list]));
       } catch {
-        if (seq !== fetchSeq.current) return; // superseded — don't toast for it
-        toast("Couldn't load the problem list — is the server reachable?", 'error');
+        if (seq !== fetchSeq.current) return; // superseded - don't toast for it
+        toast("Couldn't load the problem list - is the server reachable?", 'error');
       } finally {
         if (seq === fetchSeq.current) setLoading(false);
       }
@@ -330,7 +330,7 @@ export default function ProblemsView() {
   }, []);
 
   // Row shapes differ per category, so the old category's rows must never
-  // render under the new one's columns. Clearing here (not in the effect —
+  // render under the new one's columns. Clearing here (not in the effect -
   // effects run AFTER the re-render) batches with setActive into one render.
   // Sort resets to the new category's default; filters stay sticky.
   const selectCategory = (t: ProblemType) => {
@@ -361,8 +361,8 @@ export default function ProblemsView() {
   };
 
   // Hide arr-gated categories entirely when unavailable (like Big Picture hides
-  // its Tautulli/Seerr tabs); categories that just need setup (a reason) or are
-  // planned stay visible but dimmed with a fix-it tooltip.
+  // its Never watched / OK to delete tabs); categories that just need setup
+  // (a reason) or are planned stay visible but dimmed with a fix-it tooltip.
   const pills = (categories ?? []).filter((c) => c.available || c.planned || c.reason);
   const labels = problemLabels(serverName);
   const hints = problemHints(serverName);
@@ -431,7 +431,7 @@ export default function ProblemsView() {
           })}
         </div>
 
-        {/* What the selected check means — ABOVE the table so it's readable
+        {/* What the selected check means - ABOVE the table so it's readable
             without scrolling past a long list. Per-category controls sit on the
             same line, right-aligned (hidden where they don't apply). */}
         {active && (
@@ -441,7 +441,7 @@ export default function ProblemsView() {
               {active === 'notInArr' && (
                 <label
                   className="flex items-center gap-2 text-sm text-slate-400"
-                  title="Titles with no tvdb/tmdb/imdb id can never match Sonarr/Radarr — see the Missing IDs check"
+                  title="Titles with no tvdb/tmdb/imdb id can never match Sonarr/Radarr - see the Missing IDs check"
                 >
                   <input
                     type="checkbox"
@@ -505,7 +505,7 @@ export default function ProblemsView() {
               disabled={loading}
               className="rounded-md border border-slate-700 hover:border-slate-500 px-5 py-2 text-sm disabled:opacity-60"
             >
-              {loading ? 'Loading…' : 'Load more'}
+              {loading ? 'Loading...' : 'Load more'}
             </button>
           </div>
         )}
@@ -579,7 +579,7 @@ function PathCell({ path, dimPrefix }: { path: string | null; dimPrefix?: string
 }
 
 /** Segment-wise longest common prefix of a group's paths (incl. the trailing
- *  separator), for the duplicates diff view. Needs ≥2 non-null paths that
+ *  separator), for the duplicates diff view. Needs >=2 non-null paths that
  *  actually share a first segment; returns undefined otherwise. */
 function commonPathPrefix(paths: (string | null)[]): string | undefined {
   const present = paths.filter((p): p is string => !!p);
@@ -661,7 +661,7 @@ function SortTh({
 const HEAD_CLS = 'bg-rail text-slate-500 text-xs uppercase tracking-wide';
 const ROW_CLS = 'border-t border-slate-800 hover:bg-slate-900/60';
 
-/** Per-category thead + tbody — the shapes are too different for one config. */
+/** Per-category thead + tbody - the shapes are too different for one config. */
 function ProblemTable({
   type,
   items,
@@ -723,7 +723,7 @@ function ProblemTable({
                   {r.diskSizeBytes == null ? (
                     <span
                       className="cursor-help text-slate-600"
-                      title="Not measured yet — the Disk scan job walks these folders"
+                      title="Not measured yet - the Disk scan job walks these folders"
                     >
                       —
                     </span>
@@ -737,15 +737,15 @@ function ProblemTable({
                 <td className="px-3 py-2">
                   {isMultiPart(r) ? (
                     <ActionBadge
-                      label={`Multi-part item (${r.fileCount} files) — likely fine`}
+                      label={`Multi-part item (${r.fileCount} files) - likely fine`}
                       tone="note"
-                      tip={`${server} merged ${r.fileCount} video files into this one item and sums them all; the *arr counts only its own file, so the sizes differ by design. If the merge is intentional, nothing to fix — otherwise split the item apart in ${server}.`}
+                      tip={`${server} merged ${r.fileCount} video files into this one item and sums them all; the *arr counts only its own file, so the sizes differ by design. If the merge is intentional, nothing to fix - otherwise split the item apart in ${server}.`}
                     />
                   ) : r.diskSizeBytes == null ? (
                     <ActionBadge
                       label="Run Disk scan"
                       tone="note"
-                      tip="The measured on-disk size decides which side is stale — the Disk scan job (Settings → Jobs) walks these folders"
+                      tip="The measured on-disk size decides which side is stale - the Disk scan job (Settings -> Jobs) walks these folders"
                     />
                   ) : within10(r.diskSizeBytes, r.arrBytes) ? (
                     <ActionBadge label={`Rescan ${server}`} tone="fix" tip={mismatchVerdict(r, server)} />
@@ -788,15 +788,15 @@ function ProblemTable({
                 <td className="px-3 py-2">
                   {r.identityArrTitle ? (
                     <ActionBadge
-                      label="Fix match — see Identity mismatch"
+                      label="Fix match - see Identity mismatch"
                       tone="fix"
-                      tip={`An unmatched *arr title ("${r.identityArrTitle}") claims this item's folder — the two disagree about what it is. The real fix is on the Identity mismatch check.`}
+                      tip={`An unmatched *arr title ("${r.identityArrTitle}") claims this item's folder - the two disagree about what it is. The real fix is on the Identity mismatch check.`}
                     />
                   ) : (
                     <ActionBadge
-                      label="Add to *arr — or ignore"
+                      label="Add to *arr - or ignore"
                       tone="note"
-                      tip="Nothing manages this title, so it won't be upgraded or re-downloaded. Add it to Sonarr/Radarr if you want that — or leave it if you don't."
+                      tip="Nothing manages this title, so it won't be upgraded or re-downloaded. Add it to Sonarr/Radarr if you want that - or leave it if you don't."
                     />
                   )}
                 </td>
@@ -835,28 +835,28 @@ function ProblemTable({
                   {r.onDisk == null ? (
                     <span
                       className="cursor-help text-slate-600"
-                      title="Not verified yet — run the Sonarr/Radarr or Disk scan job (needs storage mappings)"
+                      title="Not verified yet - run the Sonarr/Radarr or Disk scan job (needs storage mappings)"
                     >
                       —
                     </span>
                   ) : !r.onDisk ? (
                     <span
                       className="cursor-help text-amber-400"
-                      title="Folder not found under any mapped library — the *arr's record is stale (Refresh & Scan there) or the files never reached a library folder (import them)"
+                      title="Folder not found under any mapped library - the *arr's record is stale (Refresh & Scan there) or the files never reached a library folder (import them)"
                     >
                       not found
                     </span>
                   ) : (r.diskSizeBytes ?? 0) < 10 * 1024 * 1024 ? (
                     <span
                       className="cursor-help text-amber-400"
-                      title="Folder exists but is essentially empty — the *arr's record is stale: Refresh & Scan there"
+                      title="Folder exists but is essentially empty - the *arr's record is stale: Refresh & Scan there"
                     >
                       empty
                     </span>
                   ) : (
                     <span
                       className="cursor-help"
-                      title={`Files really are on disk — ${server} needs a library scan (or matched this folder to something else: see Identity mismatch)`}
+                      title={`Files really are on disk - ${server} needs a library scan (or matched this folder to something else: see Identity mismatch)`}
                     >
                       {formatSize(r.diskSizeBytes ?? 0)}
                     </span>
@@ -865,27 +865,27 @@ function ProblemTable({
                 <td className="px-3 py-2">
                   {r.claimedByTitle ? (
                     <ActionBadge
-                      label="Fix match — see Identity mismatch"
+                      label="Fix match - see Identity mismatch"
                       tone="fix"
-                      tip={`${server} has this folder matched as "${r.claimedByTitle}" — the two disagree about what it is. The real fix is on the Identity mismatch check.`}
+                      tip={`${server} has this folder matched as "${r.claimedByTitle}" - the two disagree about what it is. The real fix is on the Identity mismatch check.`}
                     />
                   ) : r.onDisk === false || (r.onDisk === true && (r.diskSizeBytes ?? 0) < 10 * 1024 * 1024) ? (
                     <ActionBadge
                       label="Refresh & Scan in *arr"
                       tone="fix"
-                      tip="The folder is missing or empty on disk — the *arr's record is stale (files were removed outside it). Refresh & Scan the title there and it clears."
+                      tip="The folder is missing or empty on disk - the *arr's record is stale (files were removed outside it). Refresh & Scan the title there and it clears."
                     />
                   ) : r.onDisk === true ? (
                     <ActionBadge
                       label={`Scan ${server} library`}
                       tone="fix"
-                      tip={`The files really exist — ${server} just hasn't indexed them. Scan Library Files (and check the folder is inside a library path).`}
+                      tip={`The files really exist - ${server} just hasn't indexed them. Scan Library Files (and check the folder is inside a library path).`}
                     />
                   ) : (
                     <ActionBadge
                       label="Verify: run Disk scan"
                       tone="note"
-                      tip="Whether the files actually exist decides the fix — run the Sonarr/Radarr or Disk scan job to check (needs storage mappings)."
+                      tip="Whether the files actually exist decides the fix - run the Sonarr/Radarr or Disk scan job to check (needs storage mappings)."
                     />
                   )}
                 </td>
@@ -929,14 +929,14 @@ function ProblemTable({
                   {ids.length > 0 ? (
                     <span
                       className="cursor-help font-mono text-xs text-slate-500"
-                      title={`${server}'s own external ids for this item — compare with the *arr's id in the next column`}
+                      title={`${server}'s own external ids for this item - compare with the *arr's id in the next column`}
                     >
                       · {ids.join(' · ')}
                     </span>
                   ) : (
                     <span
                       className="cursor-help text-xs text-slate-600"
-                      title={`${server} has no tmdb/tvdb/imdb id for this item — it can never match the *arr's entry`}
+                      title={`${server} has no tmdb/tvdb/imdb id for this item - it can never match the *arr's entry`}
                     >
                       · no external ids
                     </span>
@@ -958,7 +958,7 @@ function ProblemTable({
                   ) : (
                     <span
                       className="cursor-help text-slate-600"
-                      title="In *arr but no files — added, never imported"
+                      title="In *arr but no files - added, never imported"
                     >
                       —
                     </span>
@@ -971,7 +971,7 @@ function ProblemTable({
                   <ActionBadge
                     label={`Fix match in ${server}`}
                     tone="fix"
-                    tip={`${server} matched this folder to "${r.media.title}" while the *arr tracks "${r.arr.title}" — one is wrong (usually ${server}: ⋯ → Fix Match on the item).`}
+                    tip={`${server} matched this folder to "${r.media.title}" while the *arr tracks "${r.arr.title}" - one is wrong (usually ${server}: ⋯ -> Fix Match on the item).`}
                   />
                 </td>
               </tr>
@@ -1043,13 +1043,13 @@ function ProblemTable({
                     <ActionBadge
                       label={`Merged item? Split apart in ${server}`}
                       tone="fix"
-                      tip={`Two ${r.loser.source === 'sonarr' ? 'Sonarr' : 'Radarr'} titles both match this one ${server} item — usually ${server} merged several entries into one (e.g. a multi-part film carrying both ids). Split the item apart in ${server} so each title matches its own, or remove one of the two titles in the *arr.`}
+                      tip={`Two ${r.loser.source === 'sonarr' ? 'Sonarr' : 'Radarr'} titles both match this one ${server} item - usually ${server} merged several entries into one (e.g. a multi-part film carrying both ids). Split the item apart in ${server} so each title matches its own, or remove one of the two titles in the *arr.`}
                     />
                   ) : (
                     <ActionBadge
                       label="Remove from one instance"
                       tone="fix"
-                      tip="Both instances download and upgrade this title independently — unmonitor or delete it in the instance that shouldn't own it."
+                      tip="Both instances download and upgrade this title independently - unmonitor or delete it in the instance that shouldn't own it."
                     />
                   )}
                 </td>
@@ -1097,15 +1097,15 @@ function ProblemTable({
                 <td className="px-3 py-2">
                   {r.arrBytes != null && r.arrBytes > 0 ? (
                     <ActionBadge
-                      label={`${server} sees no files — rescan`}
+                      label={`${server} sees no files - rescan`}
                       tone="fix"
-                      tip={`${r.instanceName ?? 'The *arr'} has ${formatSize(r.arrBytes)} on disk for this title, but ${server} indexes nothing — Scan Library Files, and check the folder if that doesn't fix it.`}
+                      tip={`${r.instanceName ?? 'The *arr'} has ${formatSize(r.arrBytes)} on disk for this title, but ${server} indexes nothing - Scan Library Files, and check the folder if that doesn't fix it.`}
                     />
                   ) : (
                     <ActionBadge
                       label="Check folder / remove entry"
                       tone="note"
-                      tip="No files anywhere we can see — check the Location for stray files; if the entry is a dead metadata-only shell, remove it from the library."
+                      tip="No files anywhere we can see - check the Location for stray files; if the entry is a dead metadata-only shell, remove it from the library."
                     />
                   )}
                 </td>
@@ -1139,7 +1139,7 @@ function ProblemTable({
                 <td className="px-3 py-2 text-slate-300">{r.keptBy.join(', ') || '—'}</td>
                 <td className="px-3 py-2">
                   <ActionBadge
-                    label="Re-add it — or release the keep"
+                    label="Re-add it - or release the keep"
                     tone="note"
                     tip="Someone still keeps this but it's gone from the server. Re-download it if the deletion was a mistake; otherwise the keeper can release their keep. (If the server merely rebuilt its ids, the next scans self-heal.)"
                   />
@@ -1174,7 +1174,7 @@ function ProblemTable({
                       className="cursor-help"
                       title={`The library already has "${r.likely.title}" (${formatSize(
                         r.likely.sizeBytes
-                      )}) in another folder — this entry is probably a leftover old copy; verify, then delete it`}
+                      )}) in another folder - this entry is probably a leftover old copy; verify, then delete it`}
                     >
                       <span className="text-slate-300">{r.likely.title}</span>
                       {r.likely.year != null && (
@@ -1195,7 +1195,7 @@ function ProblemTable({
                   {r.sizeSkipped ? (
                     <span
                       className="cursor-help text-slate-600"
-                      title="Sizing skipped — most of this root looked orphaned, so the storage mapping is suspect. Fix the mapping and rerun the Disk scan."
+                      title="Sizing skipped - most of this root looked orphaned, so the storage mapping is suspect. Fix the mapping and rerun the Disk scan."
                     >
                       —
                     </span>
@@ -1208,17 +1208,17 @@ function ProblemTable({
                     <ActionBadge
                       label="Check storage mapping"
                       tone="fix"
-                      tip="Most of this root looked orphaned — the mapping probably points at the wrong folder. Fix it in Settings → Connections and rerun the Disk scan."
+                      tip="Most of this root looked orphaned - the mapping probably points at the wrong folder. Fix it in Settings -> Connections and rerun the Disk scan."
                     />
                   ) : r.likely ? (
                     <ActionBadge
-                      label="Leftover copy — verify & delete"
+                      label="Leftover copy - verify & delete"
                       tone="fix"
-                      tip={`The library already has "${r.likely.title}" (${formatSize(r.likely.sizeBytes)}) in another folder — this is probably an old copy nothing points at. Verify, then delete it.`}
+                      tip={`The library already has "${r.likely.title}" (${formatSize(r.likely.sizeBytes)}) in another folder - this is probably an old copy nothing points at. Verify, then delete it.`}
                     />
                   ) : (
                     <ActionBadge
-                      label="Unclaimed — review"
+                      label="Unclaimed - review"
                       tone="note"
                       tip="Neither the media server nor Sonarr/Radarr accounts for this. Look inside: import it if it's wanted media, delete it if it's junk."
                     />
@@ -1254,9 +1254,9 @@ function ProblemTable({
                 <td className="px-3 py-2 text-right font-mono">{formatSize(r.sizeBytes)}</td>
                 <td className="px-3 py-2">
                   <ActionBadge
-                    label={`Fix match in ${server} — or ignore`}
+                    label={`Fix match in ${server} - or ignore`}
                     tone="note"
-                    tip={`No TheTVDB/TMDB/IMDb id at all, so it can never match Sonarr/Radarr. Fix the match in ${server} if it matters — home videos and one-offs are fine to leave.`}
+                    tip={`No TheTVDB/TMDB/IMDb id at all, so it can never match Sonarr/Radarr. Fix the match in ${server} if it matters - home videos and one-offs are fine to leave.`}
                   />
                 </td>
               </tr>
@@ -1270,7 +1270,7 @@ function ProblemTable({
 
 /** One duplicate group: a full-width header row (with the group's verdict
  *  badge), then its member rows. The members' shared path prefix is dimmed so
- *  the differing folder pops — identical locations mean a split entry,
+ *  the differing folder pops - identical locations mean a split entry,
  *  different ones mean two real copies. */
 function GroupRows({ group, server }: { group: DuplicateGroupRow; server: string }) {
   const dimPrefix = commonPathPrefix(group.items.map((m) => m.dirPath));
@@ -1295,19 +1295,19 @@ function GroupRows({ group, server }: { group: DuplicateGroupRow; server: string
               <ActionBadge
                 label="Compare folders"
                 tone="note"
-                tip="Some locations aren't captured yet — run a Full library scan (and Library size for shows), then the verdict appears here."
+                tip="Some locations aren't captured yet - run a Full library scan (and Library size for shows), then the verdict appears here."
               />
             ) : samePlace ? (
               <ActionBadge
-                label={`Split entry — merge in ${server}`}
+                label={`Split entry - merge in ${server}`}
                 tone="fix"
-                tip={`Both entries point at the SAME folder — one import got split in two. Merge them (or Fix Match one) in ${server}; no disk space is wasted.`}
+                tip={`Both entries point at the SAME folder - one import got split in two. Merge them (or Fix Match one) in ${server}; no disk space is wasted.`}
               />
             ) : (
               <ActionBadge
-                label="Two copies — keep one?"
+                label="Two copies - keep one?"
                 tone="fix"
-                tip="Different folders = two real copies on disk. Delete the one you don't want — unless this is an intentional multi-edition setup (e.g. 4K + 1080p in separate libraries)."
+                tip="Different folders = two real copies on disk. Delete the one you don't want - unless this is an intentional multi-edition setup (e.g. 4K + 1080p in separate libraries)."
               />
             )}
           </div>

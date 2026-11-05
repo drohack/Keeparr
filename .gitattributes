@@ -1,3 +1,3 @@
-# Shell scripts must stay LF — a CRLF shebang breaks /bin/sh in the alpine
+# Shell scripts must stay LF - a CRLF shebang breaks /bin/sh in the alpine
 # image (Windows checkouts would otherwise convert them).
 *.sh text eol=lf

@@ -18,12 +18,12 @@ import { clientIp, rateLimit } from '@/lib/rate-limit';
 export const runtime = 'nodejs';
 
 // Per-IP poll cap. The browser polls this every ~2s while the popup is open, so
-// keep it generous — it only exists to bound abuse of the plex.tv PIN lookup.
+// keep it generous - it only exists to bound abuse of the plex.tv PIN lookup.
 const POLL_LIMIT = 120; // polls per 5 min per IP
 const POLL_WINDOW_MS = 5 * 60 * 1000;
 
 /**
- * Poll a Plex PIN. While unauthorized → { status: 'pending' }. Once the user
+ * Poll a Plex PIN. While unauthorized -> { status: 'pending' }. Once the user
  * authorizes, resolve their identity, apply the access decision, and (if
  * allowed) upsert the user + set the session cookie.
  *
@@ -59,11 +59,11 @@ export async function GET(req: Request) {
   }
   if (!token) return NextResponse.json({ status: 'pending' });
 
-  // Everything past this point can hit Plex/the DB — wrap it so a failure is a
-  // logged 500 (visible in docker logs + Settings → Logs) instead of a silent
+  // Everything past this point can hit Plex/the DB - wrap it so a failure is a
+  // logged 500 (visible in docker logs + Settings -> Logs) instead of a silent
   // crash that leaves the login spinner stuck.
   try {
-    // Authorized at Plex — resolve identity.
+    // Authorized at Plex - resolve identity.
     const account = await getPlexAccount(token);
     const serverConfigured = isServerConfigured();
     const ownerId = getOwnerId();
@@ -100,7 +100,7 @@ export async function GET(req: Request) {
     });
 
     if (decision === 'denied') {
-      logEvent('warn', 'auth', `Sign-in denied for ${who} (no server access).`);
+      logEvent('warn', 'auth', `Sign-in denied for ${who} (no server access, sign-in closed, or setup unfinished).`);
       return NextResponse.json({ status: 'denied' });
     }
 
@@ -140,7 +140,7 @@ export async function GET(req: Request) {
     logEvent(
       'info',
       'auth',
-      `${who} signed in${decision === 'bootstrap_admin' ? ' (first user — admin)' : becomesAdmin ? ' (admin)' : ''}.`
+      `${who} signed in${decision === 'bootstrap_admin' ? ' (first user - admin)' : becomesAdmin ? ' (admin)' : ''}.`
     );
     return NextResponse.json({
       status: 'authorized',

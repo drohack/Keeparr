@@ -73,9 +73,9 @@ describe('migrate: legacy keeps → per-user keeps', () => {
 
   it('recovers from a crash that left an orphaned keeps_new behind', () => {
     d = legacyKeepsDb();
-    // Simulate the old non-transactional rebuild dying after its CREATE TABLE:
-    // a partial keeps_new exists while keeps is still legacy-shape. This used
-    // to throw "table keeps_new already exists" on every subsequent boot.
+    // Simulate a rebuild that died after its CREATE TABLE: a partial keeps_new
+    // exists while keeps is still legacy-shape. Without migrate()'s DROP of the
+    // orphan, CREATE TABLE keeps_new would throw on every boot.
     d.exec(`
       CREATE TABLE keeps_new (
         plex_user_id TEXT NOT NULL,
@@ -117,7 +117,7 @@ describe('migrate: arr_unmatched gained columns', () => {
     ).map((c) => c.name);
     expect(cols).toContain('size_bytes');
     expect(cols).toContain('instance_id');
-    // Old rows default to '' — never in a preserve list, so the next
+    // Old rows default to '' - never in a preserve list, so the next
     // successful arr run replaces them.
     const row = d
       .prepare('SELECT instance_id, size_bytes FROM arr_unmatched')
@@ -129,7 +129,7 @@ describe('migrate: arr_unmatched gained columns', () => {
       (d.prepare('SELECT folder_name FROM arr_unmatched').get() as { folder_name: string | null })
         .folder_name
     ).toBeNull();
-    // downloaded lands with default 1 — every pre-existing row WAS downloaded
+    // downloaded lands with default 1 - every pre-existing row WAS downloaded
     // (the old sync skipped fileless titles entirely).
     expect(cols).toContain('downloaded');
     expect(

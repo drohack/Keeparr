@@ -20,7 +20,7 @@ describe('formatRelative', () => {
   const NOW = Date.UTC(2026, 6, 6, 12, 0, 0);
   const at = (secondsAgo: number) => Math.floor(NOW / 1000) - secondsAgo;
 
-  it('under a minute → "just now"', () => {
+  it('under a minute -> "just now"', () => {
     expect(formatRelative(at(0), NOW)).toBe('just now');
     expect(formatRelative(at(59), NOW)).toBe('just now');
   });
@@ -38,7 +38,7 @@ describe('formatRelative', () => {
     expect(formatRelative(at(29 * 24 * 3600), NOW)).toBe('29d ago');
   });
 
-  it('past ~30 days → locale date (contains the year)', () => {
+  it('past ~30 days -> locale date (contains the year)', () => {
     expect(formatRelative(at(45 * 24 * 3600), NOW)).toContain('2026');
   });
 

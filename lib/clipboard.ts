@@ -1,6 +1,6 @@
 /**
- * Copy text to the clipboard. navigator.clipboard needs a secure context —
- * plain-HTTP LAN deploys don't have one — so fall back to the classic
+ * Copy text to the clipboard. navigator.clipboard needs a secure context -
+ * plain-HTTP LAN deploys don't have one - so fall back to the classic
  * hidden-textarea trick. Returns whether the copy (probably) succeeded.
  */
 export async function copyText(text: string): Promise<boolean> {

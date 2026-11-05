@@ -5,9 +5,8 @@
  *
  * Why this exists: `npm run seed` + `KEEPARR_DEV_LOGIN=1` gives you a fake,
  * self-contained demo - great for UI work, useless for verifying anything that
- * actually talks to Plex. There was previously no supported way to exercise the
- * first-run setup, the Plex PIN login, or Discover & connect without deploying,
- * which meant those paths only ever got tested in production. This is that way.
+ * actually talks to Plex. This exercises the first-run setup, the Plex PIN
+ * login and Discover & connect locally, without deploying.
  *
  * It deliberately does NOT set KEEPARR_DEV_LOGIN and does NOT seed, so you get
  * the genuine first-run experience: setup -> Plex login -> Discover & connect ->
@@ -44,8 +43,8 @@ const child = spawn('npx', ['next', 'dev', '-p', port], {
   env: {
     ...process.env,
     DATA_DIR: dataDir,
-    // A real session secret is required for the real login path; keep it
-    // stable per data dir so sessions survive a restart.
+    // A fixed fallback keeps sessions, and the tokens lib/crypto.ts encrypts
+    // with this secret, valid across restarts.
     SESSION_SECRET:
       process.env.SESSION_SECRET?.trim() || 'keeparr-dev-real-secret-change-me',
     NODE_NO_WARNINGS: '1',

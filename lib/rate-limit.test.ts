@@ -25,7 +25,7 @@ describe('rateLimit', () => {
     const t = 1_000_000;
     for (let i = 0; i < 3; i++) rateLimit('k', 3, 1000, t);
     expect(rateLimit('k', 3, 1000, t).limited).toBe(true);
-    // Well past the window — old hits dropped, counter effectively resets.
+    // Well past the window - old hits dropped, counter effectively resets.
     expect(rateLimit('k', 3, 1000, t + 2000).limited).toBe(false);
   });
 });

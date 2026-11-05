@@ -43,9 +43,9 @@ describe('getVersionInfo', () => {
     expect(v.latest).toBe(pkg.version);
   });
 
-  it('never throws: fetch failure (e.g. no releases yet) → latest unknown', async () => {
+  it('never throws: fetch failure (e.g. no releases yet) -> latest unknown', async () => {
     const v = await getVersionInfo(async () => {
-      throw new Error('GitHub releases → HTTP 404');
+      throw new Error('GitHub releases -> HTTP 404');
     });
     expect(v.current).toBe(pkg.version);
     expect(v.latest).toBeNull();
@@ -54,7 +54,7 @@ describe('getVersionInfo', () => {
 
   it('caches: a later failing fetch serves the last good answer', async () => {
     await getVersionInfo(async () => ({ tag_name: 'v99.0.0' }));
-    // Cache is warm — the failing fetcher must not even be consulted.
+    // Cache is warm - the failing fetcher must not even be consulted.
     const v = await getVersionInfo(async () => {
       throw new Error('down');
     });

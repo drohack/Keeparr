@@ -160,12 +160,12 @@ describe('keep route (global)', () => {
   });
 });
 
-describe('keep + don’t-care are mutually exclusive', () => {
+describe("keep + don't-care are mutually exclusive", () => {
   beforeEach(() => {
     upsertMediaBatch([media('1')]);
   });
 
-  it('keeping clears my don’t-care', async () => {
+  it("keeping clears my don't-care", async () => {
     await loginAs('userA');
     await skipPost(jsonReq({ ratingKey: '1' }));
     expect(isSkipped('userA', '1')).toBe(true);
@@ -174,7 +174,7 @@ describe('keep + don’t-care are mutually exclusive', () => {
     expect(isSkipped('userA', '1')).toBe(false);
   });
 
-  it('don’t-care clears my keep', async () => {
+  it("don't-care clears my keep", async () => {
     await loginAs('userA');
     await keepPost(jsonReq({ ratingKey: '1' }));
     expect(isKeptByUser('userA', '1')).toBe(true);
@@ -221,8 +221,8 @@ describe('feed + skip-batch', () => {
   });
 
   it('skip-batch ignores unknown and tombstoned keys', async () => {
-    upsertMediaBatch([media('4')], 1000); // re-stamp 4 as stale…
-    tombstoneStale(1001); // …and tombstone only it
+    upsertMediaBatch([media('4')], 1000); // re-stamp 4 as stale...
+    tombstoneStale(1001); // ...and tombstone only it
     await loginAs('userA');
     const res = await skipBatch(jsonReq({ ratingKeys: ['4', 'ghost', '2'] }));
     expect(res.status).toBe(200);
@@ -285,7 +285,7 @@ describe('errorResponse shapes', () => {
     expect(body).toEqual({ error: 'internal_error' }); // no message field
   });
 
-  it('SyntaxError (malformed request body) → 400 invalid_json', async () => {
+  it('SyntaxError (malformed request body) -> 400 invalid_json', async () => {
     const res = errorResponse(new SyntaxError('Unexpected token'));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('invalid_json');

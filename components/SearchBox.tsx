@@ -20,8 +20,8 @@ export default function SearchBox() {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   // Guards against out-of-order responses: only the latest suggest request may
-  // commit (a slow response for an old prefix must not overwrite — or reopen
-  // the dropdown after — what the user typed since).
+  // commit (a slow response for an old prefix must not overwrite - or reopen
+  // the dropdown after - what the user typed since).
   const suggestSeq = useRef(0);
 
   // Debounced typeahead.
@@ -37,7 +37,7 @@ export default function SearchBox() {
       fetch(`/api/search/suggest?q=${encodeURIComponent(term)}`)
         .then((r) => r.json())
         .then((d) => {
-          if (seq !== suggestSeq.current) return; // superseded — drop it
+          if (seq !== suggestSeq.current) return; // superseded - drop it
           setSuggestions(d.suggestions ?? []);
           setOpen(true);
         })
@@ -76,7 +76,7 @@ export default function SearchBox() {
           if (e.key === 'Enter') go(q);
           if (e.key === 'Escape') setOpen(false);
         }}
-        placeholder="Search…"
+        placeholder="Search..."
         className="w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm focus:outline-none focus:border-brand"
       />
       {open && suggestions.length > 0 && (
@@ -103,7 +103,7 @@ export default function SearchBox() {
                   <span className="block truncate text-sm">{s.title}</span>
                   <span className="text-xs text-slate-500">
                     {s.year ?? ''}
-                    {s.kept ? ' · kept' : s.skipped ? ' · I don’t care' : ''}
+                    {s.kept ? ' · kept' : s.skipped ? " · I don't care" : ''}
                   </span>
                 </span>
               </button>

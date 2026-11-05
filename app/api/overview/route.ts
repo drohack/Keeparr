@@ -103,7 +103,7 @@ export async function GET() {
       ? { byQuality: arrQualitySummary(), notInArr: unmatchedMediaSummary() }
       : undefined;
 
-    // "OK to delete" KPI — only meaningful (and only settable) when Seerr is
+    // "OK to delete" KPI - only meaningful (and only settable) when Seerr is
     // connected, so the UI hides the whole surface otherwise.
     const seerr = isSeerrConfigured();
     const markedForDelete = seerr ? markedForDeleteSummary() : undefined;

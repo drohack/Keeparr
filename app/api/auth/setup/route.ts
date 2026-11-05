@@ -12,9 +12,9 @@ export const runtime = 'nodejs';
 
 /**
  * First-run setup: choose the media-server type (and, for Jellyfin/Emby, point at
- * the server URL). Only usable during bootstrap — once an admin exists this 403s,
+ * the server URL). Only usable during bootstrap - once an admin exists this 403s,
  * so it can't be used to hijack a configured instance. For Plex it just records
- * the type (the PIN login + server connect happen as before). Body: { type, url? }.
+ * the type (the PIN login and server connect follow). Body: { type, url? }.
  */
 export async function POST(req: Request) {
   try {
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     // Restrict the pre-auth probe to http(s). This endpoint is unauthenticated
     // during first-run, so before fetching an operator-supplied URL we reject
     // non-HTTP schemes (file:, gopher:, etc.) that could be used to probe the
-    // host. We deliberately do NOT block private/loopback ranges — the legitimate
+    // host. We deliberately do NOT block private/loopback ranges - the legitimate
     // target is a LAN media server on a private IP. (Complete first-run setup on a
     // trusted network before exposing Keeparr; see README.)
     let parsed: URL;

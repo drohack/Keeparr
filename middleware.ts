@@ -9,7 +9,7 @@ import {
 import { DEV_USER_ID } from '@/lib/dev-constants';
 
 /**
- * Gate everything behind a valid Plex session except the login page, the auth
+ * Gate everything behind a valid session except the login page, the auth
  * endpoints, and the health probe. Per-route admin checks (is_admin) happen in
  * the admin route handlers / pages, which can read the DB (Node runtime).
  */
@@ -35,7 +35,7 @@ export async function middleware(req: NextRequest) {
   if (session) return NextResponse.next();
 
   // Local demo mode: auto-mint a dev session so you browse with no Plex/login.
-  // Off unless KEEPARR_DEV_LOGIN=1 AND not a production build — this auth bypass
+  // Off unless KEEPARR_DEV_LOGIN=1 AND not a production build - this auth bypass
   // can never activate in production even if the env var leaks in. Requires
   // `npm run seed` first so the dev user + data exist. The cookie is set on the
   // forwarded request (so this same render is authenticated) and the response.
@@ -56,7 +56,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Let API requests bearing an X-Api-Key header through. This only DEFERS auth
-  // to the Node route — the Edge runtime can't read the DB to validate the key.
+  // to the Node route - the Edge runtime can't read the DB to validate the key.
   // Every /api route MUST therefore call a require* helper itself (a bare header
   // presence is NOT authentication); this passthrough alone protects nothing.
   if (pathname.startsWith('/api/') && req.headers.get('x-api-key')) {

@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 }
 
 /**
- * Trigger a job. Body: { job: 'library'|'sizes'|'watch'|'requests'|'all' }.
+ * Trigger a job. Body: { job: <a JOBS id from lib/jobs.ts> | 'all' }.
  * Fire-and-forget; single-flight per job.
  */
 export async function POST(req: Request) {

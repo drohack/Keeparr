@@ -13,8 +13,8 @@ import { FEED_BATCH_SIZE } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
-/** Far above any real batch (the feed shows ~12): reject, don't clamp — clamping
- *  would silently drop decisions while the client reports success. */
+/** Far above any real batch (one screen of Keep cards): reject, don't clamp -
+ *  clamping would silently drop decisions while the client reports success. */
 const MAX_BATCH = 500;
 
 /**

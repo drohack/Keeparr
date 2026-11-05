@@ -11,10 +11,10 @@ next-env.d.ts
 # production
 /build
 
-# runtime data (sqlite db) — never commit
+# runtime data (sqlite db) - never commit
 /data/
 
-# test artifacts (Playwright screenshots, etc.) — never commit
+# test artifacts (Playwright screenshots, etc.) - never commit
 /test-results/
 /playwright-report/
 *.png

@@ -17,13 +17,11 @@ export const runtime = 'nodejs';
  * "Connected" is not the useful question for Plex. A shared user's token
  * connects fine, scans libraries fine, and then silently returns only its own
  * watch history - so "never watched by anyone" quietly means "never watched by
- * one person". Nothing in the UI distinguished the two states, which is exactly
- * how a 4-year history got reported as one user's.
+ * one person".
  *
  * Checks the token history ACTUALLY uses (the owner token when set, otherwise
  * the server token) by counting distinct accounts in a single page of history.
- * Measured at ~0.17s against a live server, so it is cheap enough to run when
- * the Connections page loads.
+ * It reads one page, so the Connections page runs it on load.
  */
 export async function GET() {
   try {

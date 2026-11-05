@@ -1,7 +1,7 @@
 /**
  * Local development seed. Populates the SQLite DB with realistic fake data so you
  * can click through the whole app with no Plex/Tautulli/Seerr. Invoked by the
- * `npm run seed` script (scripts/seed.ts). Safe to delete if unwanted — it only
+ * `npm run seed` script (scripts/seed.mts). Safe to delete if unwanted - it only
  * runs when you call it. Pairs with `KEEPARR_DEV_LOGIN=1` (middleware auto-login).
  */
 import {
@@ -41,7 +41,7 @@ import {
 } from './settings';
 import { DEV_USER_ID } from './dev-constants';
 
-/** Make the dev login a plain (non-admin) user instead of the Owner/admin. */
+/** Whether the dev login is seeded as an admin (upsertUser never lowers it). */
 const DEV_USER_IS_ADMIN = true;
 
 const GB = 1024 ** 3;
@@ -150,21 +150,21 @@ function buildItems(): UpsertMediaInput[] {
       libraryKind: kind,
       title,
       year: 1972 + Math.floor(rng(n + 7) * 52),
-      thumb: null, // no Plex → cards fall back to the title
+      thumb: null, // no Plex -> cards fall back to the title
       sizeBytes,
       addedAt: 1_700_000_000 - n * 43_200,
       // Most items carry an external id (so arr matching works); leave every
       // 13th null to demo the "Plex item missing tmdb/tvdb id" match-health case.
       guidTmdb: kind === 'movie' && n % 13 !== 0 ? String(n) : null,
       guidTvdb: kind === 'show' && n % 13 !== 0 ? String(n) : null,
-      // On-disk names (disk-orphan matching) — lets a real local Disk scan pass
+      // On-disk names (disk-orphan matching) - lets a real local Disk scan pass
       // the safety guard if you map a section to a scratch folder.
       dirName: title,
       fileName: kind === 'movie' ? `${title}.mkv` : null,
       dirPath: `/media/${SECTIONS.find((s) => s.id === sectionId)!.title}/${title}`,
       // Movies carry their file count. n=34 is the SECOND 17-multiple (17
       // itself is the measured-disk demo): a merged two-part movie, so its
-      // divergent arr size demos the "Multi-part item — likely fine" badge.
+      // divergent arr size demos the "Multi-part item - likely fine" badge.
       fileCount: kind === 'movie' ? (n === 34 ? 2 : 1) : null,
     });
   };
@@ -178,8 +178,8 @@ function buildItems(): UpsertMediaInput[] {
   return items;
 }
 
-// Two Sonarr instances (main + a separate Anime one) and one Radarr — exercises
-// the N-instances support and gives the Quality view real instance variety.
+// Two Sonarr instances (main + a separate Anime one) and one Radarr - exercises
+// the N-instances support and gives Browse's instance filter real variety.
 const SONARR_MAIN = { id: 'sonarr-main', name: 'Sonarr' };
 const SONARR_ANIME = { id: 'sonarr-anime', name: 'Sonarr (Anime)' };
 const RADARR_MAIN = { id: 'radarr-main', name: 'Radarr' };
@@ -187,9 +187,9 @@ const RADARR_MAIN = { id: 'radarr-main', name: 'Radarr' };
 const MOVIE_QUALITIES = ['Bluray-1080p', 'WEBDL-1080p', 'Bluray-720p', 'HDTV-720p'];
 const SHOW_PROFILES = ['HD-1080p', 'Ultra-HD', 'Any', 'SD'];
 
-/** Fabricate arr_items for the seeded media so /quality is populated offline.
- *  Every 9th item is skipped (no arr row) → demos the "Not in *arr" bucket + the
- *  Browse "unmatched" filter. Every 17th gets a divergent arr size → mismatch ⚠. */
+/** Fabricate arr_items for the seeded media so the arr surfaces are populated offline.
+ *  Every 9th item is skipped (no arr row) -> demos the "Not in *arr" bucket + the
+ *  Browse "unmatched" filter. Every 17th gets a divergent arr size -> mismatch warning flag. */
 function buildArrItems(items: UpsertMediaInput[]): ArrItemInput[] {
   const out: ArrItemInput[] = [];
   items.forEach((m, i) => {
@@ -217,7 +217,7 @@ function buildArrItems(items: UpsertMediaInput[]): ArrItemInput[] {
         : SHOW_PROFILES[n % SHOW_PROFILES.length],
       qualityKind: movie ? 'file' : 'profile',
       rootFolder: movie ? '/movies' : anime ? '/anime' : '/tv',
-      // Usually matches Plex; every 17th diverges sharply to demo the ⚠ flag.
+      // Usually matches Plex; every 17th diverges sharply to demo the mismatch warning flag.
       arrSizeBytes: n % 17 === 0 ? Math.round(m.sizeBytes * 0.3) : m.sizeBytes,
       tags,
     });
@@ -246,7 +246,7 @@ export interface SeedResult {
  */
 export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
   // Point the demo at a REAL Plex without going through login:
-  //   KEEPARR_DEV_PLEX_URL=http://192.168.1.2:32400   //   KEEPARR_DEV_PLEX_TOKEN=<X-Plex-Token> npm run seed
+  //   KEEPARR_DEV_PLEX_URL=http://192.168.1.2:32400 KEEPARR_DEV_PLEX_TOKEN=<X-Plex-Token> npm run seed
   // Use the SERVER OWNER's token if you want to exercise all-users watch
   // history - a shared account's token silently returns only its own rows.
   // The token is written to plex_owner_token too, so the watch job and the
@@ -269,8 +269,8 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     // it with the true machine id.
     writeSetting('plex_machine_id', readSetting('plex_machine_id') || 'dev-machine');
   } else {
-    // A fake "connected server" so the pages render (dummy values; the image
-    // proxy simply 503s and cards show titles).
+    // A fake "connected server" so the pages render (dummy values; seeded
+    // items have no thumb, so cards show titles).
     writeSetting('plex_machine_id', 'dev-machine');
     writeSetting('plex_base_url', 'http://localhost:32400');
     writeSetting('plex_server_token', 'dev-token');
@@ -294,18 +294,18 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     setMediaServerType('plex');
   }
   // Fake Tautulli so the Connections card has something to show. The watch
-  // surfaces no longer depend on it - they gate on a source being configured
-  // plus the seeded watch_history rows below. No real calls are made; running
+  // surfaces gate on a source being configured plus the seeded watch_history
+  // rows below, not on Tautulli. No real calls are made; running
   // the watch job in the demo will report both sources failing against
   // localhost.
   writeSetting('tautulli_url', 'http://localhost:8181');
   writeSetting('tautulli_api_key', 'dev-tautulli-key');
   // Fake Seerr so the "OK to delete" surfaces (the requester sign-off control,
   // its Browse filters, and the Big Picture KPI/drill-down) are demoable. No real
-  // calls are made — the seeded seerr_requests below stand in for synced requests.
+  // calls are made - the seeded seerr_requests below stand in for synced requests.
   writeSetting('seerr_url', 'http://localhost:5055');
   writeSetting('seerr_api_key', 'dev-seerr-key');
-  // Fake Sonarr (×2: main + anime) and Radarr so the Quality view + N-instance
+  // Fake Sonarr (x2: main + anime) and Radarr so the arr surfaces + N-instance
   // filters are demoable. No real calls are made; arr_items is seeded below.
   setSonarrInstances([
     { ...SONARR_MAIN, url: 'http://localhost:8989', apiKey: 'dev-sonarr-key' },
@@ -379,9 +379,9 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
       ],
       seedTs
     );
-    // arr_items (after the extra media rows above exist — FK on rating_key).
+    // arr_items (after the extra media rows above exist - FK on rating_key).
     // Radarr still holds bytes for the zero-size demo item, so its Problems row
-    // shows the "Plex sees no files — rescan" action.
+    // shows the "Plex sees no files - rescan" action.
     replaceArrItems([
       ...buildArrItems(mediaItems),
       {
@@ -400,7 +400,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
         folderName: 'Corrupted Import Demo',
       },
     ]);
-    // Removed but kept: seed it slightly "older", keep it, then tombstone it —
+    // Removed but kept: seed it slightly "older", keep it, then tombstone it -
     // the same path a real deletion takes (full sync tombstones stale rows).
     upsertMediaBatch(
       [
@@ -453,7 +453,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
         mtime: seedTs - 200 * 86400,
       },
       {
-        // A leftover old copy of a title the library already has — demos the
+        // A leftover old copy of a title the library already has - demos the
         // "Looks like" diagnosis.
         name: `${leftoverSrc.title} (2004) [XviD]`,
         path: `/media/Movies/${leftoverSrc.title} (2004) [XviD]`,
@@ -470,8 +470,8 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     // folder" case). Also a multi-folder show (episodes span two root folders,
     // newline-joined dir_name) so the disk scan treats both as known.
     // Pick an arr-UNMATCHED movie (every 9th is skipped by buildArrItems) that
-    // still carries a tmdb id — its "In Plex, not in *arr" row then shows the
-    // "Fix match — see Identity mismatch" cross-link badge.
+    // still carries a tmdb id - its "In Plex, not in *arr" row then shows the
+    // "Fix match - see Identity mismatch" cross-link badge.
     const idMismatchSrc = mediaItems.find(
       (m, i) =>
         (i + 1) % 9 === 0 && m.libraryKind === 'movie' && m.guidTmdb && m.ratingKey !== dupMovieSrc.ratingKey
@@ -512,7 +512,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
 
     // Cross-instance conflict: both Sonarr instances manage the first anime
     // title; the Anime instance won the match (it owns the arr_items row).
-    // Plus a SAME-instance conflict: two Radarr titles resolve to one movie —
+    // Plus a SAME-instance conflict: two Radarr titles resolve to one movie -
     // the merged multi-part case ("split apart in Plex" badge).
     const conflictSrc = mediaItems.find((m) => m.sectionId === '4')!;
     const mergedSrc = mediaItems.find((m) => m.libraryKind === 'movie' && m.fileCount === 2)!;
@@ -547,10 +547,10 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     // Keeps by OTHER users (friend/kid), spread across every library and biased
     // toward large TV/4K titles, so "Kept by others" is clearly visible on the
     // graphs. None of these are also kept by the dev user (so they count as
-    // others', not yours). Keys: dev-1..100 = Movies (every 3rd is 4K, larger),
-    // dev-101..200 = TV Shows (largest), dev-201..300 = Anime.
+    // others', not yours). Keys follow buildItems' order (dev-N = Nth title):
+    // MOVIES (every 3rd is 4K, larger), then SHOWS (largest), then ANIME.
     const keptByFriend = [
-      'dev-102', 'dev-106', 'dev-111', 'dev-119', 'dev-127', 'dev-134', // TV Shows
+      'dev-102', 'dev-106', 'dev-111', 'dev-119', 'dev-127', 'dev-134', // Movies (dev-102), then TV Shows
       'dev-205', 'dev-212', 'dev-230', 'dev-248', // Anime
       'dev-7', 'dev-13', 'dev-22', // 4K Movies (large)
       'dev-12', 'dev-35', 'dev-50', // Movies
@@ -568,31 +568,31 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
     addSkip(DEV_USER_ID, 'dev-120');
 
     // Watch history with now-relative timestamps so the Browse "Watched" windows
-    // (≤30/60/90d, stale 90d+) are demoable. Most titles stay unwatched so the
+    // (<=30/60/90d, stale 90d+) are demoable. Most titles stay unwatched so the
     // Big Picture "never watched by anyone" metric is meaningful.
     const wnow = Math.floor(Date.now() / 1000);
     const dago = (d: number) => wnow - d * 86400;
     upsertWatchBatch([
-      // You — watched recently (hits ≤30/60/90)
+      // You - watched recently (hits <=30/60/90)
       { plexUserId: DEV_USER_ID, ratingKey: 'dev-101', plays: 8, lastWatched: dago(6) },
       { plexUserId: DEV_USER_ID, ratingKey: 'dev-205', plays: 20, lastWatched: dago(12) },
       { plexUserId: DEV_USER_ID, ratingKey: 'dev-1', plays: 1, lastWatched: dago(20) },
-      // You — watched a couple months ago (hits ≤90 only)
+      // You - watched a couple months ago (hits <=90 only)
       { plexUserId: DEV_USER_ID, ratingKey: 'dev-110', plays: 12, lastWatched: dago(75) },
       { plexUserId: DEV_USER_ID, ratingKey: 'dev-115', plays: 5, lastWatched: dago(82) },
-      // You — watched long ago (stale: not watched in 90+ days)
+      // You - watched long ago (stale: not watched in 90+ days)
       { plexUserId: DEV_USER_ID, ratingKey: 'dev-150', plays: 2, lastWatched: dago(210) },
       { plexUserId: DEV_USER_ID, ratingKey: 'dev-30', plays: 1, lastWatched: dago(260) },
-      // Someone else watched it (you didn't) — proves "watched by anyone" so this
+      // Someone else watched it (you didn't) - proves "watched by anyone" so this
       // is excluded from "never watched", but absent from YOUR watched filter.
       { plexUserId: 'dev-friend', ratingKey: 'dev-160', plays: 4, lastWatched: dago(40) },
     ]);
-    // Seerr requests per user — the gate for "OK to delete". Spread across
+    // Seerr requests per user - the gate for "OK to delete". Spread across
     // people so the by-anyone view + attribution have variety. dev-300 is
     // requested by both friend and kid so it ends up with multiple markers.
     // Also request a few of the VERY largest titles, spaced so the "Largest"
-    // feed shows an "OK to delete" card in every visible row (~7/row at 1080,
-    // ~11/row at 4K → these positions cover rows 1–3 at both widths).
+    // feed shows an "OK to delete" card in every visible row (~7/row at
+    // 1920x1080, ~10/row at 2560x1440 -> these positions cover rows 1-3 at both).
     const bySize = [...mediaItems].sort((a, b) => b.sizeBytes - a.sizeBytes);
     const largestDemoRequests = [0, 5, 9, 13, 18, 24, 30]
       .map((i) => bySize[i]?.ratingKey)
@@ -608,8 +608,8 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
 
     // "OK to delete" marks (the original requester signing off). Each marker
     // must have requested the title (above) and must not also keep it.
-    //  - dev-12 is kept by friend → demos "released but still protected".
-    //  - dev-300 is released by BOTH friend and kid → multiple markers.
+    //  - dev-12 is kept by friend -> demos "released but still protected".
+    //  - dev-300 is released by BOTH friend and kid -> multiple markers.
     addDelete(DEV_USER_ID, 'dev-12');
     addDelete(DEV_USER_ID, 'dev-30');
     addDelete('dev-friend', 'dev-300');
@@ -661,7 +661,7 @@ export function seedDevData(opts: { reset?: boolean } = {}): SeedResult {
       result: i % 3,
     });
   }
-  runs.push({ jobId: 'recentlyAdded', startedAt: nowSec - 13 * 300, status: 'error', message: 'Plex unreachable — fetch failed.', result: 0 });
+  runs.push({ jobId: 'recentlyAdded', startedAt: nowSec - 13 * 300, status: 'error', message: 'Plex unreachable - fetch failed.', result: 0 });
   runs.push({ jobId: 'arr', startedAt: nowSec - 4000, status: 'ok', message: 'Matched 300 of 300 titles (0 unmatched).', result: 300 });
   runs.push({ jobId: 'sizes', startedAt: nowSec - 7000, status: 'ok', message: 'Recomputed sizes for 96 series.', result: 96 });
   runs.push({ jobId: 'watch', startedAt: nowSec - 9000, status: 'ok', message: 'Refreshed 8 watch-history rows.', result: 8 });

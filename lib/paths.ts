@@ -1,8 +1,8 @@
 /**
- * Pure path-string helpers for on-disk name matching (Problems → disk scan).
+ * Pure path-string helpers for on-disk name matching (Problems -> disk scan).
  *
- * Media servers and Sonarr/Radarr report paths as THEY see them — a different
- * container, possibly a Windows host — so these are separator-agnostic string
+ * Media servers and Sonarr/Radarr report paths as THEY see them - a different
+ * container, possibly a Windows host - so these are separator-agnostic string
  * ops. Never use node:path here: it would apply the LOCAL platform's rules to
  * a foreign path (e.g. treat "C:\Media\X" as a single segment on Linux).
  */
@@ -27,7 +27,7 @@ export function parentSegment(p: string | null | undefined): string | null {
 }
 
 /** The path minus its last segment, preserving the original separators
- *  ('/data/tv/Scrubs/ep.mkv' → '/data/tv/Scrubs'). Single segment → null. */
+ *  ('/data/tv/Scrubs/ep.mkv' -> '/data/tv/Scrubs'). Single segment -> null. */
 export function parentPath(p: string | null | undefined): string | null {
   if (!p) return null;
   const trimmed = p.replace(/[/\\]+$/, '');
@@ -36,8 +36,9 @@ export function parentPath(p: string | null | undefined): string | null {
   return trimmed.slice(0, cut);
 }
 
-/** The last `n` segments joined with '/', prefixed with '…/' when segments
- *  were dropped — the compact display form of a long foreign path. */
+/** The last `n` segments joined with '/', prefixed with an ellipsis (U+2026)
+ *  and '/' when segments were dropped - the compact display form of a long
+ *  foreign path. */
 export function pathTail(p: string, n = 2): string {
   const segs = pathSegments(p);
   if (segs.length <= n) return segs.join('/');
@@ -54,10 +55,10 @@ export function normalizeName(name: string): string {
 
 /**
  * Comparison key for near-matching a folder/file NAME to a library TITLE
- * ("The Avengers (2012)" ↔ "The Avengers"; "40 Year Old Virgin The (2005)" ↔
+ * ("The Avengers (2012)" <-> "The Avengers"; "40 Year Old Virgin The (2005)" <->
  * "The 40-Year-Old Virgin"): strip a file extension and bracketed groups,
  * treat ./_/- as spaces, case-fold, move a trailing ", The"-style article to
- * the front, and drop a trailing standalone year. Exact-key equality only —
+ * the front, and drop a trailing standalone year. Exact-key equality only -
  * no fuzzy scoring.
  */
 export function titleKey(name: string): string {
@@ -68,13 +69,13 @@ export function titleKey(name: string): string {
   s = s.replace(/[^\p{L}\p{N} ]/gu, ' '); // remaining punctuation
   s = s.replace(/\s+/g, ' ').trim();
   s = s.replace(/\s(19|20)\d\d$/, ''); // trailing standalone year
-  const m = s.match(/^(.*)\s(the|a|an)$/); // "title the" → "the title"
+  const m = s.match(/^(.*)\s(the|a|an)$/); // "title the" -> "the title"
   if (m) s = `${m[2]} ${m[1]}`;
   return s;
 }
 
 /** Cut a path right after its first `n` segments, preserving separators
- *  ('/data/tv/Show/ep.mkv', 3 → '/data/tv/Show'). */
+ *  ('/data/tv/Show/ep.mkv', 3 -> '/data/tv/Show'). */
 function cutAfterSegments(p: string, n: number): string {
   let idx = 0;
   let seen = 0;
@@ -113,7 +114,7 @@ function deriveOneShowDir(file: string, sectionRoots: string[]): string | null {
 }
 
 /**
- * Derive a show's folder(s) from its EPISODE file paths — the fallback for
+ * Derive a show's folder(s) from its EPISODE file paths - the fallback for
  * media servers that omit the show's own Location/Path from listings (episode
  * paths are always available; they're how show sizes are computed).
  *
@@ -135,7 +136,7 @@ export function deriveShowDirPaths(files: string[], sectionRoots: string[]): str
   return out;
 }
 
-/** The show's primary folder (first derived) — the display path. */
+/** The show's primary folder (first derived) - the display path. */
 export function deriveShowDirPath(
   files: string[],
   sectionRoots: string[]

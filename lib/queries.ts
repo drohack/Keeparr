@@ -160,7 +160,7 @@ export function markTutorialDone(plexUserId: string): void {
 
 /**
  * List every user who has logged in, admins first then most-recently-seen.
- * `isOwner` is not stored here — the caller annotates it via getOwnerId().
+ * `isOwner` is not stored here - the caller annotates it via getOwnerId().
  */
 export function listUsers(): Omit<AdminUserRow, 'isOwner'>[] {
   const rows = getDb()
@@ -193,7 +193,7 @@ export function listUsers(): Omit<AdminUserRow, 'isOwner'>[] {
 
 /**
  * Explicitly set or clear a user's admin flag. The deliberate counterpart to
- * upsertUser, whose MAX(is_admin, …) clause can only ever raise the flag.
+ * upsertUser, whose MAX(is_admin, ...) clause can only ever raise the flag.
  */
 export function setUserAdmin(plexUserId: string, isAdmin: boolean): void {
   getDb()
@@ -238,9 +238,9 @@ export interface UpsertMediaInput {
   addedAt: number | null;
   guidTmdb: string | null;
   guidTvdb: string | null;
-  /** imdb id(s) ("tt…"), CSV when Plex lists several. Optional for back-compat. */
+  /** imdb id(s) ("tt..."), CSV when Plex lists several. Optional for back-compat. */
   guidImdb?: string | null;
-  /** On-disk folder name (server-side basename) — the disk-orphan scan's
+  /** On-disk folder name (server-side basename) - the disk-orphan scan's
    *  known-name key. Optional for back-compat. */
   dirName?: string | null;
   /** Movie file basename (covers loose files in the library root). */
@@ -248,7 +248,7 @@ export interface UpsertMediaInput {
   /** FULL server-side path of the item's folder (Problems page Location cells). */
   dirPath?: string | null;
   /** Movie: distinct video files merged into the item (>1 = multi-part).
-   *  Null/omitted for shows — COALESCE keeps any stored value. */
+   *  Null/omitted for shows - COALESCE keeps any stored value. */
   fileCount?: number | null;
 }
 
@@ -289,10 +289,10 @@ const upsertMediaStmt = () =>
  * anything not re-touched. Defaults to now() for ad-hoc writes.
  *
  * On-disk name/path columns update COALESCE-style: a NULL in the incoming row
- * keeps the stored value. Scans that don't recompute a show (known size →
+ * keeps the stored value. Scans that don't recompute a show (known size ->
  * showSize skipped, so no episode-derived path) must not wipe the backfill the
- * sizes job wrote — recentlyAdded runs every 5 minutes and was doing exactly
- * that on servers that omit Location from listings.
+ * sizes job wrote: recentlyAdded re-upserts known-size shows without a path
+ * on servers that omit Location from listings.
  */
 export function upsertMediaBatch(
   items: UpsertMediaInput[],
@@ -347,7 +347,7 @@ export function getMediaItem(ratingKey: string): MediaItem | null {
   );
 }
 
-/** Like getMediaItem but excludes tombstoned rows — the existence gate for
+/** Like getMediaItem but excludes tombstoned rows - the existence gate for
  *  mutations (keeping/skipping an item that's gone from the server is a 404). */
 export function getActiveMediaItem(ratingKey: string): MediaItem | null {
   return (
@@ -429,8 +429,8 @@ export function applyKeep(plexUserId: string, ratingKey: string): boolean {
 /**
  * Batch "don't care": skip every EXISTING, non-tombstoned key and clear this
  * user's keep / "OK to delete" marks for them, all in one transaction (same
- * exclusivity as the single-item routes — the old insert-only version let a
- * crafted batch leave an item both kept and skipped). Unknown/tombstoned keys
+ * exclusivity as the single-item routes, so no batch can leave an item both
+ * kept and skipped). Unknown/tombstoned keys
  * are silently dropped. Returns the number of newly skipped items.
  */
 export function applySkipBatch(plexUserId: string, ratingKeys: string[]): number {
@@ -595,9 +595,9 @@ export function isMarkedForDelete(
 
 export interface FeedOptions {
   /**
-   * Limit the feed to a single Plex library (section id). Omitted → a mix across
+   * Limit the feed to a single Plex library (section id). Omitted -> a mix across
    * all libraries, weighted toward large series with a few movies guaranteed.
-   * Libraries are whatever Plex reports — nothing is hardcoded by category.
+   * Libraries are whatever Plex reports - nothing is hardcoded by category.
    */
   sectionId?: string;
   /** Override the reserved movie count for the mixed (all-libraries) feed. */
@@ -606,7 +606,7 @@ export interface FeedOptions {
 
 /**
  * Base eligibility: present, not globally kept, and not already decided by this
- * user (skipped "don't care" or marked "OK to delete" — both mean they're done
+ * user (skipped "don't care" or marked "OK to delete" - both mean they're done
  * with it, so it shouldn't roll back into their feed).
  */
 const FEED_ELIGIBILITY = `m.removed = 0
@@ -640,7 +640,7 @@ export function getFeed(
 }
 
 /**
- * Pull eligible items size-weighted (Efraimidis–Spirakis), restricted either to
+ * Pull eligible items size-weighted (Efraimidis-Spirakis), restricted either to
  * a library_kind (used to guarantee some movies in the mix) or to one Plex
  * section. library_kind is Plex's own section type, not an invented category.
  */
@@ -710,14 +710,14 @@ function getFeedAll(
 
   let combined = [...movies, ...shows];
   if (combined.length < limit) {
-    // Shows ran short — backfill with more movies we haven't used.
+    // Shows ran short - backfill with more movies we haven't used.
     const used = combined.map((m) => m.rating_key);
     combined = combined.concat(
       weightedPull(plexUserId, { libraryKind: 'movie' }, limit - combined.length, used)
     );
   }
 
-  // Shuffle so the reserved movies aren't always first. Fisher–Yates.
+  // Shuffle so the reserved movies aren't always first. Fisher-Yates.
   for (let i = combined.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [combined[i], combined[j]] = [combined[j], combined[i]];
@@ -864,9 +864,9 @@ export interface LibraryRow extends MediaWithKeep {
 }
 
 /** Arr-matched titles whose Plex vs arr size differ by >10% AND >1 GB (the
- *  "size mismatch" definition — shared by the Browse filter and the Problems
+ *  "size mismatch" definition - shared by the Browse filter and the Problems
  *  page so the two can't drift). Zero-size items are EXCLUDED: 0 bytes isn't a
- *  mismatch, it's "the server sees no files" — the Zero size category's
+ *  mismatch, it's "the server sees no files" - the Zero size category's
  *  diagnosis (which shows the *arr size as context). Expects media_items
  *  aliased `m`, arr_items `a`. */
 const SIZE_MISMATCH_EXPR = `a.rating_key IS NOT NULL AND a.arr_size_bytes IS NOT NULL
@@ -896,7 +896,7 @@ export function queryLibrary(q: LibraryQuery): LibraryRow[] {
   const keptFilter: KeptFilter = q.hideKept ? 'unkept' : q.keptFilter ?? 'all';
   if (keptFilter === 'kept') where.push(keptExists);
   else if (keptFilter === 'unkept') where.push(`NOT ${keptExists}`);
-  // "Kept by you" — only titles this user personally keeps (subset of kept).
+  // "Kept by you" - only titles this user personally keeps (subset of kept).
   if (q.keptByMeOnly) where.push('km.rating_key IS NOT NULL');
 
   const skipFilter: SkipFilter = q.skipFilter ?? 'all';
@@ -954,7 +954,7 @@ export function queryLibrary(q: LibraryQuery): LibraryRow[] {
 
   // Sonarr/Radarr filters (reference arr_items via the LEFT JOIN below). Each is
   // multi-value "any of" and implicitly restricts to arr-matched titles. A helper
-  // emits `col IN (@p0,@p1,…)` with uniquely-named params.
+  // emits `col IN (@p0,@p1,...)` with uniquely-named params.
   const inClause = (col: string, vals: string[], prefix: string) => {
     const named = vals.map((_, i) => `@${prefix}${i}`);
     vals.forEach((v, i) => (params[`${prefix}${i}`] = v));
@@ -980,7 +980,7 @@ export function queryLibrary(q: LibraryQuery): LibraryRow[] {
 
   if (q.requestedKeys != null) {
     if (q.requestedKeys.length === 0) {
-      where.push('1 = 0'); // requested-by-me with nothing requested → no rows
+      where.push('1 = 0'); // requested-by-me with nothing requested -> no rows
     } else {
       const named = q.requestedKeys.map((_, i) => `@req${i}`);
       q.requestedKeys.forEach((k, i) => (params[`req${i}`] = k));
@@ -1365,7 +1365,7 @@ export interface LibrarySummaryRow {
   unwatched_bytes: number;
   // Never-watched-by-anyone bytes, split by THIS user's keep bucket (so the
   // never-watched total can be drawn with the same kept/dontcare/undecided
-  // breakdown as the composition bar). These four sum to `unwatched_bytes`.
+  // breakdown as the composition bar). kept + dontcare + undecided sum to `unwatched_bytes`.
   unwatched_kept_bytes: number; // protected (anyone keeps it) + never watched
   unwatched_kept_by_me_bytes: number; // this user keeps it + never watched
   unwatched_dontcare_bytes: number;
@@ -1375,7 +1375,7 @@ export interface LibrarySummaryRow {
 export function librarySummary(plexUserId: string): LibrarySummaryRow[] {
   const protectedExpr =
     'EXISTS (SELECT 1 FROM keeps k WHERE k.rating_key = m.rating_key)';
-  // "Never watched by anyone" — no watch_history row for this item, any user.
+  // "Never watched by anyone" - no watch_history row for this item, any user.
   const notWatchedExpr =
     'NOT EXISTS (SELECT 1 FROM watch_history w WHERE w.rating_key = m.rating_key)';
   return getDb()
@@ -1575,7 +1575,7 @@ export function isJobRunning(jobId: string): boolean {
 }
 
 /**
- * Flip any job still marked 'running' to 'error' — called once at boot. A
+ * Flip any job still marked 'running' to 'error' - called once at boot. A
  * process killed mid-job leaves its persisted 'running' row behind, which
  * would otherwise gate that job out of the scheduler AND manual runs forever.
  * last_run is untouched so the schedule re-fires the job normally.
@@ -1676,7 +1676,7 @@ export function clearWatchHistory(): number {
 /**
  * Wipe all media + user-decision + cache data for a fresh reseed (dev seed's
  * `--reset`; children before media_items for FK order). Settings, users, logs,
- * and job_state survive. One transaction — a partial wipe would be worse than
+ * and job_state survive. One transaction - a partial wipe would be worse than
  * none.
  */
 export function resetAllData(): void {
@@ -1757,7 +1757,7 @@ export function seerrRequestKeys(plexUserId: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Sonarr / Radarr cache (refreshed by the 'arr' job) — backs the Quality view
+// Sonarr / Radarr cache (refreshed by the 'arr' job)
 // ---------------------------------------------------------------------------
 
 export interface ArrItemInput {
@@ -1840,7 +1840,7 @@ export function clearArrItems(): number {
 
 /** Rating keys of non-removed media items by external id (for arr matching). The
  *  stored guid may be a CSV ("376459,407505") when Plex lists several ids for one
- *  item — split it so a Sonarr/Radarr id matching ANY of them resolves. `tvdb` is
+ *  item - split it so a Sonarr/Radarr id matching ANY of them resolves. `tvdb` is
  *  scoped to shows, `tmdb` to movies; `imdb` spans both (ids are globally unique). */
 export function ratingKeysByGuid(kind: 'tvdb' | 'tmdb' | 'imdb'): Map<string, string> {
   const col = kind === 'tvdb' ? 'guid_tvdb' : kind === 'tmdb' ? 'guid_tmdb' : 'guid_imdb';
@@ -1922,7 +1922,7 @@ export interface ArrUnmatchedInput {
   /** On-disk size in *arr (0 when not downloaded). */
   sizeBytes: number;
   /** sizeOnDisk > 0 in the *arr. Fileless (wanted-but-not-downloaded) titles
-   *  are recorded too — they feed the identity-mismatch check — but the
+   *  are recorded too - they feed the identity-mismatch check - but the
    *  "downloaded, not in server" surfaces only count downloaded ones.
    *  Optional for back-compat (defaults to true). */
   downloaded?: boolean;
@@ -1937,7 +1937,7 @@ export interface ArrUnmatchedRow extends ArrUnmatchedInput {
   /** Disk reality check (arr + diskScan jobs): null = not verified yet,
    *  false = folder not found under any mapped root, true = found. */
   onDisk: boolean | null;
-  /** Measured (walked) size when found — not the *arr's claim. */
+  /** Measured (walked) size when found - not the *arr's claim. */
   diskSizeBytes: number | null;
 }
 
@@ -2002,7 +2002,7 @@ export function clearArrUnmatched(): number {
 }
 
 /** Unmatched titles, largest first (so the biggest orphaned downloads lead).
- *  Default = downloaded only (media on disk the server can't see — the Match
+ *  Default = downloaded only (media on disk the server can't see - the Match
  *  health / "In *arr, not in server" semantics); pass false to include the
  *  fileless rows too. */
 export function getArrUnmatched(downloadedOnly = true): ArrUnmatchedRow[] {
@@ -2044,17 +2044,17 @@ export function getArrUnmatched(downloadedOnly = true): ArrUnmatchedRow[] {
   }));
 }
 
-// --- Cross-instance *arr conflicts (two instances claiming one item) ---
+// --- *arr claim conflicts (two records claiming one item; see sameInstance) ---
 
 export interface ArrConflictInput {
   ratingKey: string;
   /** Losing record's title. */
   title: string;
-  /** The winner — the instance whose record was kept in arr_items. */
+  /** The winner - the instance whose record was kept in arr_items. */
   firstSource: string;
   firstInstanceId: string;
   firstInstanceName: string;
-  /** The loser — the instance whose record was dropped (owns this row). */
+  /** The loser - the instance whose record was dropped (owns this row). */
   source: string;
   instanceId: string;
   instanceName: string;
@@ -2160,7 +2160,7 @@ export function mediaMissingExternalIds(): {
   sample: { title: string; kind: string }[];
 } {
   const db = getDb();
-  // An item can match if it has its kind's id OR an imdb id — so "no id" means
+  // An item can match if it has its kind's id OR an imdb id - so "no id" means
   // BOTH are null (truly unmatchable by Sonarr/Radarr).
   const count = (kind: 'show' | 'movie', col: string) =>
     (
@@ -2240,7 +2240,7 @@ export function unmatchedMediaSummary(
     .get() as Omit<QualitySummaryRow, 'quality'>;
 }
 
-/** Map of existing (non-removed) show rating_key → current size_bytes. */
+/** Map of existing (non-removed) show rating_key -> current size_bytes. */
 export function existingShowSizes(): Map<string, number> {
   const rows = getDb()
     .prepare(
@@ -2263,7 +2263,7 @@ export function showRatingKeys(): string[] {
 
 /** Update a single item's size on disk (used by the size-recompute job).
  *  `dirPath`/`dirNames` (derived from episode paths) also refresh the on-disk
- *  folder fields when present — the backfill for servers that omit a show's
+ *  folder fields when present - the backfill for servers that omit a show's
  *  Location from listings. `dirNames` covers multi-folder shows and is stored
  *  newline-joined. Null/empty leaves the stored values untouched. */
 export function updateItemSize(
@@ -2289,13 +2289,13 @@ export function updateItemSize(
 }
 
 // ---------------------------------------------------------------------------
-// Problems page (admin) — per-category detectors. Categories overlap
-// deliberately (e.g. a zero-size item with >1 GB in *arr also passes the size
-// mismatch check); never sum them into a grand total.
+// Problems page (admin) - per-category detectors. Categories overlap
+// deliberately (e.g. a zero-size item no *arr matched is also Not in *arr);
+// never sum them into a grand total.
 // ---------------------------------------------------------------------------
 
 /** View options for the paged problem lists: sort key (per-category
- *  allow-list; unknown → default), direction, and library/kind filters. */
+ *  allow-list; unknown -> default), direction, and library/kind filters. */
 export interface ProblemListOpts {
   sort?: string;
   dir?: 'asc' | 'desc';
@@ -2303,7 +2303,7 @@ export interface ProblemListOpts {
   kind?: LibraryKind;
 }
 
-/** ORDER BY from a per-category allow-list — user input NEVER lands in SQL
+/** ORDER BY from a per-category allow-list - user input NEVER lands in SQL
  *  directly. Untitled dir defaults: asc for name-ish keys, desc otherwise. */
 function problemOrder(
   allow: Record<string, string>,
@@ -2349,7 +2349,7 @@ export interface SizeMismatchItem {
   dirPath: string | null;
   plexBytes: number;
   arrBytes: number;
-  /** Signed: plex − arr (positive = Plex sees more than *arr). */
+  /** Signed: plex - arr (positive = Plex sees more than *arr). */
   deltaBytes: number;
   source: string;
   instanceName: string;
@@ -2357,7 +2357,7 @@ export interface SizeMismatchItem {
    *  Null until the Disk scan job has measured it. */
   diskSizeBytes: number | null;
   diskCheckedAt: number | null;
-  /** Movie: distinct video files merged into the item (>1 = multi-part — the
+  /** Movie: distinct video files merged into the item (>1 = multi-part - the
    *  server sums them all, so exceeding the *arr's single file is expected).
    *  Null for shows / until a library scan captures it. */
   fileCount: number | null;
@@ -2465,7 +2465,7 @@ export function updateItemDiskCheck(
     .run(diskSizeBytes, checkedAt, ratingKey);
 }
 
-/** Count + summed |Plex − arr| delta over all size mismatches. */
+/** Count + summed |Plex - arr| delta over all size mismatches. */
 export function sizeMismatchSummary(): { titles: number; bytes: number } {
   return getDb()
     .prepare(
@@ -2492,7 +2492,7 @@ export interface NotInArrItem {
 }
 
 /** Non-removed items with no arr match, largest first.
- *  `excludeMissingIds` drops items with no external id at all — they can NEVER
+ *  `excludeMissingIds` drops items with no external id at all - they can NEVER
  *  match *arr, so they'd flood this view (they have their own Missing IDs
  *  category). (Aggregate counterpart: unmatchedMediaSummary().) */
 const NOT_IN_ARR_SORT: Record<string, string> = {
@@ -2543,7 +2543,7 @@ export function notInArrItems(
 }
 
 /** Count + bytes of DOWNLOADED arr_unmatched rows without loading them
- *  (Problems summary — fileless rows aren't "media the server can't see"). */
+ *  (Problems summary - fileless rows aren't "media the server can't see"). */
 export function arrUnmatchedSummary(): { titles: number; bytes: number } {
   return getDb()
     .prepare(
@@ -2560,7 +2560,7 @@ export interface DuplicateMember {
   libraryKind: LibraryKind;
   sectionId: string;
   thumb: string | null;
-  /** Where this copy lives — the whole point of the duplicates comparison. */
+  /** Where this copy lives - the whole point of the duplicates comparison. */
   dirPath: string | null;
   sizeBytes: number;
   addedAt: number | null;
@@ -2591,7 +2591,7 @@ interface DuplicateScanRow {
 }
 
 /**
- * Groups of non-removed items sharing an external id — the same title imported
+ * Groups of non-removed items sharing an external id - the same title imported
  * into two libraries, or one entry Plex should have merged. CSV guid values are
  * split like ratingKeysByGuid (an item can carry several ids of a kind); the
  * kind-scoped axes run first so a pair sharing tmdb AND imdb is reported once,
@@ -2653,7 +2653,7 @@ export function duplicateGroups(): DuplicateGroup[] {
       const distinct = [...new Map(members.map((m) => [m.rating_key, m])).values()];
       if (distinct.length < 2) continue;
       // The same member set is often reachable via several ids/axes (a pair
-      // sharing tmdb + imdb, or both halves of a CSV) — report it once.
+      // sharing tmdb + imdb, or both halves of a CSV) - report it once.
       const setKey = distinct
         .map((m) => m.rating_key)
         .sort()
@@ -2686,7 +2686,7 @@ export interface ZeroSizeItem {
   thumb: string | null;
   dirPath: string | null;
   addedAt: number | null;
-  /** *arr context when matched: "the *arr has 19 GB for this — the server sees
+  /** *arr context when matched: "the *arr has 19 GB for this - the server sees
    *  nothing" is a very different fix than a dead metadata-only entry. */
   arrBytes: number | null;
   instanceName: string | null;
@@ -2748,16 +2748,16 @@ export function zeroSizeCount(): number {
   ).n;
 }
 
-/** A tombstoned item someone still keeps — something protected got deleted anyway. */
+/** A tombstoned item someone still keeps - something protected got deleted anyway. */
 export interface RemovedButKeptItem {
   ratingKey: string;
   title: string;
   year: number | null;
   libraryKind: LibraryKind;
   sectionId: string;
-  /** Last-known size — the item is gone from the media server, so this is stale. */
+  /** Last-known size - the item is gone from the media server, so this is stale. */
   sizeBytes: number;
-  /** Last-known folder path (stale for the same reason — but it answers "did
+  /** Last-known folder path (stale for the same reason - but it answers "did
    *  the files actually get deleted?"). */
   dirPath: string | null;
   keptBy: { plexUserId: string; username: string | null }[];
@@ -2833,7 +2833,7 @@ export interface MissingIdItem {
   sizeBytes: number;
 }
 
-// The "can never match *arr" predicate — no kind-primary id AND no imdb
+// The "can never match *arr" predicate - no kind-primary id AND no imdb
 // (mirrors mediaMissingExternalIds, whose count/sample shape still backs the
 // arr-health endpoint; the Match health card shows the counts and links to the
 // Problems page for the full list).
@@ -2896,7 +2896,7 @@ export function missingExternalIdsSummary(): { titles: number; bytes: number } {
 // --- Identity mismatch (same folder, two identities) ---
 
 /** One folder claimed by BOTH a media-server item and an unmatched *arr title
- *  under different external ids — Plex/JF matched the folder to one thing,
+ *  under different external ids - Plex/JF matched the folder to one thing,
  *  Sonarr/Radarr tracks another. One side's match is wrong (usually the
  *  server's). */
 export interface IdentityMismatchItem {
@@ -2910,7 +2910,7 @@ export interface IdentityMismatchItem {
     dirPath: string | null;
     sizeBytes: number;
     /** The server's OWN external ids (CSV when it lists several; null = none of
-     *  that kind) — shown beside the *arr's id so the disagreement is visible. */
+     *  that kind) - shown beside the *arr's id so the disagreement is visible. */
     guidTmdb: string | null;
     guidTvdb: string | null;
     guidImdb: string | null;
@@ -2929,10 +2929,10 @@ export interface IdentityMismatchItem {
 
 /**
  * Join unmatched *arr titles to media items by normalized FOLDER NAME (the
- * duplicateGroups pattern: load both sides, match in JS — names need unicode
+ * duplicateGroups pattern: load both sides, match in JS - names need unicode
  * NFC + case-fold comparison SQLite can't do). The ids disagree by
  * construction: a title whose id matched a media item wouldn't be in
- * arr_unmatched. Multi-folder shows store newline-joined dir_names — every
+ * arr_unmatched. Multi-folder shows store newline-joined dir_names - every
  * folder counts. Ordered by media size DESC.
  */
 export function identityMismatchItems(): IdentityMismatchItem[] {
@@ -2959,7 +2959,7 @@ export function identityMismatchItems(): IdentityMismatchItem[] {
     guid_imdb: string | null;
   }[];
 
-  // folder name (normalized) → media items claiming it.
+  // folder name (normalized) -> media items claiming it.
   const byFolder = new Map<string, typeof mediaRows>();
   for (const m of mediaRows) {
     for (const name of m.dir_name.split('\n')) {
@@ -3027,7 +3027,7 @@ export interface DiskOrphanInput {
   sizeBytes: number;
   /** True when the circuit breaker recorded the name but skipped sizing. */
   sizeSkipped: boolean;
-  /** Entry mtime (sec) at scan time — the size-cache key. */
+  /** Entry mtime (sec) at scan time - the size-cache key. */
   mtime: number | null;
 }
 
@@ -3037,7 +3037,7 @@ export interface DiskOrphanRow extends DiskOrphanInput {
 }
 
 /** Replace one section's orphan rows atomically. Sections the scan skips
- *  (safety guard, unreadable root) are simply not replaced — prior rows stay. */
+ *  (safety guard, unreadable root) are simply not replaced - prior rows stay. */
 export function replaceDiskOrphansForSection(
   sectionId: string,
   rows: DiskOrphanInput[]
@@ -3095,7 +3095,7 @@ export function getDiskOrphans(): DiskOrphanRow[] {
 }
 
 /** An orphan annotated with the library title it LOOKS like (exact titleKey
- *  match) — usually a leftover old copy: the library already has the title in
+ *  match) - usually a leftover old copy: the library already has the title in
  *  another folder, so the orphan is safe to verify-and-delete. */
 export interface DiskOrphanAnnotated extends DiskOrphanRow {
   likely: {
@@ -3184,14 +3184,14 @@ export function sectionDiskNameStats(sectionId: string): {
   let named = 0;
   for (const r of rows) {
     if (r.dir_name || r.file_name) named++;
-    // dir_name is newline-joined for multi-folder shows — every folder counts.
+    // dir_name is newline-joined for multi-folder shows - every folder counts.
     if (r.dir_name) names.push(...r.dir_name.split('\n').filter(Boolean));
     if (r.file_name) names.push(r.file_name);
   }
   return { total: rows.length, named, names };
 }
 
-/** Every *arr folder basename we know of — matched (arr_items) AND unmatched
+/** Every *arr folder basename we know of - matched (arr_items) AND unmatched
  *  (arr_unmatched: on disk per *arr but invisible to the media server). Global,
  *  not section-scoped: arr instances don't map to library sections. */
 export function arrFolderNames(): string[] {

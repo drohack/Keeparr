@@ -16,7 +16,7 @@ export const runtime = 'nodejs';
 /**
  * A fresh feed batch. Query: limit, largest (1 = biggest titles overall,
  * regardless of library/keep-eligibility), section (a single Plex library id;
- * omit for a mix across all libraries). Categories are real Plex libraries —
+ * omit for a mix across all libraries). Categories are real Plex libraries -
  * nothing is hardcoded.
  */
 export async function GET(req: Request) {

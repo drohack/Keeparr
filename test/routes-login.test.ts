@@ -14,7 +14,7 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-// Credentials always fail — we only care that each attempt consumes a rate-limit
+// Credentials always fail - we only care that each attempt consumes a rate-limit
 // hit, not the auth outcome.
 vi.mock('@/lib/jellyfin', () => ({
   authenticateByName: vi.fn(async () => {
@@ -62,7 +62,7 @@ describe('POST /api/auth/login rate limiting', () => {
 
   it('a different username from the same run is not yet limited', async () => {
     for (let i = 0; i < 11; i++) await attempt('victim', `10.0.0.${i}`);
-    // Distinct username + distinct IP → only the global bucket has accrued.
+    // Distinct username + distinct IP -> only the global bucket has accrued.
     const res = await attempt('someone-else', '10.0.0.200');
     expect(res.status).not.toBe(429);
   });

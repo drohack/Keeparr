@@ -67,7 +67,7 @@ export default function MediaCard({
   tourDeleteTarget = false,
 }: Props) {
   // Per user: keptByMe / skipped / markedForDelete / neither (shared logic). An
-  // item can also be "kept by others" (item.kept true while not mine) —
+  // item can also be "kept by others" (item.kept true while not mine) -
   // protected, but their keep is never ours to remove. Snapshot fixed at load.
   const keptByOthers = item.kept && !item.keptByMe;
   const {
@@ -88,7 +88,7 @@ export default function MediaCard({
     onSkipChange,
     onDeleteChange,
   });
-  // Someone else released it (the by-anyone view) — name-less badge; my own
+  // Someone else released it (the by-anyone view) - name-less badge; my own
   // mark is shown by its own badge/button.
   const releasedByOther = !!item.markedForDeleteAny && !markedForDelete;
 
@@ -122,7 +122,8 @@ export default function MediaCard({
   // Use a real 2px border (not a ring): an outward ring gets clipped by the Keep
   // page's overflow-hidden grid, and an inset ring hides behind the poster
   // image. A border frames the card, so it's always fully visible. With
-  // box-border (Tailwind default) the 1px↔2px change causes no layout shift.
+  // box-border (Tailwind default) the card's width holds across the 1px<->2px
+  // change; only the poster inside shrinks slightly.
   const borderCls = keptByMe
     ? 'border-2 border-brand'
     : markedForDelete
@@ -158,10 +159,10 @@ export default function MediaCard({
             {item.title}
           </div>
         )}
-        {/* Watched marker: small, neutral, bottom-left — never collides with the
+        {/* Watched marker: small, neutral, bottom-left - never collides with the
             keep/don't-care badges (top corners) or their highlights. */}
         {item.watched && <WatchedBadge className="absolute bottom-1 left-1" />}
-        {/* Sonarr/Radarr quality — small, muted, bottom-right (opposite the
+        {/* Sonarr/Radarr quality - small, muted, bottom-right (opposite the
             watched eye). Subordinate to the keep/don't-care badges. */}
         {item.quality && (
           <div
@@ -224,7 +225,7 @@ export default function MediaCard({
             {skipped ? '↺ I care after all' : "I don't care"}
           </button>
         )}
-        {/* "OK to delete" — on titles you requested on Seerr (you're the original
+        {/* "OK to delete" - on titles you requested on Seerr (you're the original
             requester signing off). Also shown once marked, so you can always undo. */}
         {(item.requestedByMe || markedForDelete) && (
           <button

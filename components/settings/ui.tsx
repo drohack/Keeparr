@@ -62,7 +62,7 @@ export function Card({
 }
 
 /**
- * Single full-width column of stacked cards. (Multi-column reflow was jarring on
+ * Single full-width column of stacked cards. (Multi-column reflow jumps around on
  * resize.) Cards carry their own bottom margin, so they just stack. Jobs & Cache
  * opts out with its own 2-column grid.
  */

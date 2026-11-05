@@ -4,7 +4,7 @@ import { DB_PATH, DATA_DIR } from './config';
 
 let db: Database.Database | null = null;
 
-/** Create the schema on a freshly opened database. Exported for tests only —
+/** Create the schema on a freshly opened database. Exported for tests only -
  *  the app always goes through getDb(). */
 export function applySchema(database: Database.Database): void {
   database.pragma('foreign_keys = ON');
@@ -135,8 +135,9 @@ export function applySchema(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_seerr_user ON seerr_requests(plex_user_id);
 
     -- Sonarr/Radarr metadata per matched media item (refreshed by the 'arr' job).
-    -- One row per matched Plex item (rating_key); quality/tags/status cross-data
-    -- for the Quality view. Report-only today; arr_id + instance let a future
+    -- One row per matched media item (rating_key); quality/tags/status cross-data
+    -- for Browse (List view + arr filters), Big Picture's quality breakdown and
+    -- the Problems page. Report-only today; arr_id + instance let a future
     -- action (unmonitor/delete) target the right instance.
     CREATE TABLE IF NOT EXISTS arr_items (
       rating_key     TEXT PRIMARY KEY REFERENCES media_items(rating_key) ON DELETE CASCADE,
@@ -288,14 +289,14 @@ function migrate(database: Database.Database): void {
   if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'folder_name')) {
     database.exec(`ALTER TABLE arr_unmatched ADD COLUMN folder_name TEXT`);
   }
-  // arr_unmatched gained path (the FULL *arr-side folder path — the Problems
+  // arr_unmatched gained path (the FULL *arr-side folder path - the Problems
   // page's Location cell). Cache table; NULL until the next arr run.
   if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'path')) {
     database.exec(`ALTER TABLE arr_unmatched ADD COLUMN path TEXT`);
   }
   // arr_unmatched gained downloaded: fileless unmatched titles are now recorded
   // too (they feed the identity-mismatch check). Old rows were all downloaded
-  // by construction (the sync used to skip fileless ones) → default 1.
+  // by construction (the sync used to skip fileless ones) -> default 1.
   if (arrUnCols.length > 0 && !arrUnCols.some((c) => c.name === 'downloaded')) {
     database.exec(
       `ALTER TABLE arr_unmatched ADD COLUMN downloaded INTEGER NOT NULL DEFAULT 1`
@@ -338,20 +339,20 @@ function migrate(database: Database.Database): void {
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'file_name')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN file_name TEXT`);
   }
-  // media_items gained dir_path (the FULL server-side folder path — the
+  // media_items gained dir_path (the FULL server-side folder path - the
   // Problems page's Location cells). NULL until the next library scan.
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'dir_path')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN dir_path TEXT`);
   }
   // media_items gained the measured on-disk size (diskScan walks the folders of
-  // size-mismatched titles — the tiebreaker between the Plex and *arr claims).
+  // size-mismatched titles - the tiebreaker between the Plex and *arr claims).
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'disk_size_bytes')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN disk_size_bytes INTEGER`);
   }
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'disk_checked_at')) {
     database.exec(`ALTER TABLE media_items ADD COLUMN disk_checked_at INTEGER`);
   }
-  // media_items gained file_count (movies: number of video files in the item —
+  // media_items gained file_count (movies: number of video files in the item -
   // >1 means the server merged several files, e.g. a two-part movie, so its
   // size legitimately exceeds the *arr's). NULL until the next library scan.
   if (mediaCols.length > 0 && !mediaCols.some((c) => c.name === 'file_count')) {
@@ -366,12 +367,11 @@ function migrate(database: Database.Database): void {
     .all() as { name: string }[];
   if (keepCols.length > 0 && !keepCols.some((c) => c.name === 'plex_user_id')) {
     // A leftover keeps_new can only be an orphaned partial copy from a crash
-    // mid-rebuild (this branch only runs while keeps is still legacy-shape) —
+    // mid-rebuild (this branch only runs while keeps is still legacy-shape) -
     // drop it and redo, else CREATE TABLE below would fail and block boot.
     database.exec('DROP TABLE IF EXISTS keeps_new');
-    // One transaction so a crash rolls back to the intact legacy table —
-    // autocommit-per-statement left windows that boot-looped or silently
-    // emptied keeps.
+    // One transaction so a crash rolls back to the intact legacy table
+    // instead of leaving keeps half-rebuilt (boot loop or emptied keeps).
     database.transaction(() => {
       database.exec(`
         CREATE TABLE keeps_new (
@@ -408,7 +408,7 @@ export function getDb(): Database.Database {
 
 /**
  * Close the singleton so the database file can be swapped (backup restore).
- * The next getDb() reopens it — and runs applySchema()/migrate(), so restoring
+ * The next getDb() reopens it - and runs applySchema()/migrate(), so restoring
  * an older backup upgrades it automatically. Safe because better-sqlite3 is
  * synchronous: no statement is ever held across an await, so nothing can be
  * mid-query when this runs. All statements are prepared per-call via getDb()

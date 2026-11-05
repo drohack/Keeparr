@@ -52,7 +52,7 @@ function errCode(e: unknown): string {
   return code ?? String(e);
 }
 
-/** statfs a path, never throwing — returns sizes or a coarse error code. */
+/** statfs a path, never throwing - returns sizes or a coarse error code. */
 export async function statfsSafe(
   path: string
 ): Promise<
@@ -74,7 +74,7 @@ export async function statfsSafe(
 }
 
 /**
- * Build the storage report from the configured section→path mappings and the
+ * Build the storage report from the configured section->path mappings and the
  * per-section used bytes (from media_items). Paths are grouped by filesystem so
  * shared mounts aren't double-counted.
  */

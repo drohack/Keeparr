@@ -28,8 +28,8 @@ interface PostBody {
 }
 
 /**
- * `{action:'create'}` — run the backup job now (single-flight, shows in the
- * jobs history). `{action:'restore', name}` — replace the live database with
+ * `{action:'create'}` - run the backup job now (single-flight, shows in the
+ * jobs history). `{action:'restore', name}` - replace the live database with
  * the named backup; the current db is snapshotted first as the safety net.
  */
 export async function POST(req: Request) {

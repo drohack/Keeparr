@@ -2,12 +2,12 @@ import { fetchJson } from './http';
 import pkg from '../package.json';
 
 /**
- * Update check against GitHub Releases. The release process is: bump
- * package.json, tag `v<version>`, publish a GitHub release. This module
- * compares the running version to the latest published release.
+ * Update check against GitHub Releases (published on every push to main by
+ * .github/workflows/release.yml). This module compares the running version to
+ * the latest published release.
  *
  * Design constraints: never throw, never block a page on GitHub being slow or
- * rate-limited, and don't hammer the API — results are cached in-memory for
+ * rate-limited, and don't hammer the API - results are cached in-memory for
  * ~6 hours and the last good answer is served on fetch failure.
  */
 
@@ -51,7 +51,7 @@ export function __clearVersionCache(): void {
 
 /**
  * Current vs latest-release version. Cached ~6h; on failure (no releases yet,
- * rate limit, offline) returns the last good answer or a "latest unknown" row —
+ * rate limit, offline) returns the last good answer or a "latest unknown" row -
  * never throws.
  */
 export async function getVersionInfo(
@@ -71,7 +71,7 @@ export async function getVersionInfo(
     };
     cachedAt = Date.now();
   } catch {
-    // No releases yet (404), rate-limited, or offline — keep last good answer.
+    // No releases yet (404), rate-limited, or offline - keep last good answer.
     if (!cached) {
       cached = { current, latest: null, updateAvailable: false, releaseUrl: null };
       cachedAt = Date.now();

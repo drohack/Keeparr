@@ -31,7 +31,7 @@ if (reset) {
 
 const r = seedDevData({ reset });
 console.log(
-  `Seed complete — ${r.totalItems} items, ${formatSize(r.totalBytes)} total` +
+  `Seed complete - ${r.totalItems} items, ${formatSize(r.totalBytes)} total` +
     (r.seededMedia ? '' : ' (media already present; left as-is)') +
     '.'
 );

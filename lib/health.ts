@@ -13,8 +13,8 @@ import { getVersionInfo } from './version';
 import type { JobSchedule } from './config';
 
 /**
- * Health checks (the Servarr System → Status pattern): standing warnings
- * derived from existing state — job_state, settings, and the cached version
+ * Health checks (the Servarr System -> Status pattern): standing warnings
+ * derived from existing state - job_state, settings, and the cached version
  * check. No live network probes, so this is cheap enough to compute per
  * request. Each issue links to a fix-it section in the README via `docSlug`.
  */
@@ -60,12 +60,12 @@ export async function healthIssues(
 ): Promise<HealthIssue[]> {
   const issues: HealthIssue[] = [];
 
-  // 1. No media server yet — everything else is moot.
+  // 1. No media server yet - everything else is moot.
   if (!isServerConfigured()) {
     issues.push({
       id: 'server-not-configured',
       severity: 'error',
-      message: 'No media server is connected — connect Plex/Jellyfin/Emby in Settings → Connections.',
+      message: 'No media server is connected - connect Plex/Jellyfin/Emby in Settings -> Connections.',
       docSlug: 'media-server-not-configured',
     });
   }
@@ -86,24 +86,24 @@ export async function healthIssues(
       continue; // failing already covers staleness
     }
 
-    // 3. A scheduled job that has run before hasn't succeeded in >2× its cadence.
+    // 3. A scheduled job that has run before hasn't succeeded in >2x its cadence.
     const cadence = cadenceSeconds(schedules[job.id]);
     if (cadence != null && state.lastRun && now - state.lastRun > 2 * cadence) {
       issues.push({
         id: `job-${job.id}-stale`,
         severity: 'warning',
-        message: `The ${job.label} job hasn't run in over ${Math.floor((now - state.lastRun) / 3600)}h — the scheduler may be stuck (a restart fixes it).`,
+        message: `The ${job.label} job hasn't run in over ${Math.floor((now - state.lastRun) / 3600)}h - the scheduler may be stuck (a restart fixes it).`,
         docSlug: 'a-job-is-stale',
       });
     }
   }
 
-  // 4. Libraries managed but no disk paths mapped — capacity/free-space stays blank.
+  // 4. Libraries managed but no disk paths mapped - capacity/free-space stays blank.
   if (isServerConfigured() && getManagedSections().length > 0 && getStorageMappings().length === 0) {
     issues.push({
       id: 'no-storage-mappings',
       severity: 'warning',
-      message: 'No storage mappings configured — Big Picture can\'t show disk capacity or free space.',
+      message: 'No storage mappings configured - Big Picture can\'t show disk capacity or free space.',
       docSlug: 'no-storage-mappings',
     });
   }
@@ -113,7 +113,7 @@ export async function healthIssues(
     issues.push({
       id: 'backups-disabled',
       severity: 'warning',
-      message: 'Scheduled backups are disabled — set the Backup job to daily in Settings → Jobs.',
+      message: 'Scheduled backups are disabled - set the Backup job to daily in Settings -> Jobs.',
       docSlug: 'backups-disabled',
     });
   }

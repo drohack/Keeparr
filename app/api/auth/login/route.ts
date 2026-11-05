@@ -29,12 +29,12 @@ export const runtime = 'nodejs';
 //
 // The per-IP bucket is best-effort only: the App-Router `Request` exposes no
 // reliable client socket IP (Next 15 removed `request.ip`), so we key it on the
-// client-controlled X-Forwarded-For — which an attacker can rotate to reset the
+// client-controlled X-Forwarded-For - which an attacker can rotate to reset the
 // window. The bucket that actually stops brute force is the per-USERNAME one
 // (unaffected by IP rotation), backed by a GLOBAL ceiling that caps distributed
 // spraying across many usernames.
-const LOGIN_LIMIT = 10; // attempts per IP…
-const LOGIN_WINDOW_MS = 5 * 60 * 1000; // …per 5 minutes
+const LOGIN_LIMIT = 10; // attempts per IP...
+const LOGIN_WINDOW_MS = 5 * 60 * 1000; // ...per 5 minutes
 const USER_LIMIT = 10; // attempts per username per 5 minutes
 const GLOBAL_LIMIT = 50; // total attempts across all IPs/usernames per 5 minutes
 
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     });
 
     if (decision === 'denied') {
-      logEvent('warn', 'auth', `Sign-in denied for ${account.name} (account disabled).`);
+      logEvent('warn', 'auth', `Sign-in denied for ${account.name} (not enabled while sign-in is closed, or setup unfinished).`);
       return NextResponse.json({ status: 'denied' });
     }
 
@@ -148,7 +148,7 @@ export async function POST(req: Request) {
     logEvent(
       'info',
       'auth',
-      `${account.name} signed in${decision === 'bootstrap_admin' ? ' (first user — admin)' : becomesAdmin ? ' (admin)' : ''}.`
+      `${account.name} signed in${decision === 'bootstrap_admin' ? ' (first user - admin)' : becomesAdmin ? ' (admin)' : ''}.`
     );
     return NextResponse.json({
       status: 'authorized',

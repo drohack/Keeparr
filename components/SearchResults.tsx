@@ -37,16 +37,16 @@ export default function SearchResults({ query }: { query: string }) {
       const params = new URLSearchParams({ q: query, offset: String(off) });
       try {
         const data = await fetch(`/api/search?${params}`).then((r) => r.json());
-        if (seq !== fetchSeq.current) return; // superseded — drop it
-        // An error response (e.g. a 500) has no `items` — guard so the view
+        if (seq !== fetchSeq.current) return; // superseded - drop it
+        // An error response (e.g. a 500) has no `items` - guard so the view
         // doesn't crash on a spread/map of undefined.
         const list = Array.isArray(data.items) ? data.items : [];
         setHasMore(!!data.hasMore);
         if (typeof data.nextOffset === 'number') setOffset(data.nextOffset);
         setItems((prev) => (reset ? list : [...prev, ...list]));
       } catch {
-        if (seq !== fetchSeq.current) return; // superseded — don't toast for it
-        toast("Couldn't load search results — is the server reachable?", 'error');
+        if (seq !== fetchSeq.current) return; // superseded - don't toast for it
+        toast("Couldn't load search results - is the server reachable?", 'error');
       } finally {
         if (seq === fetchSeq.current) setLoading(false);
       }

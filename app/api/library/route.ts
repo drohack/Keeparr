@@ -65,7 +65,7 @@ function safeTags(json: string | null): string[] {
  * Browse/search a library. Query: sections, q, sort, dir, kept, keptByMe, skip,
  * watch, requestedByMe, hideKept (legacy), offset, plus Sonarr/Radarr filters
  * source/instance/tag/quality/monitored. Each item also carries arr metadata
- * (quality/tags/status…) for the Browse list view, null when not arr-matched.
+ * (quality/tags/status...) for the Browse list view, null when not arr-matched.
  */
 export async function GET(req: Request) {
   try {
@@ -134,7 +134,7 @@ export async function GET(req: Request) {
     const hasMore = rows.length > PAGE;
     const items = rows.slice(0, PAGE).map((r) => {
       const arrSize = r.arr_size_bytes ?? undefined;
-      // Plex vs arr size diverge >10% AND >1 GB → likely a partial/broken file.
+      // Plex vs arr size diverge >10% AND >1 GB -> likely a partial/broken file.
       const mismatch =
         arrSize != null &&
         Math.abs(r.size_bytes - arrSize) > 1_073_741_824 &&

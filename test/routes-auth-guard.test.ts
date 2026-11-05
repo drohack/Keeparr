@@ -19,10 +19,10 @@ import { __setTestDbToMemory, __closeDb } from '@/lib/db';
 import { upsertUser } from '@/lib/queries';
 import { setSessionCookie } from '@/lib/auth';
 
-// The previously untested route modules. Every /api/ route must guard ITSELF:
+// Every /api/ route must guard ITSELF:
 // middleware's X-Api-Key passthrough only DEFERS validation to the handler, so
 // an unguarded route would be an open door. This sweep pins each one's guard
-// (and that the guard runs BEFORE any body/network/fs work — bare Requests
+// (and that the guard runs BEFORE any body/network/fs work - bare Requests
 // with no body would explode otherwise).
 import { GET as health } from '@/app/api/health/route';
 import { GET as about } from '@/app/api/about/route';
@@ -94,24 +94,24 @@ const ADMIN_GUARDED: [string, Handler, string][] = [
 ];
 
 describe('public routes stay public', () => {
-  it('GET /api/health → 200 (liveness probe)', async () => {
+  it('GET /api/health -> 200 (liveness probe)', async () => {
     expect((await health()).status).toBe(200);
   });
 
-  it('GET /api/auth/me → 200 {user:null} when signed out', async () => {
+  it('GET /api/auth/me -> 200 {user:null} when signed out', async () => {
     const res = await authMe();
     expect(res.status).toBe(200);
     expect((await res.json()).user).toBeNull();
   });
 
-  it('POST /api/auth/logout → 200 without a session (idempotent)', async () => {
+  it('POST /api/auth/logout -> 200 without a session (idempotent)', async () => {
     expect((await logout()).status).toBe(200);
   });
 });
 
 describe('user-guarded routes reject anonymous requests', () => {
   for (const [name, handler, method] of USER_GUARDED) {
-    it(`${name} → 401`, async () => {
+    it(`${name} -> 401`, async () => {
       expect((await handler(req(method))).status).toBe(401);
     });
   }
@@ -119,11 +119,11 @@ describe('user-guarded routes reject anonymous requests', () => {
 
 describe('admin routes reject anonymous AND non-admin requests', () => {
   for (const [name, handler, method] of ADMIN_GUARDED) {
-    it(`${name} → 401 anonymous`, async () => {
+    it(`${name} -> 401 anonymous`, async () => {
       expect((await handler(req(method))).status).toBe(401);
     });
 
-    it(`${name} → 403 for a signed-in non-admin`, async () => {
+    it(`${name} -> 403 for a signed-in non-admin`, async () => {
       await loginAs('pleb');
       expect((await handler(req(method))).status).toBe(403);
     });

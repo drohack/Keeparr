@@ -25,7 +25,7 @@ const ZERO = { titles: 0, bytes: 0 };
 /** Per-category counts + bytes for the Problems page pill strip. Categories
  *  are returned in display order; arr-gated ones come back `available: false`
  *  (zeroed) when Sonarr/Radarr isn't configured, and `notInArr` additionally
- *  waits for the first successful arr match — before that EVERY title would be
+ *  waits for the first successful arr match - before that EVERY title would be
  *  a false positive. `diskOrphans` needs storage mappings AND a completed Disk
  *  scan run; until then it's unavailable with a `reason` the UI turns into a
  *  fix-it tooltip. */
@@ -38,7 +38,7 @@ export async function GET() {
     const orphansReady = storageConfigured && scanned;
     // Gate "not in *arr" until the arr job has actually matched something.
     // The count reflects the list's DEFAULT view: items with no external id at
-    // all are excluded (they can never match — they're the Missing IDs category).
+    // all are excluded (they can never match - they're the Missing IDs category).
     const notInArrReady = arr && arrMatchedCount() > 0;
     const notInArr = notInArrReady ? unmatchedMediaSummary(true) : ZERO;
     const dupes = duplicateGroups();
@@ -61,7 +61,7 @@ export async function GET() {
       {
         type: 'duplicates',
         available: true,
-        titles: dupes.length, // GROUP count — the UI labels it "N groups"
+        titles: dupes.length, // GROUP count - the UI labels it "N groups"
         bytes: dupes.reduce((s, g) => s + g.totalBytes, 0),
       },
       { type: 'zeroSize', available: true, titles: zeroSizeCount(), bytes: 0 },

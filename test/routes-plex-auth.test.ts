@@ -19,10 +19,10 @@ vi.mock('@/lib/plex', () => ({
   buildAuthUrl: vi.fn(() => 'https://app.plex.tv/auth#?code=abcd'),
   checkPin: vi.fn(async () => null),
   getPlexAccount: vi.fn(async () => ({
-    id: '22839572',
+    id: '10000001',
     uuid: 'u',
-    username: 'juncothebird',
-    email: 'junco3@gmail.com',
+    username: 'serverowner',
+    email: 'owner@example.com',
     title: null,
     thumb: null,
   })),
@@ -79,7 +79,7 @@ describe('POST/GET /api/admin/plex-auth (re-auth the stored Plex token)', () => 
     await signInAsAdmin();
     vi.mocked(checkPin).mockResolvedValueOnce('owner-token');
     const res = await authGet(new Request('http://localhost/api/admin/plex-auth?id=4242'));
-    expect(await res.json()).toEqual({ status: 'authorized', username: 'juncothebird' });
+    expect(await res.json()).toEqual({ status: 'authorized', username: 'serverowner' });
     // The whole point: the first-run token is gone, replaced by the owner's.
     expect(readSetting('plex_admin_token')).not.toBe('stale-token-from-first-run');
   });

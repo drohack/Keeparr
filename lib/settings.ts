@@ -43,7 +43,7 @@ export function writeSetting(key: string, value: string): void {
 // --- Media server (Plex / Jellyfin / Emby) ---
 // Keeparr targets ONE media server at a time, chosen at setup (like Seerr's
 // `mediaServerType`). Existing installs predate this key, so it defaults to
-// 'plex' — a Plex deployment keeps reading its `plex_*` keys with no migration.
+// 'plex' - a Plex deployment keeps reading its `plex_*` keys with no migration.
 export type MediaServerType = 'plex' | 'jellyfin' | 'emby';
 
 export function getMediaServerType(): MediaServerType {
@@ -96,7 +96,7 @@ export function setServerField(
 }
 
 // Generic, backend-aware accessors. For 'plex' (the default) these resolve to the
-// exact same keys/values as before, so Plex behavior is unchanged.
+// historical `plex_*` keys (SERVER_KEYS.plex).
 export const getServerBaseUrl = () => readSetting(skey('url'));
 export const getServerToken = () => readSetting(skey('token'));
 export const getServerId = () => readSetting(skey('id'));
@@ -140,7 +140,7 @@ export const isTautulliConfigured = () =>
   !!getTautulliUrl() && !!getTautulliKey();
 
 /**
- * Whether a watch SOURCE is configured. Every backend now has native history of
+ * Whether a watch SOURCE is configured. Every backend has native history of
  * its own (Plex reads its play history over the API, Jellyfin/Emby their
  * UserData), and Tautulli is an additional source rather than the only one for
  * Plex.
@@ -220,7 +220,7 @@ function getOrCreateId(key: string): string {
   return id;
 }
 
-// --- Scheduled job schedules (per job: interval minutes or daily HH:MM) ---
+// --- Scheduled job schedules (per job: interval, daily or weekly) ---
 export type { JobSchedule };
 
 export function getJobSchedules(): Record<string, JobSchedule> {

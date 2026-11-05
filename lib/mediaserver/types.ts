@@ -27,16 +27,16 @@ export interface BackendItem {
   guidTvdb: string | null;
   guidImdb: string | null;
   sizeBytes: number;
-  /** The item's on-disk folder name (server-side basename) — feeds the disk
+  /** The item's on-disk folder name (server-side basename) - feeds the disk
    *  scan's known-name set. Null when the backend didn't report a path. */
   dirName: string | null;
   /** Movie file basename (covers loose files in the library root); null for shows. */
   fileName: string | null;
   /** Movie: how many distinct video files the server merged into this item
-   *  (>1 = multi-part/multi-version — its size legitimately exceeds the *arr's
+   *  (>1 = multi-part/multi-version - its size legitimately exceeds the *arr's
    *  single file). Null for shows and when the backend didn't report media. */
   fileCount: number | null;
-  /** FULL server-side path of the item's folder (as the media server sees it) —
+  /** FULL server-side path of the item's folder (as the media server sees it) -
    *  shown on the Problems page so problems can be located on disk. */
   dirPath: string | null;
 }
@@ -52,12 +52,12 @@ export interface WatchRow {
 /** A show's on-disk footprint, computed from its episodes. */
 export interface ShowDisk {
   sizeBytes: number;
-  /** PRIMARY show folder derived from episode file paths — the fallback when
+  /** PRIMARY show folder derived from episode file paths - the fallback when
    *  the backend omits the show's own Location/Path from listings. Null when
    *  no episode carried a usable path. */
   dirPath: string | null;
   /** Basenames of EVERY folder the show's episodes span (media servers merge
-   *  multi-folder shows) — all of them must count as "known" on disk. */
+   *  multi-folder shows) - all of them must count as "known" on disk. */
   dirNames: string[];
 }
 

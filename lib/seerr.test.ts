@@ -46,7 +46,7 @@ describe('requestedRatingKeysForUser (paged take/skip)', () => {
       );
     const keys = await requestedRatingKeysForUser('http://seerr', 'k', ME);
     expect(keys.size).toBe(250);
-    expect(keys.has('250')).toBe(true); // the old take=200 cap dropped this
+    expect(keys.has('250')).toBe(true); // only on the second page
     expect(spy).toHaveBeenCalledTimes(3);
     expect(String(spy.mock.calls[2][0])).toContain('take=200&skip=200');
   });

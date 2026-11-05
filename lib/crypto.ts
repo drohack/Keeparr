@@ -9,7 +9,7 @@ import { SESSION_SECRET } from './config';
 /**
  * Symmetric encryption for service tokens (Plex/Tautulli/Seerr) stored in the
  * settings table. The key is derived from SESSION_SECRET, so rotating the
- * secret invalidates stored tokens (admin must re-enter them) — acceptable for
+ * secret invalidates stored tokens (admin must re-enter them) - acceptable for
  * a self-hosted single-tenant app. Node-only (uses node:crypto).
  */
 

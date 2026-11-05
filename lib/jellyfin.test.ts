@@ -20,13 +20,13 @@ describe('jellyfin mapping (pure)', () => {
 
   it('sumMediaSources counts each physical file once (multi-episode files dedupe by Path)', () => {
     const items: JfItem[] = [
-      // Two episodes packed in ONE file → Plex/Jellyfin report the full size on
+      // Two episodes packed in ONE file -> Plex/Jellyfin report the full size on
       // each; must be counted once.
       { MediaSources: [{ Path: '/tv/show/s01e01e02.mkv', Size: 2 * GB }] },
       { MediaSources: [{ Path: '/tv/show/s01e01e02.mkv', Size: 2 * GB }] },
-      // A distinct file → added.
+      // A distinct file -> added.
       { MediaSources: [{ Path: '/tv/show/s01e03.mkv', Size: 1 * GB }] },
-      // No path → can't dedupe, summed as-is.
+      // No path -> can't dedupe, summed as-is.
       { MediaSources: [{ Size: 500 }] },
     ];
     expect(sumMediaSources(items)).toBe(3 * GB + 500);
@@ -41,7 +41,7 @@ describe('jellyfin mapping (pure)', () => {
       ProviderIds: { Tmdb: '603' },
       MediaSources: [{ Path: '/movies/matrix.mkv', Size: 8 * GB }],
     };
-    const row = toBackendItem(it, true); // movie → include size
+    const row = toBackendItem(it, true); // movie -> include size
     expect(row.ratingKey).toBe('abc123');
     expect(row.title).toBe('The Matrix');
     expect(row.year).toBe(1999);
@@ -69,7 +69,7 @@ describe('jellyfin mapping (pure)', () => {
       true
     );
     expect(merged.fileCount).toBe(2);
-    // No sources → null; series never carry a count.
+    // No sources -> null; series never carry a count.
     expect(toBackendItem({ Id: 'm3', Name: 'X' }, true).fileCount).toBeNull();
     expect(
       toBackendItem({ Id: 's1', Name: 'Show', Path: '/tv/Show' }, false).fileCount
@@ -102,7 +102,7 @@ describe('jellyfin mapping (pure)', () => {
     const row = toBackendItem(it, false);
     expect(row.sizeBytes).toBe(0);
     expect(row.guidTvdb).toBe('81189');
-    // Series Path IS the folder — its basename is the disk name.
+    // Series Path IS the folder - its basename is the disk name.
     expect(row.dirName).toBe('Breaking Bad');
     expect(row.fileName).toBeNull();
     expect(row.dirPath).toBe('/tv/Breaking Bad');
@@ -135,7 +135,7 @@ describe('paged /Items reads (StartIndex/Limit)', () => {
     });
     const spy = vi
       .spyOn(globalThis, 'fetch')
-      // Server answers with fewer rows than asked — the loop must follow
+      // Server answers with fewer rows than asked - the loop must follow
       // TotalRecordCount, not assume one page covers everything.
       .mockResolvedValueOnce(
         fakeRes({

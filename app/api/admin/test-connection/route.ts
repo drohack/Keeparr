@@ -30,7 +30,7 @@ interface Body {
 }
 
 /** Probe a service's reachability with the provided (unsaved) credentials. The
- *  result is also written to the app log (Settings → Logs) so failures are
+ *  result is also written to the app log (Settings -> Logs) so failures are
  *  diagnosable without server console access. */
 export async function POST(req: Request) {
   try {
@@ -58,12 +58,12 @@ export async function POST(req: Request) {
     } else if (body.service === 'jellyfin' || body.service === 'emby') {
       result = await testJellyfin(body.url);
     } else if (body.service === 'tautulli') {
-      // Blank key → fall back to the saved one (re-testing a saved connection).
+      // Blank key -> fall back to the saved one (re-testing a saved connection).
       result = await testTautulli(body.url, body.apiKey || getTautulliKey() || '');
     } else if (body.service === 'seerr') {
       result = await testSeerr(body.url, body.apiKey || getSeerrKey() || '');
     } else if (body.service === 'sonarr' || body.service === 'radarr') {
-      // Blank key + a saved instance id → use that instance's stored key.
+      // Blank key + a saved instance id -> use that instance's stored key.
       let key = body.apiKey ?? '';
       if (!key && body.instanceId) {
         const insts =
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     logEvent(
       result.ok ? 'info' : 'warn',
       'connection',
-      `Test ${body.service} (${body.url}): ${result.ok ? 'OK' : 'failed'} — ${result.message}`
+      `Test ${body.service} (${body.url}): ${result.ok ? 'OK' : 'failed'} - ${result.message}`
     );
     return NextResponse.json(result);
   } catch (e) {

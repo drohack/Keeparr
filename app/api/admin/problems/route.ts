@@ -69,10 +69,10 @@ function jsSort<T>(
 }
 
 /** Paged list for one problem category. Query: type=<category>, offset, plus
- *  view options: sort/dir (per-category allow-list; unknown → default order),
- *  sections (comma library ids), kind (movie|show) — filters apply where the
+ *  view options: sort/dir (per-category allow-list; unknown -> default order),
+ *  sections (comma library ids), kind (movie|show) - filters apply where the
  *  rows are media items (or carry an equivalent, e.g. extKind for
- *  missingFromPlex). Unlike /api/stats there is NO default view — an
+ *  missingFromPlex). Unlike /api/stats there is NO default view - an
  *  unknown/absent type is a 400. */
 export async function GET(req: Request) {
   try {
@@ -125,12 +125,12 @@ export async function GET(req: Request) {
       };
     } else if (type === 'notInArr') {
       // Items with no external id can never match *arr, so they'd flood this
-      // view — excluded unless the client opts in (includeMissingIds=1; the UI
+      // view - excluded unless the client opts in (includeMissingIds=1; the UI
       // checkbox defaults to hiding them).
       const includeMissingIds = p.get('includeMissingIds') === '1';
       const rows = notInArrItems(PAGE + 1, offset, !includeMissingIds, opts);
       // Cross-link: a row whose folder an unmatched *arr title claims is really
-      // an identity mismatch — the fix lives there, not "add to *arr".
+      // an identity mismatch - the fix lives there, not "add to *arr".
       const pairByRk = new Map(
         identityMismatchItems().map((im) => [im.media.ratingKey, im.arr.title])
       );
@@ -213,7 +213,7 @@ export async function GET(req: Request) {
         hasMore: rows.length > PAGE,
       };
     } else if (type === 'diskOrphans') {
-      // Real filesystem entries — nothing to proxy a poster from. `likely` is
+      // Real filesystem entries - nothing to proxy a poster from. `likely` is
       // the diagnosis: the library title this orphan LOOKS like (usually a
       // leftover old copy).
       let all = getDiskOrphansAnnotated();
@@ -236,7 +236,7 @@ export async function GET(req: Request) {
         hasMore: all.length > offset + PAGE,
       };
     } else if (type === 'removedButKept') {
-      // Removed from the media server — a proxied thumb would 404, so no poster.
+      // Removed from the media server - a proxied thumb would 404, so no poster.
       let all = mediaFilter(removedButKeptItems());
       all = jsSort(
         all,

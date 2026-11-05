@@ -38,7 +38,7 @@ describe('session tokens', () => {
   it('rejects malformed tokens', async () => {
     expect(await verifySessionToken(undefined, now)).toBeNull();
     expect(await verifySessionToken('nope', now)).toBeNull();
-    // Old 3-part format is no longer valid.
+    // A 3-part token (no epoch) is rejected.
     expect(await verifySessionToken('42.9999999999999.deadbeef', now)).toBeNull();
   });
 });

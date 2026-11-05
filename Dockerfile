@@ -14,7 +14,7 @@ RUN npm ci
 
 COPY . .
 
-# Tests run in CI (once, natively) before any image is built/pushed — see
+# Tests run in CI (once, natively) before any image is built/pushed - see
 # .github/workflows. Building here only compiles.
 # Next.js standalone output (see next.config.js: output: 'standalone').
 RUN npm run build
@@ -25,7 +25,7 @@ WORKDIR /app
 
 # Image metadata + Unraid Docker UI hints (icon + WebUI button).
 LABEL org.opencontainers.image.title="Keeparr" \
-      org.opencontainers.image.description="Plex-login web app to decide what media to keep and report what's reclaimable. Tags and reports only — never deletes." \
+      org.opencontainers.image.description="Plex-login web app to decide what media to keep and report what's reclaimable. Tags and reports only - never deletes." \
       org.opencontainers.image.source="https://github.com/drohack/Keeparr" \
       org.opencontainers.image.licenses="MIT" \
       net.unraid.docker.icon="https://raw.githubusercontent.com/drohack/Keeparr/main/public/icon.png" \
@@ -37,17 +37,17 @@ ENV HOSTNAME=0.0.0.0
 # SQLite db lives here; mount a volume at /data.
 ENV DATA_DIR=/data
 # Runtime UID/GID the app drops to (entrypoint runs as root, chowns /data, then
-# drops via su-exec). Override to match your host — Unraid uses 99:100.
+# drops via su-exec). Override to match your host - Unraid uses 99:100.
 ENV PUID=1001
 ENV PGID=1001
 
-# su-exec lets the entrypoint drop root → PUID:PGID after fixing volume ownership.
+# su-exec lets the entrypoint drop root -> PUID:PGID after fixing volume ownership.
 RUN apk add --no-cache libc6-compat su-exec \
   && addgroup -g 1001 -S nodejs \
   && adduser -u 1001 -S nextjs -G nodejs \
   && mkdir -p /data \
   && chown -R nextjs:nodejs /data \
-  # Runtime is `node server.js` — the bundled package managers are never
+  # Runtime is `node server.js` - the bundled package managers are never
   # invoked. Drop npm/npx/yarn/corepack: their transitive deps carry CVEs and
   # they're pure attack surface here.
   && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
@@ -55,17 +55,17 @@ RUN apk add --no-cache libc6-compat su-exec \
            /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 # Standalone server bundle + static assets (traced native modules included).
-# public/ must be copied explicitly — Next's standalone output does NOT
+# public/ must be copied explicitly - Next's standalone output does NOT
 # include it (PWA icons + any static asset 404 without this).
 # No --chown: app files stay root-owned (world-readable, so the su-exec'd PUID
-# can read them) but NOT writable by the app process — only /data is writable.
+# can read them) but NOT writable by the app process - only /data is writable.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
 # Entrypoint auto-generates SESSION_SECRET into /data on first boot when the
-# env var isn't provided (no required secrets at install — the Seerr pattern),
-# fixes /data ownership to PUID:PGID, then drops root → that user via su-exec.
+# env var isn't provided (no required secrets at install - the Seerr pattern),
+# fixes /data ownership to PUID:PGID, then drops root -> that user via su-exec.
 # It intentionally starts as root (no USER line) so it can chown the bind mount.
 COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
 

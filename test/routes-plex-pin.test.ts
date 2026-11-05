@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 vi.mock('@/lib/plex', () => ({
   createPin: vi.fn(async () => ({ id: 123, code: 'abcd' })),
   buildAuthUrl: vi.fn(() => 'http://auth.example'),
-  checkPin: vi.fn(async () => null), // always "pending" → poll returns fast
+  checkPin: vi.fn(async () => null), // always "pending" -> poll returns fast
   // Unused by these tests but imported by the check route module:
   checkServerAccess: vi.fn(),
   getPlexAccount: vi.fn(),

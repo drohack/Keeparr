@@ -60,7 +60,7 @@ describe('/api/admin/settings', () => {
     const body = await settingsGet().then((r) => r.json());
     expect(body.apiKey).toBe('my-automation-key');
     expect(body.apiKeyConfigured).toBe(true);
-    // arr instance keys stay hidden — only hasKey booleans.
+    // arr instance keys stay hidden - only hasKey booleans.
     expect(JSON.stringify(body)).not.toContain('arr-secret');
     expect(body.sonarr.instances[0]).toMatchObject({ hasKey: true });
   });

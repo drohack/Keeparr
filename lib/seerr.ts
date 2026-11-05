@@ -2,7 +2,7 @@
  * Overseerr / Seerr API client (base /api/v1, auth header X-Api-Key).
  * We use it read-only: test the connection and find which items a given user has
  * requested. On Plex we join via `media.ratingKey`; on Jellyfin/Emby (where that
- * key isn't our item id) we match by tmdb/tvdb id → `media_items.guid_*`.
+ * key isn't our item id) we match by tmdb/tvdb id -> `media_items.guid_*`.
  */
 import { fetchJson } from './http';
 import { getMediaServerType } from './settings';
@@ -103,8 +103,8 @@ async function findSeerrUserId(
 
 /**
  * Set of our rating keys the given user has requested via Seerr. Empty if the
- * user can't be matched or has no requests. Best-effort (never throws into the
- * caller's render path — caller should try/catch). On Plex this is `media.ratingKey`
+ * user can't be matched or has no requests. Throws when a Seerr call fails.
+ * On Plex this is `media.ratingKey`
  * directly; on Jellyfin/Emby it resolves the request's tmdb/tvdb id to the matching
  * media item (`media_items.guid_tmdb/guid_tvdb`), so it works without Plex ids.
  */
@@ -130,7 +130,7 @@ export async function requestedRatingKeysForUser(
     return keys;
   }
 
-  // Jellyfin/Emby: match by external id → our media item.
+  // Jellyfin/Emby: match by external id -> our media item.
   const tmdb = ratingKeysByGuid('tmdb');
   const tvdb = ratingKeysByGuid('tvdb');
   for (const r of requests) {

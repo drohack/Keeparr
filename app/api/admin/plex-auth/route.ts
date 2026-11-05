@@ -47,8 +47,7 @@ export async function GET(req: Request) {
     if (!token) return NextResponse.json({ status: 'pending' });
 
     // Identify the account before storing, so the UI can say WHOSE token this
-    // now is - "signed in" without a name is exactly how the wrong-account
-    // problem stayed invisible in the first place.
+    // now is - "signed in" without a name hides a wrong-account token.
     const account = await getPlexAccount(token);
     writeSetting('plex_admin_token', token);
     logEvent(

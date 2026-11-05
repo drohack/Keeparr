@@ -37,7 +37,7 @@ export interface JobDef {
   run: () => Promise<JobResult>;
 }
 
-/** The schedulable refresh jobs, in display order. Labels are backend-neutral —
+/** The schedulable refresh jobs, in display order. Labels are backend-neutral -
  *  the sync engine serves Plex/Jellyfin/Emby alike (watch merges the server's
  *  own play history with Tautulli's, whichever are configured). */
 export const JOBS: JobDef[] = [
@@ -72,7 +72,7 @@ export async function runWithState(
   if (isJobRunning(id)) return false;
   const started = clock();
   const startedSec = nowSec();
-  setJobState(id, { lastStatus: 'running', lastMessage: 'Running…' });
+  setJobState(id, { lastStatus: 'running', lastMessage: 'Running...' });
   try {
     const { result, message } = await fn();
     const durationMs = clock() - started;
@@ -143,7 +143,7 @@ export function isDue(
     return false;
   }
   // daily/weekly: due once after the target local time (and, for weekly, only on
-  // the matching weekday — already gated above).
+  // the matching weekday - already gated above).
   const target = new Date(nowMs);
   target.setHours(sch.hour, sch.minute, 0, 0);
   const targetS = Math.floor(target.getTime() / 1000);

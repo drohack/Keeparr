@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Redirect the poster cache into a temp dir (paths only — the files are real).
+// Redirect the poster cache into a temp dir (paths only - the files are real).
 // IMAGE_DIR is captured at module load, so ./config must be mocked BEFORE
 // ./cache is imported (same pattern as backup.test.ts).
 const { TMP } = vi.hoisted(() => ({

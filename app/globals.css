@@ -5,12 +5,12 @@
 /*
  * Theme palettes. Every themed color is a `--c-*` variable holding
  * space-separated RGB channels (consumed by tailwind.config.ts as
- * `rgb(var(--c-…) / <alpha-value>)`). `data-theme` on <html> selects the
+ * `rgb(var(--c-...) / <alpha-value>)`). `data-theme` on <html> selects the
  * theme (set pre-hydration by the inline script in app/layout.tsx);
  * `data-cim="1"` layers the color-impaired palette on top of either theme.
  *
- * DARK is the canonical theme — its values are Tailwind's stock shades
- * (byte-identical to the pre-theming UI).
+ * DARK is the canonical theme: its Tailwind color families keep Tailwind's
+ * stock shades.
  */
 :root,
 [data-theme='dark'] {
@@ -94,50 +94,50 @@
   --c-panel: 255 255 255;
   --c-white: 15 23 42; /* max-contrast fg = slate-900 */
 
-  --c-slate-200: 30 41 59; /* ← slate-800 */
-  --c-slate-300: 51 65 85; /* ← slate-700 */
-  --c-slate-400: 71 85 105; /* ← slate-600 */
+  --c-slate-200: 30 41 59; /* <-slate-800 */
+  --c-slate-300: 51 65 85; /* <-slate-700 */
+  --c-slate-400: 71 85 105; /* <-slate-600 */
   --c-slate-500: 100 116 139; /* pivot */
-  --c-slate-600: 148 163 184; /* ← slate-400 */
-  --c-slate-700: 203 213 225; /* ← slate-300 */
-  --c-slate-800: 226 232 240; /* ← slate-200 */
-  --c-slate-900: 241 245 249; /* ← slate-100 */
-  --c-slate-950: 248 250 252; /* ← slate-50 */
+  --c-slate-600: 148 163 184; /* <-slate-400 */
+  --c-slate-700: 203 213 225; /* <-slate-300 */
+  --c-slate-800: 226 232 240; /* <-slate-200 */
+  --c-slate-900: 241 245 249; /* <-slate-100 */
+  --c-slate-950: 248 250 252; /* <-slate-50 */
 
-  --c-amber-200: 146 64 14; /* ← amber-800 */
-  --c-amber-300: 180 83 9; /* ← amber-700 */
-  --c-amber-400: 217 119 6; /* ← amber-600 */
-  --c-amber-900: 253 230 138; /* ← amber-200 (tint backgrounds) */
+  --c-amber-200: 146 64 14; /* <-amber-800 */
+  --c-amber-300: 180 83 9; /* <-amber-700 */
+  --c-amber-400: 217 119 6; /* <-amber-600 */
+  --c-amber-900: 253 230 138; /* <-amber-200 (tint backgrounds) */
 
-  --c-blue-400: 37 99 235; /* ← blue-600 */
+  --c-blue-400: 37 99 235; /* <-blue-600 */
 
-  --c-emerald-400: 5 150 105; /* ← emerald-600 */
+  --c-emerald-400: 5 150 105; /* <-emerald-600 */
 
-  --c-red-300: 185 28 28; /* ← red-700 */
-  --c-red-400: 220 38 38; /* ← red-600 */
-  --c-red-950: 254 226 226; /* ← red-100 (tint backgrounds) */
+  --c-red-300: 185 28 28; /* <-red-700 */
+  --c-red-400: 220 38 38; /* <-red-600 */
+  --c-red-950: 254 226 226; /* <-red-100 (tint backgrounds) */
 
-  --c-rose-100: 76 5 25; /* ← rose-950 */
-  --c-rose-200: 136 19 55; /* ← rose-900 */
-  --c-rose-300: 159 18 57; /* ← rose-800 */
-  --c-rose-400: 225 29 72; /* ← rose-600 */
-  --c-rose-800: 253 164 175; /* ← rose-300 (muted accents) */
-  --c-rose-900: 254 205 211; /* ← rose-200 (tint backgrounds) */
-  --c-rose-950: 255 228 230; /* ← rose-100 (tint backgrounds) */
+  --c-rose-100: 76 5 25; /* <-rose-950 */
+  --c-rose-200: 136 19 55; /* <-rose-900 */
+  --c-rose-300: 159 18 57; /* <-rose-800 */
+  --c-rose-400: 225 29 72; /* <-rose-600 */
+  --c-rose-800: 253 164 175; /* <-rose-300 (muted accents) */
+  --c-rose-900: 254 205 211; /* <-rose-200 (tint backgrounds) */
+  --c-rose-950: 255 228 230; /* <-rose-100 (tint backgrounds) */
 
   /* Library palette: only the lightest shades darken for contrast on white;
      the vivid shades stay put. Remapped to shades NOT already in the ladder
      (violet-600 / teal-700) so no two bars collapse to one color. */
-  --c-violet-300: 124 58 237; /* ← violet-600 */
-  --c-teal-300: 15 118 110; /* ← teal-700 */
+  --c-violet-300: 124 58 237; /* <-violet-600 */
+  --c-teal-300: 15 118 110; /* <-teal-700 */
 
   --scrollbar-thumb: #cbd5e1; /* slate-300 */
 }
 
 /*
  * COLOR-IMPAIRED MODE (Okabe-Ito-inspired): remaps only the meaning-bearing
- * hues — "don't care / OK to delete" rose → reddish purple, "free/success"
- * emerald → bluish green, "error" red → vermillion. Amber (kept/warning) and
+ * hues - "don't care / OK to delete" rose -> reddish purple, "free/success"
+ * emerald -> bluish green, "error" red -> vermillion. Amber (kept/warning) and
  * blue (undecided) are already distinguishable and stay. Declared after the
  * theme blocks so it wins the cascade over either theme.
  */

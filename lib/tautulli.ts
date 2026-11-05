@@ -62,11 +62,11 @@ export interface HistoryRow {
 /**
  * Aggregate watch history into per-user plays keyed by the SERIES rating key
  * (for episodes) or the movie rating key. Pages through get_history via
- * `start`/`length` until exhausted (a single flat pull silently dropped
- * everything past the first `length` grouped rows — older watches vanished
- * from the never-watched metric). History can shift between pages (new plays
+ * `start`/`length` until exhausted (one pull returns only the first `length`
+ * grouped rows, which would hide older watches from the never-watched
+ * metric). History can shift between pages (new plays
  * arrive mid-loop, newest-first sort), so a boundary row may repeat and
- * slightly overcount plays — harmless for this use, so no dedupe.
+ * slightly overcount plays - harmless for this use, so no dedupe.
  * A mid-loop error envelope throws (partial data must not report success).
  */
 export async function aggregatedWatchHistory(

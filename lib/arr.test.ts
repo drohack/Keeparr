@@ -31,7 +31,7 @@ describe('arr normalize (pure, no network)', () => {
         rootFolderPath: '/anime',
         path: '/anime/Frieren',
         statistics: { sizeOnDisk: 1234 },
-        tags: [1, 2, 9], // 9 is unknown → dropped
+        tags: [1, 2, 9], // 9 is unknown -> dropped
       },
       inst,
       tags,

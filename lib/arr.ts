@@ -1,8 +1,8 @@
 /**
  * Sonarr / Radarr API client (v3; base /api/v3, auth header X-Api-Key). The two
- * apps share a near-identical shape, so one module serves both. Read-only today:
- * test a connection and pull per-title quality / tags / status to surface in the
- * Quality view. The pure `normalize*` functions are split from the HTTP calls so
+ * apps share a near-identical shape, so one module serves both. Read-only:
+ * test a connection and pull per-title quality / tags / status for Browse,
+ * Big Picture and Problems. The pure `normalize*` functions are split from the HTTP calls so
  * they can be unit-tested without a network.
  */
 import { fetchJson } from './http';
@@ -18,7 +18,7 @@ export interface ArrRecord {
   arrId: number;
   /** Primary external id to match a Plex item: tvdbId (Sonarr) / tmdbId (Radarr). */
   matchId: string;
-  /** Secondary match axis: the imdb id ("tt…"), if the *arr instance has one. */
+  /** Secondary match axis: the imdb id ("tt..."), if the *arr instance has one. */
   imdbId: string | null;
   title: string;
   monitored: boolean;
@@ -26,7 +26,7 @@ export interface ArrRecord {
   quality: string | null;
   qualityKind: 'file' | 'profile';
   rootFolder: string | null;
-  /** The title's own folder as the *arr sees it (series/movie path) — its
+  /** The title's own folder as the *arr sees it (series/movie path) - its
    *  basename feeds the disk-orphan scan's known-name set. */
   path: string | null;
   sizeOnDisk: number;
@@ -75,14 +75,14 @@ function labelsFor(ids: number[] | undefined, tagMap: Map<number, string>): stri
     .filter((l): l is string => !!l);
 }
 
-/** Sonarr series → ArrRecord. Series quality = the profile name (target). */
+/** Sonarr series -> ArrRecord. Series quality = the profile name (target). */
 export function normalizeSonarr(
   s: SonarrSeries,
   inst: ArrInstance,
   tagMap: Map<number, string>,
   profileMap: Map<number, string>
 ): ArrRecord | null {
-  if (s.tvdbId == null) return null; // no stable id → can't match a Plex item
+  if (s.tvdbId == null) return null; // no stable id -> can't match a Plex item
   return {
     source: 'sonarr',
     instanceId: inst.id,
@@ -102,7 +102,7 @@ export function normalizeSonarr(
   };
 }
 
-/** Radarr movie → ArrRecord. Movie quality = the actual downloaded file quality. */
+/** Radarr movie -> ArrRecord. Movie quality = the actual downloaded file quality. */
 export function normalizeRadarr(
   m: RadarrMovie,
   inst: ArrInstance,

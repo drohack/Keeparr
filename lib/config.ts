@@ -29,8 +29,8 @@ export const APP_URL = process.env.APP_URL ?? '';
 export const FEED_BATCH_SIZE = 12;
 
 /**
- * A job runs either on a fixed interval or once daily at a local clock time.
- * `interval` minutes of 0 = manual-only.
+ * A job runs on a fixed interval, daily at a local clock time, or weekly on a
+ * local weekday at a clock time. `interval` minutes of 0 = manual-only.
  */
 export type JobSchedule =
   | { type: 'interval'; minutes: number }

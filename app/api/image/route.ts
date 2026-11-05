@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 /**
  * Proxy a poster through our server so the browser never sees the media-server
  * token. Query: ?path=<thumb ref>&w=&h=. The `path` is backend-specific: a Plex
- * relative thumb path ("/library/metadata/…") or a Jellyfin/Emby item id.
+ * relative thumb path ("/library/metadata/...") or a Jellyfin/Emby item id.
  *
  * This handler enforces its OWN auth: middleware lets any /api request carrying
  * an X-Api-Key header past the edge gate but only DEFERS validation to the Node
@@ -106,7 +106,7 @@ function buildUpstreamUrl(
     u.searchParams.set('X-Plex-Token', token);
     return u.toString();
   }
-  // Jellyfin/Emby: `path` is the item id → its primary image, resized server-side.
+  // Jellyfin/Emby: `path` is the item id -> its primary image, resized server-side.
   const id = encodeURIComponent(path);
   const u = new URL(`${base}/Items/${id}/Images/Primary`);
   u.searchParams.set('fillWidth', String(w));

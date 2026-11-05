@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import '@scalar/api-reference-react/style.css';
 
-// Scalar is heavy — load it client-side only, code-split to this route.
+// Scalar is heavy - load it client-side only, code-split to this route.
 const ApiReferenceReact = dynamic(
   () => import('@scalar/api-reference-react').then((m) => m.ApiReferenceReact),
   { ssr: false, loading: () => <p className="p-6 text-sm text-slate-400">Loading API docs…</p> }

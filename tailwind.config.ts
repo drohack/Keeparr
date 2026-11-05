@@ -4,7 +4,7 @@ import type { Config } from 'tailwindcss';
  * THEMING: every color family the UI actually uses is defined as a CSS
  * variable (`--c-*`, space-separated RGB channels) so the Auto/Light/Dark
  * themes and the color-impaired mode can restyle the whole app from
- * app/globals.css alone — components keep their normal `text-slate-400`-style
+ * app/globals.css alone - components keep their normal `text-slate-400`-style
  * classes and never need `dark:` variants. When you introduce a NEW
  * color+shade, add its variable to every theme block in globals.css.
  */
@@ -31,7 +31,7 @@ const config: Config = {
         rail: v('rail'), // left nav + top bar
         panel: v('panel'), // cards / raised surfaces
         // NOT themed: fixed dark ink for text sitting on brand-amber
-        // (buttons/badges/logo) — must stay dark in both themes.
+        // (buttons/badges/logo) - must stay dark in both themes.
         ink: '#0f172a',
         // NOT themed: fixed true white for text on saturated badges over
         // posters (theme-independent surfaces).

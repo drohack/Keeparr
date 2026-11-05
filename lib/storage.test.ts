@@ -67,7 +67,7 @@ describe('buildStorageReport', () => {
   it('dedupes sections sharing a filesystem and sums their plex usage', async () => {
     upsertMediaBatch([media('1', '1', 2 * GB), media('2', '2', 3 * GB)]);
     const used = usedBytesBySection();
-    // Two sections map to the same real dir → one filesystem entry.
+    // Two sections map to the same real dir -> one filesystem entry.
     const report = await buildStorageReport(
       [
         { sectionId: '1', path: os.tmpdir() },

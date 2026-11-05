@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-// Settings moved to /settings/* sub-tabs.
+// /admin/settings redirects to the Settings tabs.
 export default function LegacySettings() {
   redirect('/settings/general');
 }

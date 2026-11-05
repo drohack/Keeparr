@@ -28,19 +28,19 @@ beforeEach(async () => {
 afterAll(() => __closeDb());
 
 describe('healthIssues', () => {
-  it('unconfigured install → server-not-configured error (and nothing job-y)', async () => {
+  it('unconfigured install -> server-not-configured error (and nothing job-y)', async () => {
     const issues = await healthIssues(NOW);
     const server = issues.find((i) => i.id === 'server-not-configured');
     expect(server?.severity).toBe('error');
     expect(issues.some((i) => i.id.startsWith('job-'))).toBe(false);
   });
 
-  it('healthy configured install → no issues', async () => {
+  it('healthy configured install -> no issues', async () => {
     configurePlex();
     expect(await ids()).toEqual([]);
   });
 
-  it('a failing job for a configured feature → error with its message', async () => {
+  it('a failing job for a configured feature -> error with its message', async () => {
     configurePlex();
     setJobState('library', { lastStatus: 'error', lastMessage: 'boom', lastRun: NOW });
     const issues = await healthIssues(NOW);
@@ -55,23 +55,23 @@ describe('healthIssues', () => {
     expect(await ids()).toEqual([]);
   });
 
-  it('a job silent for >2× its cadence → stale warning (but not if never run)', async () => {
+  it('a job silent for >2x its cadence -> stale warning (but not if never run)', async () => {
     configurePlex();
-    // recentlyAdded runs every 5 min by default; 3h old = way past 2× cadence.
+    // recentlyAdded runs every 5 min by default; 3h old = way past 2x cadence.
     setJobState('recentlyAdded', { lastStatus: 'ok', lastRun: NOW - 3 * 3600 });
     const issues = await healthIssues(NOW);
     expect(issues.find((i) => i.id === 'job-recentlyAdded-stale')?.severity).toBe('warning');
-    // library (daily) has never run → no stale warning for it.
+    // library (daily) has never run -> no stale warning for it.
     expect(issues.some((i) => i.id === 'job-library-stale')).toBe(false);
   });
 
-  it('backups set to manual-only → backups-disabled warning', async () => {
+  it('backups set to manual-only -> backups-disabled warning', async () => {
     configurePlex();
     setJobSchedules({ backup: { type: 'interval', minutes: 0 } });
     expect(await ids()).toEqual(['backups-disabled']);
   });
 
-  it('update available (cached version info) → warning', async () => {
+  it('update available (cached version info) -> warning', async () => {
     configurePlex();
     __clearVersionCache();
     await getVersionInfo(async () => ({ tag_name: 'v99.0.0' })); // warm the cache

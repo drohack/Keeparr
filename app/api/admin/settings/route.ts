@@ -220,7 +220,7 @@ export async function PUT(req: Request) {
       // Changing the URL by hand must not silently point Keeparr at a DIFFERENT
       // server: `plex_server_token` and `plex_machine_id` are issued per server,
       // so they would not work there, and the manual path never replaces them.
-      // The result was a half-configured install with no warning. Switching
+      // That would leave a half-configured install with no warning. Switching
       // servers has to go through Discover & connect, which stores all three.
       // A same-server address change (the normal case) is allowed, and so is an
       // unreachable target - fixing the URL of a server that is currently down

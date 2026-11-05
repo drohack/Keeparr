@@ -65,26 +65,26 @@ export async function syncLibrary(): Promise<JobResult> {
 
   const sections = await backend.listSections();
   // A 200 with no sections is a server hiccup (e.g. PMS mid-restart), not an
-  // empty install — proceeding would overwrite the stored sections (and their
+  // empty install - proceeding would overwrite the stored sections (and their
   // paths[] used for storage mapping) and tombstone the entire library.
   if (sections.length === 0) {
     throw new Error(
       'Backend returned no library sections; aborting sync to protect existing data.'
     );
   }
-  // Persist every discovered section so the admin can choose which to manage…
+  // Persist every discovered section so the admin can choose which to manage...
   setPlexSections(
     sections.map((s) => ({ id: s.id, title: s.title, type: s.kind, paths: s.paths }))
   );
 
-  // …but only scan the managed ones (empty = all). Unmanaged sections aren't
+  // ...but only scan the managed ones (empty = all). Unmanaged sections aren't
   // touched, so their rows tombstone via tombstoneStale below and drop out.
   const managed = new Set(getManagedSectionIds());
   const scanned = managed.size === 0 ? sections : sections.filter((s) => managed.has(s.id));
 
   const knownSizes = existingShowSizes();
   let itemsSynced = 0;
-  // Sections that answered with zero items get no removal sweep below — an
+  // Sections that answered with zero items get no removal sweep below - an
   // empty-but-200 response (backend hiccup) must not tombstone a whole library.
   // Cost: a genuinely emptied library keeps its rows until it has items again.
   const emptySections: string[] = [];
@@ -106,7 +106,7 @@ export async function syncLibrary(): Promise<JobResult> {
         let derivedDir: string | null = null;
         let derivedNames: string[] = [];
         if (size == null) {
-          // New show — compute its size now so it never shows as 0 GB.
+          // New show - compute its size now so it never shows as 0 GB.
           try {
             const disk = await backend.showSize(show.ratingKey);
             size = disk.sizeBytes;
@@ -116,7 +116,7 @@ export async function syncLibrary(): Promise<JobResult> {
             size = 0;
           }
         }
-        // Some servers omit the show's Location from listings — fall back to
+        // Some servers omit the show's Location from listings - fall back to
         // the folder(s) derived from episode paths (existing shows get theirs
         // backfilled by the sizes job). Multi-folder shows store EVERY folder
         // name, newline-joined.
@@ -150,7 +150,7 @@ export async function syncLibrary(): Promise<JobResult> {
 
 /**
  * Recently Added scan (cheap, frequent): for each managed library, pull the
- * newest items and upsert just those — so new titles appear between full scans.
+ * newest items and upsert just those - so new titles appear between full scans.
  * Does NOT tombstone (removals are handled by the full Library scan).
  */
 export async function syncRecentlyAdded(): Promise<JobResult> {
@@ -218,7 +218,7 @@ export async function syncSizes(): Promise<JobResult> {
   for (const rk of keys) {
     try {
       const disk = await backend.showSize(rk);
-      // Also backfill the show's on-disk folder(s) — servers that omit
+      // Also backfill the show's on-disk folder(s) - servers that omit
       // Location from listings leave dir_path NULL until this derives it from
       // episodes. Multi-folder shows record every folder name.
       updateItemSize(rk, disk.sizeBytes, disk.dirPath, disk.dirNames);
@@ -265,7 +265,7 @@ export function mergeWatchRows(rows: WatchRow[]): WatchRow[] {
  * server has since forgotten. Dropping either would push watched titles back
  * into "never watched" - the expensive direction for a delete-safety tool.
  *
- * One source failing no longer loses the other's rows, but if EVERY configured
+ * One source failing keeps the other's rows, but if EVERY configured
  * source fails we throw, so the job goes red and the health check notices rather
  * than reporting a green "0 rows" while the metric silently freezes.
  */
@@ -385,7 +385,7 @@ function toArrInput(ratingKey: string, r: ArrRecord): ArrItemInput {
 
 /**
  * Sonarr/Radarr refresh: pull every instance's titles, match each to a Plex
- * media item by stable external id (tvdb→show, tmdb→movie), and replace the
+ * media item by stable external id (tvdb->show, tmdb->movie), and replace the
  * arr_items cache. Skips cleanly when unconfigured; one failing instance doesn't
  * abort the rest. First instance to claim a rating_key wins (rare collisions).
  */
@@ -461,7 +461,7 @@ export async function syncArr(): Promise<JobResult> {
 
   const instanceCount = getSonarrInstances().length + getRadarrInstances().length;
   // Instances that errored this run keep their cached rows in the replace below
-  // — their fresh data is missing from this run, not gone from the arr.
+  // - their fresh data is missing from this run, not gone from the arr.
   const failedInstanceIds: string[] = [];
   for (const inst of getSonarrInstances()) {
     try {
@@ -482,8 +482,8 @@ export async function syncArr(): Promise<JobResult> {
     }
   }
 
-  // Don't wipe the cache when nothing was reachable (every instance errored) —
-  // keep the last good data rather than blanking the Quality view.
+  // Don't wipe the cache when nothing was reachable (every instance errored) -
+  // keep the last good data rather than blanking it.
   if (ok === 0 && instanceCount > 0) {
     return {
       result: 0,
@@ -496,7 +496,7 @@ export async function syncArr(): Promise<JobResult> {
   replaceArrConflicts(conflictRecs, failedInstanceIds);
   // Reality-check the fresh unmatched rows against the mapped library roots
   // (the replace wiped the previous verdicts). Non-fatal: a filesystem hiccup
-  // must not fail the arr sync — the diskScan job re-verifies anyway.
+  // must not fail the arr sync - the diskScan job re-verifies anyway.
   try {
     await verifyArrUnmatchedOnDisk();
   } catch {

@@ -42,7 +42,7 @@ export function writeImageCache(key: string, body: Buffer, contentType: string):
     fs.writeFileSync(file, body);
     fs.writeFileSync(`${file}.type`, contentType);
   } catch {
-    /* ignore — caching is optional */
+    /* ignore - caching is optional */
   }
 }
 

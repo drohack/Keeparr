@@ -17,7 +17,7 @@ interface Health {
 /** Sonarr/Radarr match health, as setup-time feedback next to the instance
  *  config: how many titles matched, plus problem counts. The full drill-down
  *  lists (titles downloaded in *arr but not in the media server, items with no
- *  external id) live on the admin Problems page — this card just summarizes
+ *  external id) live on the admin Problems page - this card just summarizes
  *  and links. Admin-only. */
 export default function MatchHealthCard() {
   const [data, setData] = useState<Health | null>(null);
@@ -77,7 +77,7 @@ export default function MatchHealthCard() {
           <span className="font-semibold">{data ? missingTotal : '—'}</span> missing IDs
         </span>
         <button onClick={resync} disabled={resyncing} className={`${btnGhost} ml-auto`} type="button">
-          {resyncing ? 'Resyncing…' : 'Resync'}
+          {resyncing ? 'Resyncing...' : 'Resync'}
         </button>
       </div>
       {data && unmatched.length === 0 && missingTotal === 0 ? (

@@ -14,7 +14,7 @@ export function startScheduler(): void {
   started = true;
 
   // A job killed mid-run (restart/OOM) left its 'running' row behind, which
-  // gates it out of the scheduler AND manual runs forever — clear it now.
+  // gates it out of the scheduler AND manual runs forever - clear it now.
   try {
     const n = resetInterruptedJobs();
     if (n > 0) {

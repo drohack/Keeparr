@@ -63,16 +63,16 @@ export default function StatsView() {
       const off = reset ? 0 : offset;
       try {
         const data = await fetch(`/api/stats?view=${v}&offset=${off}`).then((r) => r.json());
-        if (seq !== fetchSeq.current) return; // superseded — drop it
-        // An error response has no `items`/`summary` — guard against a crash.
+        if (seq !== fetchSeq.current) return; // superseded - drop it
+        // An error response has no `items`/`summary` - guard against a crash.
         const list = Array.isArray(data.items) ? data.items : [];
         if (data.summary) setSummary(data.summary);
         setHasMore(!!data.hasMore);
         if (typeof data.nextOffset === 'number') setOffset(data.nextOffset);
         setItems((prev) => (reset ? list : [...prev, ...list]));
       } catch {
-        if (seq !== fetchSeq.current) return; // superseded — don't toast for it
-        toast("Couldn't load the stats — is the server reachable?", 'error');
+        if (seq !== fetchSeq.current) return; // superseded - don't toast for it
+        toast("Couldn't load the stats - is the server reachable?", 'error');
       } finally {
         if (seq === fetchSeq.current) setLoading(false);
       }
@@ -93,7 +93,7 @@ export default function StatsView() {
   }, []);
 
   let cumulative = 0;
-  // The "Never watched" drill-down only appears when Tautulli is connected; the
+  // The "Never watched" drill-down only appears when watch data is available; the
   // "OK to delete" drill-down only when Seerr is.
   const views: View[] = [
     'largest',
@@ -201,7 +201,7 @@ export default function StatsView() {
               disabled={loading}
               className="rounded-md border border-slate-700 hover:border-slate-500 px-5 py-2 text-sm disabled:opacity-60"
             >
-              {loading ? 'Loading…' : 'Load more'}
+              {loading ? 'Loading...' : 'Load more'}
             </button>
           </div>
         )}
@@ -246,11 +246,11 @@ function StorageHero({ overview }: { overview: Overview }) {
   const keptOtherBytes = Math.max(0, totals.keptBytes - totals.keptByMeBytes);
   const keptOtherItems = Math.max(0, totals.keptItems - totals.keptByMeItems);
 
-  // Filled segments only — the unfilled remainder of the bar IS the free space.
+  // Filled segments only - the unfilled remainder of the bar IS the free space.
   const segments = [
     { tone: 'kept' as const, value: totals.keptByMeBytes, label: 'Kept by you' },
     { tone: 'keptOther' as const, value: keptOtherBytes, label: 'Kept by others' },
-    { tone: 'dontcare' as const, value: totals.dontcareBytes, label: 'I don’t care' },
+    { tone: 'dontcare' as const, value: totals.dontcareBytes, label: "I don't care" },
     { tone: 'undecided' as const, value: totals.undecidedBytes, label: 'Undecided' },
     ...(configured ? [{ tone: 'other' as const, value: otherBytes, label: 'Other files' }] : []),
   ];
@@ -288,7 +288,7 @@ function StorageHero({ overview }: { overview: Overview }) {
         />
         <BigStat
           value={formatSize(totals.dontcareBytes)}
-          label="I don’t care"
+          label="I don't care"
           tone="text-rose-400"
           dot="dontcare"
           sub={`${totals.dontcareItems} titles`}
@@ -298,7 +298,7 @@ function StorageHero({ overview }: { overview: Overview }) {
           label="Undecided"
           tone="text-blue-400"
           dot="undecided"
-          sub={`${totals.undecidedItems} titles you’ve yet to review`}
+          sub={`${totals.undecidedItems} titles you've yet to review`}
         />
         {overview.watchAvailable && (
           <BigStat
@@ -321,7 +321,7 @@ function StorageHero({ overview }: { overview: Overview }) {
       <div className="mt-5">
         <StackedBar height="h-6" segments={segments} max={configured ? storage.totalBytes : undefined} />
         {/* Brackets below the bar mark the never-watched-by-anyone slice WITHIN
-            each keep segment — one per segment, aligned to it. */}
+            each keep segment - one per segment, aligned to it. */}
         {overview.watchAvailable && totals.unwatchedBytes > 0 && (
           <>
             <div className="mt-1">
@@ -369,7 +369,7 @@ function ReviewProgress({ overview }: { overview: Overview }) {
   const reviewable = decided + totals.undecidedItems;
   const reviewedPct = pct(decided, reviewable);
 
-  // Where most of your unreviewed space sits — a neutral next step, not a claim
+  // Where most of your unreviewed space sits - a neutral next step, not a claim
   // about what "should" be deleted.
   const topToReview = [...overview.libraries]
     .map((l) => ({ l, undecided: l.undecidedBytes }))
@@ -406,7 +406,7 @@ function ReviewProgress({ overview }: { overview: Overview }) {
             />
             <LegendRow
               tone="dontcare"
-              label="I don’t care"
+              label="I don't care"
               value={`${totals.dontcareItems}`}
               sub={formatSize(totals.dontcareBytes)}
             />
@@ -446,7 +446,7 @@ function LibraryGrid({ overview }: { overview: Overview }) {
   const storage = overview.storage;
   const totalBytes = overview.totals.bytes;
   // Per-library bars share one scale (the biggest library) so their lengths are
-  // directly comparable — a horizontal bar chart, not 4 full bars.
+  // directly comparable - a horizontal bar chart, not 4 full bars.
   const maxLib = Math.max(1, ...libs.map((l) => l.bytes));
 
   return (
@@ -455,7 +455,7 @@ function LibraryGrid({ overview }: { overview: Overview }) {
         By library
       </h2>
       <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
-        {/* Share of the whole — a donut + library key. */}
+        {/* Share of the whole - a donut + library key. */}
         <div className="rounded-xl border border-slate-800 bg-panel p-4">
           <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
             Where your space goes
@@ -507,7 +507,7 @@ function LibraryGrid({ overview }: { overview: Overview }) {
           </div>
         </div>
 
-        {/* Per-library composition — bars share one scale (proportional to size). */}
+        {/* Per-library composition - bars share one scale (proportional to size). */}
         <div className="space-y-3">
           {libs.map((l, i) => {
             const keptOther = Math.max(0, l.keptBytes - l.keptByMeBytes);
@@ -525,7 +525,7 @@ function LibraryGrid({ overview }: { overview: Overview }) {
 
                 {/* The bar's WIDTH is proportional to library size (vs the biggest
                     library); it's fully filled, so there's no empty "free" track.
-                    Brackets above each keep segment mark its never-watched slice. */}
+                    Brackets below each keep segment mark its never-watched slice. */}
                 <div className="mt-2.5">
                   <div
                     className="min-w-[10px]"
@@ -556,7 +556,7 @@ function LibraryGrid({ overview }: { overview: Overview }) {
                   <MiniStat tone="keptOther" label="Kept by others" bytes={keptOther} items={keptOtherItems} />
                   <MiniStat
                     tone="dontcare"
-                    label="I don’t care"
+                    label="I don't care"
                     bytes={l.dontcareBytes}
                     items={l.dontcareItems}
                   />

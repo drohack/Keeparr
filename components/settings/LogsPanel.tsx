@@ -28,7 +28,7 @@ export default function LogsPanel() {
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toast = useToast();
 
-  // Debounce the search box → query param.
+  // Debounce the search box -> query param.
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
     return () => clearTimeout(t);
@@ -105,7 +105,7 @@ export default function LogsPanel() {
         ))}
         <input
           className={`${inputCls} !w-56 text-xs`}
-          placeholder="Search message / source…"
+          placeholder="Search message / source..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />

@@ -81,7 +81,7 @@ const listReq = (qs: string) => new Request(`http://localhost/api/admin/problems
 const configureArr = () =>
   setRadarrInstances([{ id: 'r1', name: 'Radarr', url: 'http://r1', apiKey: 'k' }]);
 
-// Grouped: server ↔ *arr · within the server · on disk.
+// Grouped: server <-> *arr / within the server / on disk.
 const CATEGORY_ORDER = [
   'sizeMismatch',
   'notInArr',
@@ -135,7 +135,7 @@ describe('GET /api/admin/problems/summary', () => {
 
   it('diskOrphans reports why it cannot run yet, then goes live', async () => {
     await loginAs('admin', true);
-    // No storage mappings → setup needed.
+    // No storage mappings -> setup needed.
     let cat = (await summaryGet().then((r) => r.json())).categories.at(-1);
     expect(cat).toEqual({
       type: 'diskOrphans',
@@ -145,12 +145,12 @@ describe('GET /api/admin/problems/summary', () => {
       bytes: 0,
     });
 
-    // Mapped but the Disk scan job has never run → not scanned.
+    // Mapped but the Disk scan job has never run -> not scanned.
     setStorageMappings([{ sectionId: '1', path: '/media/Movies' }]);
     cat = (await summaryGet().then((r) => r.json())).categories.at(-1);
     expect(cat).toMatchObject({ available: false, reason: 'not_scanned' });
 
-    // Mapped + scanned → live with real counts.
+    // Mapped + scanned -> live with real counts.
     setJobState('diskScan', { lastStatus: 'ok', lastRun: 1000 });
     replaceDiskOrphansForSection('1', [
       { name: 'Leftover', path: '/media/Movies/Leftover', isDir: true, sizeBytes: 3 * GB, sizeSkipped: false, mtime: 1 },
@@ -269,8 +269,8 @@ describe('GET /api/admin/problems', () => {
     await loginAs('admin', true);
     configureArr();
     upsertMediaBatch([
-      media('1', { sizeBytes: 8 * GB }), // builder gives it a tmdb id → always listed
-      media('2', { guidTmdb: null, sizeBytes: 4 * GB }), // no id at all → hidden by default
+      media('1', { sizeBytes: 8 * GB }), // builder gives it a tmdb id -> always listed
+      media('2', { guidTmdb: null, sizeBytes: 4 * GB }), // no id at all -> hidden by default
     ]);
     const def = await problemsGet(listReq('type=notInArr')).then((r) => r.json());
     expect(def.items.map((i: { ratingKey: string }) => i.ratingKey)).toEqual(['1']);
@@ -371,7 +371,7 @@ describe('GET /api/admin/problems', () => {
     expect(body.items[0].media).toMatchObject({
       title: 'Wrong Match',
       dirPath: '/media/Movies/Real Title (1995)',
-      guidTmdb: '111', // the server's own id — shown against the arr's extId
+      guidTmdb: '111', // the server's own id - shown against the arr's extId
     });
     expect(body.items[0].media.thumbUrl).toContain('/api/image?path=');
     expect(body.items[0].arr).toMatchObject({
@@ -423,7 +423,7 @@ describe('GET /api/admin/problems', () => {
         firstInstanceName: 'Radarr', source: 'sonarr', instanceId: 's1',
         instanceName: 'Sonarr', sizeOnDisk: 2 * GB,
       },
-      // Same-instance collision (two Radarr titles → one item): flagged so the
+      // Same-instance collision (two Radarr titles -> one item): flagged so the
       // UI can suggest "split the merged item" instead of "remove from one".
       {
         ratingKey: '1', title: 'Title 1, Part II', firstSource: 'radarr', firstInstanceId: 'r1',
@@ -440,7 +440,7 @@ describe('GET /api/admin/problems', () => {
       deltaBytes: 6 * GB,
       instanceName: 'Radarr',
       diskSizeBytes: null, // measured by the Disk scan job
-      fileCount: 2, // multi-part movie → the UI badges it "likely fine"
+      fileCount: 2, // multi-part movie -> the UI badges it "likely fine"
     });
 
     const cf = await problemsGet(listReq('type=arrConflicts')).then((r) => r.json());

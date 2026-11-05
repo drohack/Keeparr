@@ -6,7 +6,7 @@ import { thumbUrl } from '@/lib/cards';
 
 export const runtime = 'nodejs';
 
-/** Typeahead suggestions (slim). GET ?q= — top 8 closest matches. */
+/** Typeahead suggestions (slim). GET ?q= - top 8 closest matches. */
 export async function GET(req: Request) {
   try {
     const user = await requireUser();

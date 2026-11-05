@@ -100,8 +100,8 @@ describe('extractGuids', () => {
   });
 
   it('keeps ALL ids when Plex lists several (real "Love is Blind" case)', () => {
-    // Plex carried two tvdb ids; the old code kept only the LAST (407505),
-    // so it never matched Sonarr's 376459. Now we keep both (CSV).
+    // Plex carries two tvdb ids and Sonarr keys on 376459, not the last one
+    // (407505), so all ids are kept (CSV).
     const node: PlexMetadata = {
       ratingKey: '122531',
       title: 'Love is Blind',
@@ -127,7 +127,7 @@ describe('extractGuids', () => {
     expect(
       extractGuids({ ratingKey: '1', title: 'x', guid: 'com.plexapp.agents.imdb://tt0093629' })
     ).toEqual({ tmdb: null, tvdb: null, imdb: 'tt0093629' });
-    // Modern plex:// guid carries no external id → ignored.
+    // Modern plex:// guid carries no external id -> ignored.
     expect(
       extractGuids({ ratingKey: '1', title: 'x', guid: 'plex://show/abc' })
     ).toEqual({ tmdb: null, tvdb: null, imdb: null });
@@ -149,8 +149,8 @@ describe('getServerIdentity', () => {
   });
 
   it('falls back to /identity when / returns HTML (no cryptic JSON-parse error)', async () => {
-    // Plex serves its web-app HTML at / without a valid token — this used to
-    // surface as "Unexpected token '<'". Now it must fall back cleanly.
+    // Plex serves its web-app HTML at / without a valid token; that must fall
+    // back to /identity, not surface as "Unexpected token '<'".
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async (input: RequestInfo | URL) => {
@@ -196,8 +196,8 @@ describe('usefulServerConnections', () => {
     const input: ServerConnection[] = [
       { uri: 'https://relay.plex.direct:443', local: false, relay: true, address: '', port: 443, protocol: 'https' },
       conn('23.88.151.184', false), // remote/WAN
-      conn('172.18.0.1', true), // docker bridge — noise
-      conn('172.22.0.1', true), // docker bridge — noise
+      conn('172.18.0.1', true), // docker bridge - noise
+      conn('172.22.0.1', true), // docker bridge - noise
       conn('192.168.1.2', true), // real LAN
     ];
     const out = usefulServerConnections(input);
@@ -353,7 +353,7 @@ describe('plexWatchHistory', () => {
 
   it('drops rows for deleted media and unexpected types rather than counting them', async () => {
     // Plex keeps the view record but drops key/ratingKey once the media is gone
-    // (~4.2k of 99k rows on the live server). Those must not become watch rows.
+    // (a few percent of rows on the live server). Those must not become watch rows.
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       page([
         { type: 'episode', accountID: 1, viewedAt: 10 }, // no grandparentKey
@@ -382,7 +382,7 @@ describe('plexWatchHistory', () => {
 
   it('sends BOTH container params on every request', async () => {
     // Plex silently ignores X-Plex-Container-Size unless X-Plex-Container-Start
-    // is also present, and then returns the entire history (99k rows) in one
+    // is also present, and then returns the entire history (100k+ rows) in one
     // response. That still produces correct output, so only this assertion
     // catches it.
     const spy = vi
@@ -406,16 +406,16 @@ describe('plexWatchHistory', () => {
   it('remaps the owner (PMS account 1) onto their plex.tv id', async () => {
     // Shared users appear under their plex.tv id, but PMS numbers the OWNER 1
     // in its local accounts table. Verified live: history accountID 1 is the
-    // same person Tautulli calls user_id 22839572.
+    // same person Tautulli lists under their plex.tv id.
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       page([movie(1, 'm1', 10), movie(3629986, 'm1', 20)])
     );
     const rows = await plexWatchHistory('http://plex:32400', 'tok', {
-      ownerId: '22839572',
+      ownerId: '10000001',
     });
     expect(rows).toEqual(
       expect.arrayContaining([
-        { plexUserId: '22839572', ratingKey: 'm1', plays: 1, lastWatched: 10 },
+        { plexUserId: '10000001', ratingKey: 'm1', plays: 1, lastWatched: 10 },
         { plexUserId: '3629986', ratingKey: 'm1', plays: 1, lastWatched: 20 },
       ])
     );
@@ -454,7 +454,7 @@ describe('plexWatchHistory', () => {
   });
 
   it('throws when the server ignores paging and returns everything', async () => {
-    // Dropping X-Plex-Container-Start makes Plex return all 99k rows at once.
+    // Dropping X-Plex-Container-Start makes Plex return all 100k+ rows at once.
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       page([movie(1, 'a', 1), movie(1, 'b', 2), movie(1, 'c', 3)], 3)
     );
@@ -471,10 +471,10 @@ describe('plexOwnerLogin', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       fakeRes({
         contentType: 'application/json',
-        body: { MyPlex: { username: 'junco3@gmail.com', signInState: 'ok' } },
+        body: { MyPlex: { username: 'owner@example.com', signInState: 'ok' } },
       })
     );
-    expect(await plexOwnerLogin('http://plex:32400', 'tok')).toBe('junco3@gmail.com');
+    expect(await plexOwnerLogin('http://plex:32400', 'tok')).toBe('owner@example.com');
   });
 
   it('returns null instead of throwing when PMS will not say', async () => {

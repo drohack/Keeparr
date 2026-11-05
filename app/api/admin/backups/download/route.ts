@@ -19,7 +19,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
     const stat = fs.statSync(p);
-    // Backups are modest (a few MB) — a buffered read keeps the route simple.
+    // Backups are modest (a few MB) - a buffered read keeps the route simple.
     const body = new Uint8Array(fs.readFileSync(p));
     return new NextResponse(body, {
       headers: {

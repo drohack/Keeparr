@@ -15,7 +15,7 @@ const PIN_WINDOW_MS = 5 * 60 * 1000;
 /**
  * Start the Plex PIN OAuth flow. Returns the pin id (for polling) and the
  * app.plex.tv auth URL the browser opens (popup). A forwardUrl is included when
- * an App URL is configured (Settings → General, else the APP_URL env var).
+ * an App URL is configured (Settings -> General, else the APP_URL env var).
  */
 export async function POST(req: Request) {
   try {

@@ -1,13 +1,13 @@
 # Continuous delivery: every push to main ships one release.
 #
-#   test → version → build (per-arch, native) → publish (image + GitHub release)
+#   test -> version -> build (per-arch, native) -> publish (image + GitHub release)
 #
 # Versioning: auto-increments the PATCH unless you bumped package.json yourself.
 # The `version` job checks whether the current package.json version is already
 # released (a `v<version>` tag exists): if so it auto-bumps (patch by default;
 # minor/major via the workflow_dispatch input); if not, it uses your version
 # as-is (manual override). Any change is written back to main as a
-# `[skip ci]` commit — and commits pushed with GITHUB_TOKEN don't retrigger
+# `[skip ci]` commit - and commits pushed with GITHUB_TOKEN don't retrigger
 # workflows, so there's no release loop.
 #
 # One image build per push: images are built ONLY here (PRs just run CI).
@@ -65,11 +65,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           PKG=$(node -p "require('./package.json').version")
           if git ls-remote --exit-code --tags origin "refs/tags/v$PKG" >/dev/null 2>&1; then
-            echo "v$PKG is already released → auto-bump ($BUMP)"
+            echo "v$PKG is already released -> auto-bump ($BUMP)"
             npm version "$BUMP" --no-git-tag-version >/dev/null
             NEW=$(node -p "require('./package.json').version")
           else
-            echo "v$PKG has no tag yet → using it (manual override)"
+            echo "v$PKG has no tag yet -> using it (manual override)"
             NEW="$PKG"
           fi
           # Keep the OpenAPI doc's version in lockstep.

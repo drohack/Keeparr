@@ -42,14 +42,14 @@ export default function BackupsCard() {
 
   async function backupNow() {
     setBusy(true);
-    setMsg('Backing up…');
+    setMsg('Backing up...');
     try {
       await fetch('/api/admin/backups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create' }),
       });
-      // The job is fire-and-forget but fast — refresh shortly after.
+      // The route awaits the backup job, so the list is current once this resolves.
       await new Promise((res) => setTimeout(res, 1200));
       await load();
       setMsg('Backup created.');
@@ -68,7 +68,7 @@ export default function BackupsCard() {
       return;
     }
     setBusy(true);
-    setMsg('Restoring…');
+    setMsg('Restoring...');
     try {
       const r = await fetch('/api/admin/backups', {
         method: 'POST',
@@ -76,7 +76,7 @@ export default function BackupsCard() {
         body: JSON.stringify({ action: 'restore', name }),
       });
       if (r.ok) {
-        setMsg('Restored — reloading…');
+        setMsg('Restored - reloading...');
         window.location.reload();
       } else {
         const d = await r.json().catch(() => ({}));

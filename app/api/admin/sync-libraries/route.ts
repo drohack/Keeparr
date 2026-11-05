@@ -8,7 +8,7 @@ import { logEvent } from '@/lib/queries';
 export const runtime = 'nodejs';
 
 /**
- * Refresh just the library LIST from the configured media server (fast) — so
+ * Refresh just the library LIST from the configured media server (fast) - so
  * newly created libraries show up to manage/map without a full content scan.
  */
 export async function POST() {

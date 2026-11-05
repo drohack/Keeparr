@@ -22,7 +22,7 @@ type ToastFn = (message: string, type?: ToastType) => void;
 // Default no-op so useToast() is safe anywhere (tests, unmounted trees).
 const ToastContext = createContext<ToastFn>(() => {});
 
-/** `const toast = useToast(); toast('Saved', 'success')` — see ToastProvider. */
+/** `const toast = useToast(); toast('Saved', 'success')` - see ToastProvider. */
 export function useToast(): ToastFn {
   return useContext(ToastContext);
 }

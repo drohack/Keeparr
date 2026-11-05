@@ -60,7 +60,7 @@ export default function GeneralPanel() {
       // so the "Save settings to activate it" warning must stay.
       setKeyDirty(false);
     } catch {
-      setMsg("Couldn't save — settings unchanged.");
+      setMsg("Couldn't save - settings unchanged.");
     } finally {
       setSaving(false);
     }
@@ -148,7 +148,7 @@ export default function GeneralPanel() {
 
       <div className="flex items-center gap-3">
         <button onClick={save} disabled={saving} className={btnCls}>
-          {saving ? 'Saving…' : 'Save settings'}
+          {saving ? 'Saving...' : 'Save settings'}
         </button>
         {msg && <span className="text-sm text-slate-300">{msg}</span>}
       </div>

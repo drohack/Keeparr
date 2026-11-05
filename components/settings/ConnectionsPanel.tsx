@@ -8,7 +8,7 @@ import MatchHealthCard from './MatchHealthCard';
 
 /**
  * A unique id for a new instance row. `crypto.randomUUID()` only exists in a
- * secure context (HTTPS or localhost) — on a plain-HTTP LAN deployment it's
+ * secure context (HTTPS or localhost) - on a plain-HTTP LAN deployment it's
  * undefined and would throw, so fall back to getRandomValues (available in
  * insecure contexts) and finally a timestamp+random string.
  */
@@ -60,10 +60,9 @@ interface SectionInfo {
 }
 
 /**
- * `defaultPort` is prefilled as a REAL value, not a placeholder. A greyed-out
- * "32400" that isn't actually there reads as filled in, and leaving it blank
- * silently produced a port-80 URL that hit the Unraid UI and failed with an
- * error blaming credentials. Shown as a value, it is obvious and editable.
+ * `defaultPort` is prefilled as a REAL value, not a placeholder: a greyed-out
+ * "32400" that isn't actually there reads as filled in. Shown as a value, it
+ * is obvious and editable.
  */
 function parseUrl(url: string | null, defaultPort = ''): Parts {
   if (!url) return { ssl: false, host: '', port: defaultPort, base: '' };
@@ -84,10 +83,9 @@ function parseUrl(url: string | null, defaultPort = ''): Parts {
 /**
  * Default ports, applied only when the port box is EMPTY and SSL is off.
  *
- * A blank port used to fall through to :80, so `192.168.1.2` reached the Unraid
- * web UI, which 302s to a login page - HTML, HTTP 200. The connection test then
- * reported "returned text/html ... check the URL/SSL and credentials", which
- * blames the token for what is actually a missing port. Left alone over https,
+ * Without one, a blank port means :80, where a NAS web UI answers with an HTML
+ * login page; fetchJson then reports "returned text/html ... check the URL/SSL
+ * and credentials", blaming the token for a missing port. Left alone over https,
  * where a bare host (:443, reverse proxy) is a normal setup.
  */
 const DEFAULT_PORTS: Record<string, string> = {
@@ -261,7 +259,7 @@ function ArrCard({
               portHint={kind === 'sonarr' ? '8989' : '7878'}
             />
             <label className="mt-3 mb-1 block text-sm text-slate-400">
-              API key {row.hasKey && '(saved — leave blank to keep)'}
+              API key {row.hasKey && '(saved - leave blank to keep)'}
             </label>
             <input
               className={`${inputCls} max-w-md`}
@@ -390,14 +388,14 @@ export default function ConnectionsPanel() {
   async function checkPath(id: string) {
     const path = (storagePaths[id] ?? '').trim();
     if (!path) return;
-    setStorageMsg((m) => ({ ...m, [id]: 'Checking…' }));
+    setStorageMsg((m) => ({ ...m, [id]: 'Checking...' }));
     const r = await fetch(
       `/api/admin/storage-check?path=${encodeURIComponent(path)}`
     ).then((x) => x.json());
     setStorageMsg((m) => ({
       ...m,
       [id]: r.ok
-        ? `OK — ${formatSize(r.freeBytes)} free of ${formatSize(r.totalBytes)}`
+        ? `OK - ${formatSize(r.freeBytes)} free of ${formatSize(r.totalBytes)}`
         : `Not accessible (${r.error})`,
     }));
   }
@@ -456,7 +454,7 @@ export default function ConnectionsPanel() {
       if (!t.ok) {
         // The reachability test can fail even for a valid server (e.g. a
         // relay/remote URL not routable from the container). Don't silently
-        // drop the click — let the admin save it anyway.
+        // drop the click - let the admin save it anyway.
         const proceed = window.confirm(
           `Couldn't reach ${uri}\n(${t.message ?? 'connection test failed'}).\n\n` +
             `Save this connection anyway?`
@@ -484,7 +482,7 @@ export default function ConnectionsPanel() {
       await load();
     } catch {
       // Discovered-servers list stays visible for a retry click.
-      setMsg(`Couldn't connect to ${srv.name} — nothing was saved.`);
+      setMsg(`Couldn't connect to ${srv.name} - nothing was saved.`);
     } finally {
       setSaving(false);
     }
@@ -582,7 +580,7 @@ export default function ConnectionsPanel() {
       setTest((m) => ({ ...m, [key]: 'Enter the API key to test.' }));
       return;
     }
-    setTest((m) => ({ ...m, [key]: 'Testing…' }));
+    setTest((m) => ({ ...m, [key]: 'Testing...' }));
     const r = await fetch('/api/admin/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -619,8 +617,7 @@ export default function ConnectionsPanel() {
         body: JSON.stringify({
           ...(buildUrl(plex, 'plex') ? { plexBaseUrl: buildUrl(plex, 'plex') } : {}),
           // Blank = keep the stored token; clearing needs an explicit '' which
-          // only the Clear button sends. Without this there was no way to
-          // remove a saved token from the UI at all.
+          // only the "clear it" control sends.
           ...(clearOwnerToken
             ? { plexOwnerToken: '' }
             : plexOwnerToken
@@ -640,7 +637,7 @@ export default function ConnectionsPanel() {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message ?? body?.error ?? String(res.status));
       }
-      // Only on success — a failed save must keep the typed API keys in their
+      // Only on success - a failed save must keep the typed API keys in their
       // inputs so the admin can just hit Save again instead of re-typing them.
       setTautKey('');
       setSeerrKey('');
@@ -656,7 +653,7 @@ export default function ConnectionsPanel() {
   }
 
   async function syncLibraries() {
-    setLibMsg('Syncing…');
+    setLibMsg('Syncing...');
     const r = await fetch('/api/admin/sync-libraries', { method: 'POST' }).then((x) => x.json());
     setLibMsg(r.count != null ? `Found ${r.count} libraries.` : `Failed (${r.error ?? '?'})`);
   }
@@ -706,7 +703,7 @@ export default function ConnectionsPanel() {
 
         {/* Plex connects here (discover or manual). Jellyfin/Emby are connected
             during sign-in (URL at setup + the owner's token), so there's no
-            connect form — just library sync below. */}
+            connect form - just library sync below. */}
         {serverType === 'plex' ? (
           <>
             <p className="text-xs text-slate-500 mb-2 max-w-2xl">
@@ -865,7 +862,7 @@ export default function ConnectionsPanel() {
               className={btnGhost}
               type="button"
             >
-              {scan?.lastStatus === 'running' ? 'Scanning…' : 'Manual library scan'}
+              {scan?.lastStatus === 'running' ? 'Scanning...' : 'Manual library scan'}
             </button>
             {libMsg && <span className="text-sm text-slate-400">{libMsg}</span>}
             {scan && scan.lastStatus !== 'never' && (
@@ -877,8 +874,8 @@ export default function ConnectionsPanel() {
           </div>
         )}
 
-        {/* Managed libraries + storage are derived from Plex, so they live inside
-            the Plex section rather than as standalone connectors. */}
+        {/* Managed libraries + storage are derived from the media server, so they
+            live inside its card rather than as standalone connectors. */}
         <div className="mt-4 border-t border-slate-800 pt-3">
           <div className="mb-2 text-sm font-semibold text-slate-200">Managed libraries</div>
           {sections.length === 0 ? (
@@ -933,7 +930,7 @@ export default function ConnectionsPanel() {
                       <input
                         {...noAutofill}
                         className={`${inputCls} flex-1`}
-                        placeholder="/media/…"
+                        placeholder="/media/..."
                         value={storagePaths[s.id] ?? ''}
                         onChange={(e) =>
                           setStoragePaths((p) => ({ ...p, [s.id]: e.target.value }))
@@ -971,7 +968,7 @@ export default function ConnectionsPanel() {
         >
           <ServiceFields parts={taut} setParts={setTaut} showBase portHint="8181" />
           <label className="block text-sm text-slate-400 mt-3 mb-1">
-            API key {tautConfigured && '(saved — leave blank to keep)'}
+            API key {tautConfigured && '(saved - leave blank to keep)'}
           </label>
           <input
             className={`${inputCls} max-w-md`}
@@ -1000,7 +997,7 @@ export default function ConnectionsPanel() {
       >
         <ServiceFields parts={seerr} setParts={setSeerr} showBase portHint="5055" />
         <label className="block text-sm text-slate-400 mt-3 mb-1">
-          API key {seerrConfigured && '(saved — leave blank to keep)'}
+          API key {seerrConfigured && '(saved - leave blank to keep)'}
         </label>
         <input
           className={`${inputCls} max-w-md`}
@@ -1039,8 +1036,8 @@ export default function ConnectionsPanel() {
 
       </CardColumns>
 
-      {/* Sticky: this page is long enough that the only way to apply a change
-          made near the top was to scroll to the bottom hunting for Save. */}
+      {/* Sticky so Save stays reachable from anywhere on this long
+          page. */}
       <div className="sticky bottom-0 -mx-6 mt-2 border-t border-slate-800 bg-app/95 px-6 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
           <button onClick={save} disabled={saving} className={btnCls}>

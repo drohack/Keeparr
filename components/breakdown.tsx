@@ -13,7 +13,7 @@ import { formatSize } from '@/lib/format';
  */
 export const TONE = {
   // "Kept by you" (bright brand gold) vs "Kept by others" (the brand's darker
-  // gold) — same protected family, two clean shades (not a muddy brown).
+  // gold) - same protected family, two clean shades (not a muddy brown).
   kept: { bar: 'bg-brand', dot: 'bg-brand', text: 'text-brand', stroke: 'stroke-brand', border: 'border-brand' },
   keptOther: { bar: 'bg-brand-dark', dot: 'bg-brand-dark', text: 'text-brand-dark', stroke: 'stroke-brand-dark', border: 'border-brand-dark' },
   dontcare: { bar: 'bg-rose-500', dot: 'bg-rose-500', text: 'text-rose-400', stroke: 'stroke-rose-500', border: 'border-rose-500' },
@@ -24,7 +24,7 @@ export const TONE = {
 
 export type ToneKey = keyof typeof TONE;
 
-/** Categorical palette for "by library" — alternating violet & teal shades.
+/** Categorical palette for "by library" - alternating violet & teal shades.
  *  Both hues sit far from the status palette (amber / rose / blue) so a library
  *  color can never be mistaken for a keep/don't-care/undecided color. */
 export const LIB_BAR = [
@@ -104,7 +104,7 @@ function ChartTooltip({
 
 /**
  * A stacked bar. With `max` set, the segments only fill `sum/max` of the width
- * and the remaining track shows through — i.e. the empty part IS the free space
+ * and the remaining track shows through - i.e. the empty part IS the free space
  * (a fuel gauge). Without `max`, segments fill the whole bar (a composition).
  */
 export function StackedBar({
@@ -321,13 +321,13 @@ export interface Overview {
   /** A watch source is connected AND has synced rows -> the never-watched
    *  metric is meaningful. False also covers "synced nothing yet". */
   watchAvailable?: boolean;
-  /** Sonarr/Radarr connected → the "Reclaim by quality" breakdown is present. */
+  /** Sonarr/Radarr connected -> the "Reclaim by quality" breakdown is present. */
   arr?: boolean;
   qualityBreakdown?: {
     byQuality: QualitySummary[];
     notInArr: Omit<QualitySummary, 'quality'>;
   };
-  /** Seerr connected → the "OK to delete" KPI + drill-down are meaningful. */
+  /** Seerr connected -> the "OK to delete" KPI + drill-down are meaningful. */
   seerr?: boolean;
   /** Titles + bytes anyone has marked "OK to delete" (the headline KPI). */
   markedForDelete?: { titles: number; bytes: number };
@@ -349,13 +349,13 @@ export function compositionSegments(b: {
 }): Segment[] {
   return [
     { tone: 'kept', value: b.keptBytes, label: 'Kept' },
-    { tone: 'dontcare', value: b.dontcareBytes, label: 'I don’t care' },
+    { tone: 'dontcare', value: b.dontcareBytes, label: "I don't care" },
     { tone: 'undecided', value: b.undecidedBytes, label: 'Undecided' },
   ];
 }
 
 /** Per keep segment: its size + how much of it nobody has ever watched. Drives
- *  the `UnwatchedBrackets` row above a composition bar (same order/scale). */
+ *  the `UnwatchedBrackets` row below a composition bar (same order/scale). */
 export function keptVsUnwatchedSegments(b: {
   keptBytes: number;
   keptByMeBytes: number;
@@ -374,16 +374,16 @@ export function keptVsUnwatchedSegments(b: {
       unwatched: Math.max(0, b.unwatchedKeptBytes - b.unwatchedKeptByMeBytes),
       label: 'Kept by others',
     },
-    { tone: 'dontcare', value: b.dontcareBytes, unwatched: b.unwatchedDontcareBytes, label: 'I don’t care' },
+    { tone: 'dontcare', value: b.dontcareBytes, unwatched: b.unwatchedDontcareBytes, label: "I don't care" },
     { tone: 'undecided', value: b.undecidedBytes, unwatched: b.unwatchedUndecidedBytes, label: 'Undecided' },
   ];
 }
 
 /**
- * A row of measurement brackets drawn BELOW a composition bar — one per keep
+ * A row of measurement brackets drawn BELOW a composition bar - one per keep
  * segment, each under its segment and spanning that segment's
  * never-watched-by-anyone portion (anchored at the segment's left edge). Reads
- * as "how much of Kept / Undecided / … nobody has watched" without a second bar.
+ * as "how much of Kept / Undecided / ... nobody has watched" without a second bar.
  * Uses the same order/scale as the StackedBar above so the brackets line up.
  */
 export function UnwatchedBrackets({
@@ -407,7 +407,7 @@ export function UnwatchedBrackets({
     if (brPct <= 0) return null;
     // Inset each bracket by 2px per side so adjacent fully-never-watched
     // segments read as separate brackets (one per category) instead of merging.
-    // Bottom + side borders → a "U" that points up at the segment above it.
+    // Bottom + side borders -> a "U" that points up at the segment above it.
     return (
       <div
         key={i}
@@ -425,7 +425,7 @@ export function UnwatchedBrackets({
 }
 
 /** Four-way split that separates your keeps from everyone else's. The bytes
- *  partition the row total: keptByMe + (kept−keptByMe) + dontcare + undecided. */
+ *  partition the row total: keptByMe + (kept-keptByMe) + dontcare + undecided. */
 export function compositionSegmentsSplit(b: {
   keptBytes: number;
   keptByMeBytes: number;
@@ -435,7 +435,7 @@ export function compositionSegmentsSplit(b: {
   return [
     { tone: 'kept', value: b.keptByMeBytes, label: 'Kept by you' },
     { tone: 'keptOther', value: Math.max(0, b.keptBytes - b.keptByMeBytes), label: 'Kept by others' },
-    { tone: 'dontcare', value: b.dontcareBytes, label: 'I don’t care' },
+    { tone: 'dontcare', value: b.dontcareBytes, label: "I don't care" },
     { tone: 'undecided', value: b.undecidedBytes, label: 'Undecided (yours to review)' },
   ];
 }

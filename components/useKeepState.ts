@@ -7,7 +7,7 @@ import { useToast } from './Toaster';
  * Per-user keep / "don't care" / "OK to delete" state for one title, with
  * optimistic updates and revert-on-failure. The three are mutually exclusive
  * (setting one clears the others, matching the server). "OK to delete" is only
- * offered on items the user requested on Seerr — the caller gates the control;
+ * offered on items the user requested on Seerr - the caller gates the control;
  * the hook just owns the mutation. Shared by MediaCard (grid) and MediaRow (list)
  * so the logic lives in exactly one place.
  */
@@ -45,9 +45,9 @@ export function useKeepState(opts: {
   const toast = useToast();
 
   // The three states are mutually exclusive, so ANY in-flight mutation blocks
-  // all three toggles — interleaved requests would race server-side and their
+  // all three toggles - interleaved requests would race server-side and their
   // failure-revert snapshots would clobber each other's optimistic state. A ref
-  // (not the busy states) so back-to-back clicks in one tick are blocked too —
+  // (not the busy states) so back-to-back clicks in one tick are blocked too -
   // state updates only land on the next render.
   const inFlight = useRef(false);
 
@@ -80,7 +80,7 @@ export function useKeepState(opts: {
       setKeptByMe(prev.keptByMe);
       setSkipped(prev.skipped);
       setMarkedForDelete(prev.markedForDelete);
-      toast("Couldn't save the keep — change reverted.", 'error');
+      toast("Couldn't save the keep - change reverted.", 'error');
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -114,7 +114,7 @@ export function useKeepState(opts: {
       setKeptByMe(prev.keptByMe);
       setSkipped(prev.skipped);
       setMarkedForDelete(prev.markedForDelete);
-      toast("Couldn't save \"don't care\" — change reverted.", 'error');
+      toast("Couldn't save \"don't care\" - change reverted.", 'error');
     } finally {
       inFlight.current = false;
       setSkipBusy(false);
@@ -148,7 +148,7 @@ export function useKeepState(opts: {
       setKeptByMe(prev.keptByMe);
       setSkipped(prev.skipped);
       setMarkedForDelete(prev.markedForDelete);
-      toast("Couldn't save \"OK to delete\" — change reverted.", 'error');
+      toast("Couldn't save \"OK to delete\" - change reverted.", 'error');
     } finally {
       inFlight.current = false;
       setDeleteBusy(false);

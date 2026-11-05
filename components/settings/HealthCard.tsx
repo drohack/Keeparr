@@ -12,7 +12,7 @@ interface HealthIssue {
 
 const DOCS_BASE = 'https://github.com/drohack/Keeparr#';
 
-/** Standing health warnings (Servarr System → Status style), with fix-it links. */
+/** Standing health warnings (Servarr System -> Status style), with fix-it links. */
 export default function HealthCard() {
   const [issues, setIssues] = useState<HealthIssue[] | null>(null);
 

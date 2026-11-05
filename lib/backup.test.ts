@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Point the app at a REAL SQLite file in a temp dir (no mocks of storage —
+// Point the app at a REAL SQLite file in a temp dir (no mocks of storage -
 // only the paths are redirected so backup/restore exercise actual files).
 const { TMP } = vi.hoisted(() => ({
-  // vi.hoisted runs before imports — no path/os available; plain concat is fine.
+  // vi.hoisted runs before imports - no path/os available; plain concat is fine.
   TMP: `${process.env.TMP ?? process.env.TEMP ?? '/tmp'}/keeparr-backup-test-${process.pid}`,
 }));
 vi.mock('./config', async (importOriginal) => {

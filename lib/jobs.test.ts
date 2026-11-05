@@ -84,11 +84,11 @@ describe('isDue (pure schedule check)', () => {
   it('daily: due once after the local HH:MM, not again until next day', () => {
     const day = new Date(2026, 0, 2, 5, 0, 0).getTime(); // local 05:00
     const before = new Date(2026, 0, 2, 2, 0, 0).getTime(); // local 02:00
-    // At 05:00, never run today → due.
+    // At 05:00, never run today -> due.
     expect(isDue({ type: 'daily', hour: 3, minute: 0 }, 0, day)).toBe(true);
-    // Before 03:00 → not yet.
+    // Before 03:00 -> not yet.
     expect(isDue({ type: 'daily', hour: 3, minute: 0 }, 0, before)).toBe(false);
-    // Already ran after today's 03:00 → not again.
+    // Already ran after today's 03:00 -> not again.
     const ranAt = Math.floor(new Date(2026, 0, 2, 3, 30, 0).getTime() / 1000);
     expect(isDue({ type: 'daily', hour: 3, minute: 0 }, ranAt, day)).toBe(false);
   });

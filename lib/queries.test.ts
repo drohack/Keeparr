@@ -444,7 +444,7 @@ describe('media upsert + tombstone', () => {
       1000
     );
     // Neither item was re-touched, but section 2's scan came back empty-but-200
-    // — its rows must survive the sweep.
+    // - its rows must survive the sweep.
     const removed = tombstoneStale(2000, ['2']);
     expect(removed).toBe(1); // only section 1's stale item
     expect(libraryStats().totalItems).toBe(1); // section 2's row survived
@@ -536,7 +536,7 @@ describe('reclaimable + library views', () => {
     expect(items.map((m) => m.rating_key)).toEqual(['1', '2', '3']);
     expect(items.find((m) => m.rating_key === '2')?.kept).toBe(1);
     expect(items.find((m) => m.rating_key === '2')?.kept_by_me).toBe(1);
-    // kept by another user → protected but not mine
+    // kept by another user -> protected but not mine
     expect(items.find((m) => m.rating_key === '3')?.kept).toBe(1);
     expect(items.find((m) => m.rating_key === '3')?.kept_by_me).toBe(0);
     expect(items.find((m) => m.rating_key === '1')?.kept).toBe(0);
@@ -612,7 +612,7 @@ describe('reclaimable + library views', () => {
 
   it('libraryStats totals (a multi-keeper item counts once)', () => {
     addKeep('userA', '1');
-    addKeep('userB', '1'); // same item, second keeper — must not double-count
+    addKeep('userB', '1'); // same item, second keeper - must not double-count
     const s = libraryStats();
     expect(s.totalItems).toBe(3);
     expect(s.totalBytes).toBe(16 * GB);
@@ -665,10 +665,10 @@ describe('watch filters + never-watched', () => {
     ]);
     upsertWatchBatch([
       { plexUserId: 'userA', ratingKey: '1', plays: 3, lastWatched: dago(10) }, // recent
-      { plexUserId: 'userA', ratingKey: '2', plays: 1, lastWatched: dago(75) }, // ≤90 only
+      { plexUserId: 'userA', ratingKey: '2', plays: 1, lastWatched: dago(75) }, // <=90 only
       { plexUserId: 'userA', ratingKey: '3', plays: 1, lastWatched: dago(210) }, // stale
       { plexUserId: 'userB', ratingKey: '4', plays: 9, lastWatched: dago(5) }, // someone else
-      // '5' — watched by nobody
+      // '5' - watched by nobody
     ]);
   });
 
@@ -707,7 +707,7 @@ describe('watch filters + never-watched', () => {
 
   it('librarySummary counts "never watched by anyone" (only item 5)', () => {
     const [row] = librarySummary('userA');
-    expect(row.unwatched_items).toBe(1); // only '5' — '4' is watched by userB
+    expect(row.unwatched_items).toBe(1); // only '5' - '4' is watched by userB
     expect(row.unwatched_bytes).toBe(2 * GB);
   });
 
@@ -739,7 +739,7 @@ describe('librarySummary never-watched split by keep bucket', () => {
       media('2', { sizeBytes: 2 * GB }), // kept by other, never watched
       media('3', { sizeBytes: 4 * GB }), // I don't care, never watched
       media('4', { sizeBytes: 8 * GB }), // undecided, never watched
-      media('5', { sizeBytes: 16 * GB }), // undecided but WATCHED → excluded
+      media('5', { sizeBytes: 16 * GB }), // undecided but WATCHED -> excluded
     ]);
     addKeep('me', '1');
     addKeep('other', '2');
@@ -751,7 +751,7 @@ describe('librarySummary never-watched split by keep bucket', () => {
 
   it('splits never-watched bytes across keep buckets (they sum to the total)', () => {
     const [r] = librarySummary('me');
-    expect(r.unwatched_bytes).toBe((1 + 2 + 4 + 8) * GB); // '5' watched → excluded
+    expect(r.unwatched_bytes).toBe((1 + 2 + 4 + 8) * GB); // '5' watched -> excluded
     expect(r.unwatched_kept_by_me_bytes).toBe(1 * GB);
     expect(r.unwatched_kept_bytes).toBe((1 + 2) * GB); // protected: mine + other's
     expect(r.unwatched_dontcare_bytes).toBe(4 * GB);
@@ -787,12 +787,12 @@ describe('arr_items (Sonarr/Radarr filters in queryLibrary)', () => {
     upsertMediaBatch([
       media('1', { sizeBytes: 5 * GB }),
       media('2', { sizeBytes: 3 * GB }),
-      media('3', { sizeBytes: 1 * GB }), // no arr row → excluded from the view
+      media('3', { sizeBytes: 1 * GB }), // no arr row -> listed, arr fields null
     ]);
     replaceArrItems([
-      // arr size matches Plex (5 GB) → no mismatch.
+      // arr size matches Plex (5 GB) -> no mismatch.
       arr({ ratingKey: '1', source: 'radarr', quality: 'Bluray-2160p', tags: ['Bounty'], arrSizeBytes: 5 * GB }),
-      // arr size 1 GB vs Plex 3 GB → flagged as a size mismatch.
+      // arr size 1 GB vs Plex 3 GB -> flagged as a size mismatch.
       arr({
         ratingKey: '2',
         source: 'sonarr',
@@ -839,7 +839,7 @@ describe('arr_items (Sonarr/Radarr filters in queryLibrary)', () => {
     expect(keys({ qualities: ['Ultra-HD', 'Bluray-2160p'] })).toEqual(['1', '2']);
     expect(keys({ monitored: ['unmonitored'] })).toEqual(['2']);
     expect(keys({ monitored: ['monitored'] })).toEqual(['1']);
-    expect(keys({ monitored: ['monitored', 'unmonitored'] })).toEqual(['1', '2', '3']); // both = no filter → all media
+    expect(keys({ monitored: ['monitored', 'unmonitored'] })).toEqual(['1', '2', '3']); // both = no filter -> all media
   });
 
   it('match filter (in / not in *arr)', () => {
@@ -881,7 +881,7 @@ describe('arr_items (Sonarr/Radarr filters in queryLibrary)', () => {
   });
 
   it('replaceArrItems preserves rows of instances that failed this run', () => {
-    // Radarr (r1) succeeded with a fresh row for item 3; Sonarr (s1) failed —
+    // Radarr (r1) succeeded with a fresh row for item 3; Sonarr (s1) failed -
     // its item-2 row must survive, r1's stale item-1 row must not.
     replaceArrItems([arr({ ratingKey: '3', source: 'radarr' })], ['s1']);
     const rows = queryLibrary({ plexUserId: 'u', limit: 100, offset: 0 });
@@ -918,7 +918,7 @@ describe('arr match health + quality summary', () => {
       arrItem({ ratingKey: 's1' }),
       arrItem({ ratingKey: 'm1', source: 'radarr', quality: 'Bluray-2160p', qualityKind: 'file', arrSizeBytes: 8 * GB }),
     ]);
-    // s2 has no arr row → "Not in *arr"
+    // s2 has no arr row -> "Not in *arr"
   });
 
   it('replaceArrUnmatched / getArrUnmatched / clearArrUnmatched round-trip (largest first)', () => {
@@ -1012,7 +1012,7 @@ describe('queryLibrary keptByMeOnly', () => {
     upsertMediaBatch([media('1'), media('2'), media('3')]);
     addKeep('me', '1'); // my keep
     addKeep('other', '2'); // someone else's keep (protected, but not mine)
-    // '3' — kept by nobody
+    // '3' - kept by nobody
   });
 
   it('keptByMeOnly returns only the caller\'s own keeps', () => {
@@ -1046,7 +1046,7 @@ describe('queryLibrary combinable Status buckets (stateBuckets, OR)', () => {
     addSkip('me', '3'); // I don't care
     addDelete('me', '4'); // OK to delete (by me)
     addDelete('other', '5'); // OK to delete (by someone else)
-    // '6' — undecided
+    // '6' - undecided
   });
 
   const q = (stateBuckets: LibraryQuery['stateBuckets']) =>
@@ -1065,9 +1065,8 @@ describe('queryLibrary combinable Status buckets (stateBuckets, OR)', () => {
     expect(q(['dontcare'])).toEqual(['3']);
     expect(q(['okDeleteMine'])).toEqual(['4']);
     expect(q(['okDeleteAny'])).toEqual(['4', '5']); // my own mark counts as "any" too
-    // Undecided = "I" made no decision. '5' (marked by someone else, untouched by
-    // me) counts — consistent with the prior Undecided view (excludes only YOUR
-    // own keep/skip/delete).
+    // Undecided: kept by nobody, and no skip/OK-to-delete of mine. '5' (marked
+    // OK-to-delete by someone else) counts; '2' (kept by someone else) does not.
     expect(q(['undecided'])).toEqual(['5', '6']);
   });
 
@@ -1251,7 +1250,7 @@ describe('OK to delete (user_deletes)', () => {
     addDelete('u1', 'big');
     addDelete('u2', 'big'); // two markers on one title
     addDelete('u1', 'small');
-    addKeep('other', 'big'); // released by requesters but still kept → protected
+    addKeep('other', 'big'); // released by requesters but still kept -> protected
 
     const rows = markedForDeleteItems();
     expect(rows.map((r) => r.ratingKey)).toEqual(['big', 'small']); // size DESC
@@ -1284,11 +1283,11 @@ describe('Problems page queries', () => {
   describe('sizeMismatchItems / sizeMismatchSummary', () => {
     beforeEach(() => {
       upsertMediaBatch([
-        media('1', { sizeBytes: 10 * GB }), // arr 4 GB → 6 GB delta, >10% AND >1 GB → IN
-        media('2', { sizeBytes: 100 * GB }), // arr 98 GB → 2 GB delta but 2% → OUT (≤10%)
-        media('3', { sizeBytes: 5 * GB }), // arr 4.2 GB → 16% but 0.8 GB → OUT (≤1 GB)
-        media('4', { sizeBytes: 8 * GB }), // arr size identical → OUT
-        media('5', { sizeBytes: 20 * GB }), // arr 2 GB → IN (bigger delta)
+        media('1', { sizeBytes: 10 * GB }), // arr 4 GB -> 6 GB delta, >10% AND >1 GB -> IN
+        media('2', { sizeBytes: 100 * GB }), // arr 98 GB -> 2 GB delta but 2% -> OUT (<=10%)
+        media('3', { sizeBytes: 5 * GB }), // arr 4.2 GB -> 16% but 0.8 GB -> OUT (<=1 GB)
+        media('4', { sizeBytes: 8 * GB }), // arr size identical -> OUT
+        media('5', { sizeBytes: 20 * GB }), // arr 2 GB -> IN (bigger delta)
       ]);
       replaceArrItems([
         arrRow({ ratingKey: '1', arrSizeBytes: 4 * GB }),
@@ -1303,7 +1302,7 @@ describe('Problems page queries', () => {
           instanceName: 'Sonarr',
         }),
       ]);
-      // Item 6 diverges hard but is tombstoned → OUT.
+      // Item 6 diverges hard but is tombstoned -> OUT.
       upsertMediaBatch([media('6', { sizeBytes: 9 * GB })], 10);
       replaceArrItems(
         [arrRow({ ratingKey: '6', arrSizeBytes: 1 * GB })],
@@ -1343,8 +1342,8 @@ describe('Problems page queries', () => {
     it('rows expose fileCount (multi-part movies), and NULL re-upserts keep it', () => {
       upsertMediaBatch([media('1', { sizeBytes: 10 * GB, fileCount: 2 })]);
       expect(sizeMismatchItems(100, 0).find((r) => r.ratingKey === '1')?.fileCount).toBe(2);
-      // A scan that didn't report media (fileCount omitted → NULL) must not
-      // wipe the captured count — same COALESCE rule as the dir columns.
+      // A scan that didn't report media (fileCount omitted -> NULL) must not
+      // wipe the captured count - same COALESCE rule as the dir columns.
       upsertMediaBatch([media('1', { sizeBytes: 10 * GB })]);
       expect(sizeMismatchItems(100, 0).find((r) => r.ratingKey === '1')?.fileCount).toBe(2);
     });
@@ -1353,7 +1352,7 @@ describe('Problems page queries', () => {
   describe('notInArrItems / arrUnmatchedSummary', () => {
     it('lists non-removed items with no arr row, largest first, paged', () => {
       upsertMediaBatch([
-        media('1', { sizeBytes: 1 * GB }), // arr-matched → OUT
+        media('1', { sizeBytes: 1 * GB }), // arr-matched -> OUT
         media('2', { sizeBytes: 8 * GB }), // IN
         media('3', { sizeBytes: 2 * GB }), // IN
       ]);
@@ -1370,8 +1369,8 @@ describe('Problems page queries', () => {
 
     it('excludeMissingIds drops items that can never match (the default view)', () => {
       upsertMediaBatch([
-        media('1', { guidTmdb: '603', sizeBytes: 8 * GB }), // has an id → always IN
-        media('2', { guidTmdb: null, sizeBytes: 4 * GB }), // no id at all → filtered
+        media('1', { guidTmdb: '603', sizeBytes: 8 * GB }), // has an id -> always IN
+        media('2', { guidTmdb: null, sizeBytes: 4 * GB }), // no id at all -> filtered
         media('3', { guidTmdb: null, guidImdb: 'tt1', sizeBytes: 2 * GB }), // imdb counts as an id
       ]);
       expect(notInArrItems(100, 0).map((r) => r.ratingKey)).toEqual(['1', '2', '3']);
@@ -1390,7 +1389,7 @@ describe('Problems page queries', () => {
       const keys = (opts?: Parameters<typeof notInArrItems>[3]) =>
         notInArrItems(100, 0, false, opts).map((r) => r.ratingKey);
       expect(keys()).toEqual(['b', 'c', 'a']); // default: size DESC
-      expect(keys({ sort: 'title' })).toEqual(['b', 'c', 'a']); // Alpha, Mid, Zebra — asc default for title
+      expect(keys({ sort: 'title' })).toEqual(['b', 'c', 'a']); // Alpha, Mid, Zebra - asc default for title
       expect(keys({ sort: 'title', dir: 'desc' })).toEqual(['a', 'c', 'b']);
       expect(keys({ sort: 'added', dir: 'asc' })).toEqual(['b', 'c', 'a']);
       expect(keys({ sort: 'nonsense' })).toEqual(['b', 'c', 'a']); // falls back to default
@@ -1420,7 +1419,7 @@ describe('Problems page queries', () => {
           sizeBytes: 5 * GB,
         },
         {
-          // Fileless (wanted-but-not-downloaded) — feeds identity matching only.
+          // Fileless (wanted-but-not-downloaded) - feeds identity matching only.
           source: 'radarr',
           instanceId: 'r1',
           instanceName: 'R',
@@ -1443,7 +1442,7 @@ describe('Problems page queries', () => {
       upsertMediaBatch([
         media('1', { guidTmdb: '603,604', sizeBytes: 4 * GB, dirPath: '/media/4K/Title 1' }),
         media('2', { guidTmdb: '604', sizeBytes: 2 * GB, dirPath: '/media/Movies/Title 2' }),
-        media('3', { guidTmdb: '999', sizeBytes: 1 * GB }), // alone → no group
+        media('3', { guidTmdb: '999', sizeBytes: 1 * GB }), // alone -> no group
       ]);
       const groups = duplicateGroups();
       expect(groups).toHaveLength(1);
@@ -1693,7 +1692,7 @@ describe('Problems page queries', () => {
         conflict({ instanceId: 's2' }),
         conflict({ ratingKey: '2', instanceId: 's3', instanceName: 'Other' }),
       ]);
-      replaceArrConflicts([], ['s3']); // s3 failed this run → its row survives
+      replaceArrConflicts([], ['s3']); // s3 failed this run -> its row survives
       const rows = getArrConflicts();
       expect(rows.map((r) => r.ratingKey)).toEqual(['2']);
     });
@@ -1707,7 +1706,7 @@ describe('Problems page queries', () => {
         media('3', { sizeBytes: 1 * GB }),
       ]);
       upsertMediaBatch([media('4', { sizeBytes: 0 })], 10);
-      tombstoneStale(11); // '4' removed → excluded (the others were upserted "now")
+      tombstoneStale(11); // '4' removed -> excluded (the others were upserted "now")
       expect(zeroSizeItems(100, 0).map((r) => r.ratingKey)).toEqual(['2', '1']);
       expect(zeroSizeCount()).toBe(2);
       expect(zeroSizeItems(1, 1).map((r) => r.ratingKey)).toEqual(['1']);
@@ -1727,9 +1726,9 @@ describe('Problems page queries', () => {
       );
       upsertMediaBatch([media('here', { sizeBytes: 7 * GB })]);
       addKeep('u1', 'gone-big');
-      addKeep('u2', 'gone-big'); // no users row → username null
+      addKeep('u2', 'gone-big'); // no users row -> username null
       addKeep('u1', 'gone-small');
-      addKeep('u1', 'here'); // not removed → excluded
+      addKeep('u1', 'here'); // not removed -> excluded
       tombstoneStale(11);
 
       const rows = removedButKeptItems();
@@ -1743,10 +1742,10 @@ describe('Problems page queries', () => {
     it('kind-scoped primary id AND imdb must both be missing; largest first; paged', () => {
       upsertMediaBatch([
         media('s1', { libraryKind: 'show', guidTvdb: null, sizeBytes: 8 * GB }), // IN
-        media('s2', { libraryKind: 'show', guidTvdb: null, guidImdb: 'tt1' }), // imdb → OUT
-        media('s3', { libraryKind: 'show', guidTvdb: '42' }), // tvdb → OUT
+        media('s2', { libraryKind: 'show', guidTvdb: null, guidImdb: 'tt1' }), // imdb -> OUT
+        media('s3', { libraryKind: 'show', guidTvdb: '42' }), // tvdb -> OUT
         media('m1', { libraryKind: 'movie', guidTmdb: null, sizeBytes: 3 * GB }), // IN
-        media('m2', { libraryKind: 'movie', guidTmdb: '603' }), // tmdb → OUT
+        media('m2', { libraryKind: 'movie', guidTmdb: '603' }), // tmdb -> OUT
       ]);
       expect(missingExternalIdItems(100, 0).map((r) => r.ratingKey)).toEqual(['s1', 'm1']);
       expect(missingExternalIdItems(1, 1).map((r) => r.ratingKey)).toEqual(['m1']);
@@ -1831,7 +1830,7 @@ describe('Problems page queries', () => {
         },
         {
           source: 'sonarr', instanceId: 's1', instanceName: 'S', title: 'C',
-          extKind: 'tvdb', extId: '3', sizeBytes: 1, // no folderName → dropped
+          extKind: 'tvdb', extId: '3', sizeBytes: 1, // no folderName -> dropped
         },
       ]);
       expect(arrFolderNames().sort()).toEqual(['Only Unmatched', 'Shared Name']);
@@ -1839,10 +1838,10 @@ describe('Problems page queries', () => {
 
     it('media disk names update on non-null values but NULL never clobbers', () => {
       upsertMediaBatch([media('1', { dirName: 'Old Name', fileName: 'old.mkv', dirPath: '/tv/Old Name' })]);
-      // A scan that carries fresh values updates them…
+      // A scan that carries fresh values updates them...
       upsertMediaBatch([media('1', { dirName: 'New Name', fileName: 'new.mkv', dirPath: '/tv/New Name' })]);
       expect(sectionDiskNameStats('1').names.sort()).toEqual(['New Name', 'new.mkv']);
-      // …but a scan that carries NULLs (e.g. recentlyAdded re-upserting a known
+      // ...but a scan that carries NULLs (e.g. recentlyAdded re-upserting a known
       // show it didn't recompute) keeps the stored capture instead of wiping it.
       upsertMediaBatch([media('1', { dirName: null, fileName: null, dirPath: null })]);
       expect(sectionDiskNameStats('1').names.sort()).toEqual(['New Name', 'new.mkv']);
@@ -1866,17 +1865,17 @@ describe('watchHistoryExists (empty table vs no data yet)', () => {
 
 describe('findUserIdByLogin (resolving the Plex server owner to a Keeparr user)', () => {
   beforeEach(() => {
-    upsertUser({ plexUserId: '22839572', username: 'juncothebird', email: 'junco3@gmail.com', thumb: null, isAdmin: true });
+    upsertUser({ plexUserId: '10000001', username: 'serverowner', email: 'owner@example.com', thumb: null, isAdmin: true });
     upsertUser({ plexUserId: '3629986', username: 'drohack', email: 'dro@example.com', thumb: null, isAdmin: true });
   });
 
   it('matches on username or email, case-insensitively', () => {
-    expect(findUserIdByLogin('juncothebird')).toBe('22839572');
-    expect(findUserIdByLogin('JUNCOTHEBIRD')).toBe('22839572');
+    expect(findUserIdByLogin('serverowner')).toBe('10000001');
+    expect(findUserIdByLogin('SERVEROWNER')).toBe('10000001');
     // PMS /myplex/account reports the owner's EMAIL as its username field,
     // which is why matching only on username would miss.
-    expect(findUserIdByLogin('junco3@gmail.com')).toBe('22839572');
-    expect(findUserIdByLogin('Junco3@Gmail.com')).toBe('22839572');
+    expect(findUserIdByLogin('owner@example.com')).toBe('10000001');
+    expect(findUserIdByLogin('Owner@Example.com')).toBe('10000001');
   });
 
   it('returns null for an unknown or empty login rather than guessing', () => {

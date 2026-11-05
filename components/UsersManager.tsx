@@ -92,7 +92,7 @@ export default function UsersManager() {
       setMsg(`Imported ${d.imported} user(s) from Plex.`);
       await load();
     } catch {
-      setError('Import failed — is a Plex server connected?');
+      setError('Import failed - is a Plex server connected?');
     } finally {
       setImporting(false);
     }
@@ -128,7 +128,7 @@ export default function UsersManager() {
             disabled={importing}
             className="rounded-md border border-slate-700 hover:border-slate-500 px-3 py-1.5 text-sm disabled:opacity-60"
           >
-            {importing ? 'Importing…' : 'Import users from Plex'}
+            {importing ? 'Importing...' : 'Import users from Plex'}
           </button>
           {msg && <span className="text-sm text-slate-400">{msg}</span>}
         </div>

@@ -20,7 +20,7 @@ import type { JobResult } from './sync';
  * Disk-orphan scan (the 'diskScan' job): find top-level entries under each
  * mapped library path that neither the media server nor Sonarr/Radarr account
  * for. Never compares absolute paths (Plex/*arr/Keeparr each see the same
- * folder under a different mount) — matches by NAME per library root, so the
+ * folder under a different mount) - matches by NAME per library root, so the
  * whole scan is one readdir per root and only ORPHANS get a recursive size
  * walk. Node-only (node:fs); local paths, so node:path is fine here (unlike
  * lib/paths.ts, which handles foreign server-side paths).
@@ -43,7 +43,7 @@ export function isJunkName(name: string): boolean {
 }
 
 /** If the majority of a root looks orphaned, the mapping is almost certainly
- *  wrong (points above/beside the library) — record names, skip sizing, so a
+ *  wrong (points above/beside the library) - record names, skip sizing, so a
  *  misconfigured path can never trigger a full-share walk. */
 const BREAKER_MIN_CANDIDATES = 20;
 
@@ -73,7 +73,7 @@ export async function sizeOfDir(absPath: string, depth = 0): Promise<number> {
         total += (await fsp.lstat(child)).size;
       }
     } catch {
-      /* unreadable child → count as 0 */
+      /* unreadable child -> count as 0 */
     }
   }
   return total;
@@ -95,7 +95,7 @@ async function listRoot(
   }
 }
 
-/** Size one located entry (dir walk / file lstat); errors → 0. */
+/** Size one located entry (dir walk / file lstat); errors -> 0. */
 async function sizeEntry(entry: { abs: string; isDir: boolean }): Promise<number> {
   if (entry.isDir) return sizeOfDir(entry.abs);
   try {
@@ -126,7 +126,7 @@ export async function verifyArrUnmatchedOnDisk(): Promise<{
     const listing = await listRoot(m.path);
     if (listing) roots.push(listing);
   }
-  if (roots.length === 0) return null; // every root unreadable — can't verify
+  if (roots.length === 0) return null; // every root unreadable - can't verify
 
   const updates: Parameters<typeof updateArrUnmatchedDisk>[0] = [];
   let missing = 0;
@@ -161,7 +161,7 @@ export async function verifyArrUnmatchedOnDisk(): Promise<{
 }
 
 /**
- * Measure the ACTUAL on-disk size of every current size-mismatch title — the
+ * Measure the ACTUAL on-disk size of every current size-mismatch title - the
  * tiebreaker between the server's claim and the *arr's. Locates the title's
  * folder(s)/file by name under its own section's mapped root; unlocatable
  * titles are set NULL (the UI shows an em-dash).
@@ -178,7 +178,7 @@ async function measureSizeMismatches(): Promise<number> {
   let measured = 0;
   for (const t of targets) {
     const rootPath = mappingBySection.get(t.sectionId);
-    if (!rootPath) continue; // unmapped section — leave as-is
+    if (!rootPath) continue; // unmapped section - leave as-is
     if (!listings.has(rootPath)) listings.set(rootPath, await listRoot(rootPath));
     const listing = listings.get(rootPath);
     if (!listing) continue; // unreadable root
@@ -211,7 +211,7 @@ export async function runDiskScan(): Promise<JobResult> {
     return { result: 0, message: 'No storage mappings configured.' };
   }
 
-  // Global known set: every *arr folder (matched + unmatched) — arr instances
+  // Global known set: every *arr folder (matched + unmatched) - arr instances
   // aren't section-scoped, so their names dismiss entries under any root.
   const arrNames = arrFolderNames().map(normalizeName);
 
@@ -226,7 +226,7 @@ export async function runDiskScan(): Promise<JobResult> {
     const stats = sectionDiskNameStats(m.sectionId);
     if (stats.total === 0 || stats.named / stats.total < GUARD_MIN_NAMED_RATIO) {
       notes.push(
-        `${m.path}: skipped — item folder names not captured yet (run a Full library scan first)`
+        `${m.path}: skipped - item folder names not captured yet (run a Full library scan first)`
       );
       continue; // prior rows kept
     }
@@ -251,7 +251,7 @@ export async function runDiskScan(): Promise<JobResult> {
       candidates.length > entries.length / 2;
     if (breaker) {
       notes.push(
-        `${m.path}: ${candidates.length} of ${entries.length} entries look orphaned — check this library's storage mapping (sizing skipped)`
+        `${m.path}: ${candidates.length} of ${entries.length} entries look orphaned - check this library's storage mapping (sizing skipped)`
       );
     }
 
@@ -282,7 +282,7 @@ export async function runDiskScan(): Promise<JobResult> {
           size = st.size;
         }
       } catch {
-        /* entry vanished mid-scan / unreadable → record with size 0 */
+        /* entry vanished mid-scan / unreadable -> record with size 0 */
       }
       rows.push({
         name: e.name,
@@ -307,7 +307,7 @@ export async function runDiskScan(): Promise<JobResult> {
     : '';
   const measureNote = measured ? `; measured ${measured} mismatched title(s)` : '';
 
-  const noteSuffix = notes.length ? ` — ${notes.join('; ')}` : '';
+  const noteSuffix = notes.length ? ` - ${notes.join('; ')}` : '';
   return {
     result: orphans,
     message: `Found ${orphans} orphaned item(s) (${formatSize(bytes)}) across ${scannedRoots} mapped root(s)${verifyNote}${measureNote}${noteSuffix}.`,

@@ -3,7 +3,7 @@
  * Edge middleware runtime and the Node.js route-handler runtime) so the same
  * signing/verification logic works everywhere. No Node-only imports here.
  *
- * The session payload carries the authenticated Plex account id.
+ * The session payload carries the authenticated media-server account id.
  */
 
 export const SESSION_COOKIE = 'keeparr_session';
@@ -45,8 +45,8 @@ export function safeEqual(a: string, b: string): boolean {
 
 /**
  * Create a signed session token for a user, valid for SESSION_TTL_MS. The
- * `epoch` is the user's `session_epoch` at mint time — bumping it in the DB
- * invalidates every token minted before the bump (logout-everywhere / disable).
+ * `epoch` is the user's `session_epoch` at mint time - bumping it in the DB
+ * invalidates every token minted before the bump (an admin disabling the account).
  */
 export async function createSessionToken(
   plexUserId: string,

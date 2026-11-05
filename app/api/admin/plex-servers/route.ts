@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 
 /**
  * Discover Plex servers the admin can connect, using their stored account
- * token. Returns one entry per server with its candidate connection URIs —
+ * token. Returns one entry per server with its candidate connection URIs -
  * Docker-bridge addresses filtered out, best (LAN) connection first.
  */
 export async function GET() {

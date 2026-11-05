@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decideAccess, type AccessInputs } from './login';
 
-// Defaults represent the historical behavior (open sign-in on).
+// Defaults mirror the `open_signin` default (open sign-in on).
 function inputs(over: Partial<AccessInputs> = {}): AccessInputs {
   return {
     hasAdmin: true,

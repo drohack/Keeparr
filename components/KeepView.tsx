@@ -34,20 +34,19 @@ const LABEL_H = 56; // title + size row + padding below the 2:3 poster
 // overflowing the no-scroll grid.
 const ACTION_H = 34;
 // Cards match the shared Browse size (CARD_MIN_W) by default, but on a big/tall
-// screen we allow them to shrink down to this floor to fit another whole row
-// (e.g. 3 rows on a 4K panel). Never smaller — that gets hard to read.
+// screen we allow them to shrink down to this floor to fit another whole row.
+// Never smaller - that gets hard to read.
 const CARD_FLOOR_W = 150;
 // Fetch a generous batch up front; the measured grid only controls how many of
 // these we *display*, so a first-load mis-measure never causes an under-fetch.
 const FETCH_LIMIT = 96;
 
 /**
- * cols×rows that fill a w×h area with no scroll. Each row is budgeted at the
+ * cols x rows that fill a w x h area with no scroll. Each row is budgeted at the
  * TALLEST card (poster + label + OK-to-delete button) so any row can be full of
  * OK-to-delete cards without clipping. Cards default to the shared Browse size;
  * they only shrink (more columns, down to CARD_FLOOR_W) when that buys another
- * whole row — so 1080p keeps big cards / 2 rows while a 4K panel gets 3 rows
- * with slightly smaller cards.
+ * whole row; otherwise they stay at the Browse size.
  */
 function dimsFor(w: number, h: number): { cols: number; rows: number } {
   const budgetedH = (cardW: number) => cardW * 1.5 + LABEL_H + ACTION_H;
@@ -65,7 +64,7 @@ function dimsFor(w: number, h: number): { cols: number; rows: number } {
   return { cols: best.cols, rows: best.rows };
 }
 
-/** Rough cols×rows from the window, before the grid is measured (no-SSR guard). */
+/** Rough cols x rows from the window, before the grid is measured (no-SSR guard). */
 function estimateDims(): { cols: number; rows: number } {
   if (typeof window === 'undefined') return { cols: 8, rows: 3 };
   const w = window.innerWidth - 240 - 300 - 48; // rail + totals col + padding
@@ -87,7 +86,7 @@ export default function KeepView({
   const [items, setItems] = useState<MediaCardData[]>([]);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [kept, setKept] = useState<Set<string>>(new Set());
-  // Items the user released ("OK to delete") this batch — like `kept`, excluded
+  // Items the user released ("OK to delete") this batch - like `kept`, excluded
   // from the skip-the-rest batch so we don't also mark them "don't care".
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -133,7 +132,7 @@ export default function KeepView({
     }
   }
 
-  // Measure the grid area → exact cols×rows that fit (no scroll).
+  // Measure the grid area -> exact cols x rows that fit (no scroll).
   useLayoutEffect(() => {
     const el = gridWrap.current;
     if (!el) return;
@@ -165,13 +164,13 @@ export default function KeepView({
     loadOverview();
   }, [loadOverview]);
 
-  // How many cards actually fit (display only — independent of how many we fetch).
+  // How many cards actually fit (display only - independent of how many we fetch).
   const visible = dims.cols * dims.rows;
   const shown = items.slice(0, visible);
 
   // Guards against out-of-order responses: only the latest request may commit
-  // state (a slow old response must not clobber a newer one — worse here than
-  // elsewhere, since a stale batch would be silently mass-skipped by "Next →").
+  // state (a slow old response must not clobber a newer one - worse here than
+  // elsewhere, since a stale batch would be silently mass-skipped by "Next").
   const feedSeq = useRef(0);
 
   const loadFeed = useCallback(async () => {
@@ -182,14 +181,14 @@ export default function KeepView({
     else if (selection !== 'all') params.set('section', selection);
     try {
       const data = await fetch(`/api/feed/random?${params}`).then((r) => r.json());
-      if (seq !== feedSeq.current) return; // superseded — drop it
+      if (seq !== feedSeq.current) return; // superseded - drop it
       setItems(data.items ?? []);
       setRemaining(data.remaining ?? null);
       setKept(new Set());
       setDeleted(new Set());
     } catch {
-      if (seq !== feedSeq.current) return; // superseded — don't toast for it
-      toast("Couldn't load the feed — is the server reachable?", 'error');
+      if (seq !== feedSeq.current) return; // superseded - don't toast for it
+      toast("Couldn't load the feed - is the server reachable?", 'error');
     } finally {
       if (seq === feedSeq.current) setLoading(false);
     }
@@ -259,8 +258,8 @@ export default function KeepView({
       });
       if (!res.ok) throw new Error('failed');
     } catch {
-      // Stay on the current batch — advancing would silently drop the marks.
-      toast("Couldn't save this batch — nothing was marked.", 'error');
+      // Stay on the current batch - advancing would silently drop the marks.
+      toast("Couldn't save this batch - nothing was marked.", 'error');
       setLoading(false);
       return;
     }
@@ -301,7 +300,7 @@ export default function KeepView({
           <h1 className="text-2xl font-bold">What should we keep?</h1>
           <p className="text-sm text-slate-400">
             {triage
-              ? 'Tap anything you want to keep — everything else gets marked “I don’t care.”'
+              ? 'Tap anything you want to keep - everything else gets marked \u201cI don\u2019t care.\u201d'
               : 'Your biggest titles by size on disk.'}
           </p>
         </div>
@@ -360,7 +359,7 @@ export default function KeepView({
       </div>
 
       {/* Bottom bar. The action + its explanation align with the GRID, not the
-          totals column — a matching spacer keeps them out from under the aside. */}
+          totals column - a matching spacer keeps them out from under the aside. */}
       <div className="shrink-0 border-t border-slate-800 bg-rail px-6 py-2 flex items-center gap-4">
         <div className="flex flex-1 items-center gap-4">
           <span className="text-sm text-slate-400">
@@ -420,7 +419,7 @@ function KeepTotals({ overview }: { overview: Overview }) {
 
   return (
     <>
-      {/* Disk space — the headline, on top. Free = the empty part of the bar. */}
+      {/* Disk space - the headline, on top. Free = the empty part of the bar. */}
       {storage.configured && (
         <div className="rounded-lg border border-slate-800 bg-panel p-3">
           <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
@@ -473,7 +472,7 @@ function KeepTotals({ overview }: { overview: Overview }) {
         </div>
       )}
 
-      {/* By library — donut for share of the whole, then per-library composition. */}
+      {/* By library - donut for share of the whole, then per-library composition. */}
       <div className="rounded-lg border border-slate-800 bg-panel p-3">
         <div className="mb-3 text-xs uppercase tracking-wide text-slate-500">
           By library

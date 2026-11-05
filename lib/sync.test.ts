@@ -42,7 +42,7 @@ import {
   syncWatchHistory,
 } from './sync';
 
-// The sync engine reads through getBackend() (the seam, not storage) — swap in
+// The sync engine reads through getBackend() (the seam, not storage) - swap in
 // a per-test fake. The factory closure reads `fakeBackend` lazily at run time.
 let fakeBackend: MediaBackend;
 vi.mock('./mediaserver', () => ({ getBackend: () => fakeBackend }));
@@ -127,11 +127,11 @@ describe('syncLibrary tombstone guards', () => {
     upsertMediaBatch([media('1')], 1000);
     fakeBackend = backendWith([], {});
     await expect(syncLibrary()).rejects.toThrow(/no library sections/);
-    // The sections blob (incl. paths for storage mapping) was not overwritten…
+    // The sections blob (incl. paths for storage mapping) was not overwritten...
     expect(getPlexSections()).toEqual([
       { id: '1', title: 'Movies', type: 'movie', paths: ['/data/movies'] },
     ]);
-    // …and nothing was tombstoned.
+    // ...and nothing was tombstoned.
     expect(getMediaItem('1')?.removed).toBe(0);
   });
 
@@ -157,7 +157,7 @@ describe('syncLibrary tombstone guards', () => {
     setManagedSectionIds(['1']);
     fakeBackend = backendWith([section('1'), section('9')], {
       '1': [backendItem('1')],
-      '9': [backendItem('9')], // discovered but unmanaged → never scanned
+      '9': [backendItem('9')], // discovered but unmanaged -> never scanned
     });
     await syncLibrary();
     expect(getMediaItem('1')?.removed).toBe(0);
@@ -234,7 +234,7 @@ describe('syncArr per-instance replace', () => {
     vi.mocked(fetchRadarr).mockResolvedValue([rec({})]);
     await syncArr();
     expect(arrSource('m1')).toBe('radarr');
-    expect(arrSource('sh1')).toBeNull(); // Sonarr reported nothing → row dropped
+    expect(arrSource('sh1')).toBeNull(); // Sonarr reported nothing -> row dropped
     expect(getArrUnmatched()).toEqual([]); // stale orphan swept
   });
 
@@ -360,9 +360,9 @@ describe('syncArr cross-instance conflicts', () => {
   it('two titles of ONE instance resolving to one item → sameInstance conflict (merged multi-part)', async () => {
     setRadarrInstances([{ id: 'r1', name: 'Radarr', url: 'http://r1', apiKey: 'k' }]);
     vi.mocked(fetchRadarr).mockResolvedValueOnce([
-      // Part I claims the media item via the shared imdb id…
+      // Part I claims the media item via the shared imdb id...
       rec({ arrId: 1, title: 'Film, Part I', matchId: '404', imdbId: 'tt5' }),
-      // …then Part II — the item's real tmdb match — collides.
+      // ...then Part II - the item's real tmdb match - collides.
       rec({ arrId: 2, title: 'Film, Part II', matchId: '22', sizeOnDisk: 2 * GB }),
     ]);
     await syncArr();
@@ -438,7 +438,7 @@ describe('syncRecentlyAdded', () => {
     expect(res.result).toBe(2);
     expect(getMediaItem('m-new')?.removed).toBe(0);
     expect(getMediaItem('sh-new')?.size_bytes).toBe(7 * GB); // new show sized inline
-    // The listing carried no Location (dirPath null) — the episode-derived
+    // The listing carried no Location (dirPath null) - the episode-derived
     // folder from showSize() fills in dir_path/dir_name instead.
     expect(getMediaItem('sh-new')?.dir_path).toBe('/tv/New Show');
     expect(getMediaItem('sh-new')?.dir_name).toBe('New Show');
@@ -446,7 +446,7 @@ describe('syncRecentlyAdded', () => {
   });
 
   it("re-upserting a KNOWN show doesn't wipe the sizes-job path backfill", async () => {
-    // The live-server regression: Location-less PMS → sizes job derives the
+    // Location-less PMS -> the sizes job derives the
     // show folder; recentlyAdded then re-upserts the (known-size) show WITHOUT
     // recomputing it and must not null the path back out.
     setPlexSections([{ id: '2', title: 'TV', type: 'show', paths: [] }]);
@@ -461,7 +461,7 @@ describe('syncRecentlyAdded', () => {
     fakeBackend = {
       ...backendWith([], {}),
       // The show is in the recently-added window but its size is known, so
-      // showSize is never called — the item arrives with dirPath null.
+      // showSize is never called - the item arrives with dirPath null.
       recentItems: async () => [backendItem('sh1', { sizeBytes: 0 })],
       showSize: async () => {
         throw new Error('must not be called for known-size shows');
@@ -536,7 +536,7 @@ describe('syncWatchHistory', () => {
   });
 
   it('reports no source when the backend has none and Tautulli is unconfigured', async () => {
-    fakeBackend = backendWith([], {}); // getWatchData → null (the Plex case)
+    fakeBackend = backendWith([], {}); // getWatchData -> null (no native history)
     const res = await syncWatchHistory();
     expect(res.result).toBe(0);
     expect(res.message).toContain('No watch source');

@@ -22,7 +22,7 @@ type Sort =
   | 'watched';
 type Dir = 'asc' | 'desc';
 const SORT_KEYS: Sort[] = ['size', 'title', 'added', 'year', 'library', 'quality', 'tags', 'status', 'watched'];
-// Numeric-ish columns read best high→low by default; text columns A→Z.
+// Numeric-ish columns read best high->low by default; text columns A->Z.
 const defaultDir = (col: Sort): Dir => (col === 'size' || col === 'watched' ? 'desc' : 'asc');
 type View = 'grid' | 'list';
 // Combinable "Status" buckets (per-user decision states). Any checked are OR'd
@@ -115,12 +115,12 @@ export default function LibraryBrowser({
   sections: LibrarySection[];
   /** A watch source is connected and has data -> show the Watched filter. */
   watchAvailable?: boolean;
-  /** Sonarr/Radarr connected → show the quality/tag/monitored filters. */
+  /** Sonarr/Radarr connected -> show the quality/tag/monitored filters. */
   arr?: boolean;
-  /** Seerr connected → show the "OK to delete" status options. */
+  /** Seerr connected -> show the "OK to delete" status options. */
   seerr?: boolean;
 }) {
-  // Library selection lives in the URL (?sections=) — driven by the nav rail's
+  // Library selection lives in the URL (?sections=) - driven by the nav rail's
   // Browse list. Empty = all libraries.
   const searchParams = useSearchParams();
   const selectedKey = (searchParams.get('sections') || '')
@@ -273,16 +273,16 @@ export default function LibraryBrowser({
       params.set('offset', String(off));
       try {
         const data = await fetch(`/api/library?${params}`).then((r) => r.json());
-        if (seq !== fetchSeq.current) return; // superseded — drop it
-        // An error response (e.g. a 500) has no `items` — guard so the view
+        if (seq !== fetchSeq.current) return; // superseded - drop it
+        // An error response (e.g. a 500) has no `items` - guard so the view
         // doesn't crash on a spread/map of undefined.
         const list = Array.isArray(data.items) ? data.items : [];
         setHasMore(!!data.hasMore);
         if (typeof data.nextOffset === 'number') setOffset(data.nextOffset);
         setItems((prev) => (reset ? list : [...prev, ...list]));
       } catch {
-        if (seq !== fetchSeq.current) return; // superseded — don't toast for it
-        toast("Couldn't load the library — is the server reachable?", 'error');
+        if (seq !== fetchSeq.current) return; // superseded - don't toast for it
+        toast("Couldn't load the library - is the server reachable?", 'error');
       } finally {
         if (seq === fetchSeq.current) setLoading(false);
       }
@@ -292,7 +292,7 @@ export default function LibraryBrowser({
   );
 
   // Reset + reload whenever a filter (or the rail selection) changes. (View
-  // toggle is NOT here — Grid/List render the same data, no refetch.)
+  // toggle is NOT here - Grid/List render the same data, no refetch.)
   const filterKey = `${selectedKey}|${debouncedQ}|${sort}|${dir}|${states}|${watch}|${requestedByMe}|${sources}|${instanceIds}|${tags}|${qualities}|${statuses}|${monitoredSel}|${match}|${sizeMismatch}`;
   useEffect(() => {
     setOffset(0);
@@ -483,7 +483,7 @@ export default function LibraryBrowser({
           Requested by me
         </label>
         )}
-        {/* Grid ↔ List view toggle (remembered across visits). */}
+        {/* Grid <-> List view toggle (remembered across visits). */}
         <div className="ml-auto flex overflow-hidden rounded-md border border-slate-700">
           {(['grid', 'list'] as View[]).map((v) => (
             <button

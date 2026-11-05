@@ -42,8 +42,7 @@ export function mapItem(m: PlexMetadata, kind: LibraryKind, sizeBytes: number): 
     fileName = lastSegment(file);
     dirPath = parentPath(file);
     // Distinct video files merged into this item (multi-part movies, extra
-    // versions). Counted like sumPartSizes counts bytes: every Part, deduped
-    // by file path.
+    // versions): every Part, deduped by file path like sumLeafSizes.
     const files = new Set<string>();
     let parts = 0;
     for (const media of m.Media ?? []) {
@@ -75,7 +74,7 @@ export function mapItem(m: PlexMetadata, kind: LibraryKind, sizeBytes: number): 
   };
 }
 
-/** Plex backend: thin adapter over lib/plex.ts so Plex behavior is unchanged. */
+/** Plex backend: thin adapter over lib/plex.ts. */
 export const plexBackend: MediaBackend = {
   async listSections(): Promise<BackendSection[]> {
     const { baseUrl, token } = creds();
@@ -102,7 +101,7 @@ export const plexBackend: MediaBackend = {
   async showSize(ratingKey) {
     const { baseUrl, token } = creds();
     const leaves = await getAllLeaves(baseUrl, token, ratingKey);
-    // Derive the show folder from episode paths — some PMS versions omit the
+    // Derive the show folder from episode paths - some PMS versions omit the
     // show's own Location from section listings, so this is the reliable source.
     const files: string[] = [];
     for (const leaf of leaves) {

@@ -59,7 +59,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!user) return null;
   // A blocked account is treated as logged-out (the Owner can't be blocked).
   if (!user.enabled && session.userId !== getOwnerId()) return null;
-  // Reject tokens minted before a logout-everywhere / disable bumped the epoch.
+  // Reject tokens minted before an admin-disable bumped the epoch.
   if (session.epoch !== getUserEpoch(session.userId)) return null;
   return user;
 }

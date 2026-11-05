@@ -55,7 +55,7 @@ describe('paths (foreign-path string helpers)', () => {
   it('pathTail shows the last segments, marking dropped ones', () => {
     expect(pathTail('/data/tv/Scrubs')).toBe('…/tv/Scrubs');
     expect(pathTail('D:\\Media\\Movies\\Dune (2021)')).toBe('…/Movies/Dune (2021)');
-    expect(pathTail('/tv/Scrubs')).toBe('tv/Scrubs'); // nothing dropped → no ellipsis
+    expect(pathTail('/tv/Scrubs')).toBe('tv/Scrubs'); // nothing dropped -> no ellipsis
     expect(pathTail('Scrubs')).toBe('Scrubs');
     expect(pathTail('/a/b/c/d', 3)).toBe('…/b/c/d');
   });
@@ -95,9 +95,9 @@ describe('paths (foreign-path string helpers)', () => {
       deriveShowDirPaths(
         [
           '/data/tv/Lupin the 3rd/Season 1/e1.mkv',
-          '/data/tv/Lupin the 3rd/Season 2/e1.mkv', // same folder → deduped
+          '/data/tv/Lupin the 3rd/Season 2/e1.mkv', // same folder -> deduped
           '/data/tv/Lupin III Movies & Specials/special1.mkv', // second folder
-          '/data/tv/LUPIN THE 3RD/Season 3/e1.mkv', // case-variant → deduped
+          '/data/tv/LUPIN THE 3RD/Season 3/e1.mkv', // case-variant -> deduped
         ],
         roots
       )

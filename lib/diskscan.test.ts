@@ -16,7 +16,7 @@ import {
   type UpsertMediaInput,
 } from './queries';
 
-/** Real temp directories + a real in-memory DB — no fs or storage mocks. */
+/** Real temp directories + a real in-memory DB - no fs or storage mocks. */
 
 const roots: string[] = [];
 function makeRoot(): string {
@@ -52,7 +52,7 @@ afterEach(() => {
 afterAll(() => __closeDb());
 
 describe('runDiskScan', () => {
-  it('no mappings → clean no-op message', async () => {
+  it('no mappings -> clean no-op message', async () => {
     const res = await runDiskScan();
     expect(res.result).toBe(0);
     expect(res.message).toContain('No storage mappings');
@@ -127,7 +127,7 @@ describe('runDiskScan', () => {
   it('safety guard: mostly-unnamed sections are skipped and keep prior rows', async () => {
     const root = makeRoot();
     mkdirSync(join(root, 'Would Be Orphan'));
-    // 2 of 3 items unnamed → coverage 33% < 50%.
+    // 2 of 3 items unnamed -> coverage 33% < 50%.
     upsertMediaBatch([
       media('A', { dirName: null }),
       media('B', { dirName: null }),
@@ -256,7 +256,7 @@ describe('runDiskScan', () => {
     await runDiskScan();
     expect(getDiskOrphans()[0].sizeBytes).toBe(999); // reused, not 60
 
-    // Bump the dir mtime → the cache misses and the real walk runs.
+    // Bump the dir mtime -> the cache misses and the real walk runs.
     utimesSync(orphan, new Date(), new Date(Date.now() + 5000));
     await runDiskScan();
     expect(getDiskOrphans()[0].sizeBytes).toBe(60);

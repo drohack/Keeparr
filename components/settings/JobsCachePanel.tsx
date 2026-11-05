@@ -48,7 +48,7 @@ function intervalUnit(
 }
 
 // Inline schedule controls need FIXED widths, so they can't use `inputCls`
-// (which is `w-full` — that fights the `w-NN` and stretches one control while
+// (which is `w-full` - that fights the `w-NN` and stretches one control while
 // squeezing the rest). This is the same chrome minus the width.
 const ctrl =
   'rounded-md bg-slate-800 border border-slate-700 px-2 py-2 text-sm focus:outline-none focus:border-brand';
@@ -86,7 +86,7 @@ export default function JobsCachePanel() {
   const [msg, setMsg] = useState('');
   const [cacheMsg, setCacheMsg] = useState('');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  // Per-job interval unit (min/hr) — UI-only; the schedule still stores minutes.
+  // Per-job interval unit (min/hr) - UI-only; the schedule still stores minutes.
   const [units, setUnits] = useState<Record<string, 'min' | 'hr'>>({});
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toast = useToast();
@@ -147,7 +147,7 @@ export default function JobsCachePanel() {
       if (!res.ok) throw new Error(String(res.status));
       setMsg('Saved.');
     } catch {
-      setMsg("Couldn't save — schedules unchanged.");
+      setMsg("Couldn't save - schedules unchanged.");
     } finally {
       setSaving(false);
     }
@@ -164,7 +164,7 @@ export default function JobsCachePanel() {
   }
 
   async function clearCache(target: string) {
-    setCacheMsg('Clearing…');
+    setCacheMsg('Clearing...');
     const r = await fetch('/api/admin/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -206,7 +206,7 @@ export default function JobsCachePanel() {
                   <div className="truncate text-sm font-medium">{j.label}</div>
                   <div className="truncate text-xs text-slate-500">
                     {j.lastStatus === 'running'
-                      ? 'Running…'
+                      ? 'Running...'
                       : j.lastStatus === 'never'
                         ? 'Never run'
                         : `${j.lastStatus}${j.lastMessage ? ` — ${j.lastMessage}` : ''}`}
@@ -314,7 +314,7 @@ export default function JobsCachePanel() {
                     disabled={j.lastStatus === 'running'}
                     className={`${btnGhost} shrink-0 whitespace-nowrap`}
                   >
-                    {j.lastStatus === 'running' ? 'Running…' : 'Run now'}
+                    {j.lastStatus === 'running' ? 'Running...' : 'Run now'}
                   </button>
                 </div>
               </div>
@@ -323,7 +323,7 @@ export default function JobsCachePanel() {
         </div>
         <div className="mt-3 flex items-center gap-3">
           <button onClick={saveSchedules} disabled={saving} className={btnCls}>
-            {saving ? 'Saving…' : 'Save schedules'}
+            {saving ? 'Saving...' : 'Save schedules'}
           </button>
           <button onClick={() => runJob('all')} disabled={anyRunning} className={btnGhost}>
             Run all now

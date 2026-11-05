@@ -8,11 +8,11 @@ import type { JobResult } from './sync';
 
 /**
  * SQLite backup & restore. Everything Keeparr persists (media, keeps, users,
- * settings — secrets stay encrypted) lives in keeparr.db, so a backup is one
+ * settings - secrets stay encrypted) lives in keeparr.db, so a backup is one
  * file. Snapshots are taken with better-sqlite3's online backup API, which is
  * safe against a live WAL database (readers/writers keep working).
  *
- * The poster cache (DATA_DIR/cache) is deliberately NOT backed up — it's
+ * The poster cache (DATA_DIR/cache) is deliberately NOT backed up - it's
  * rebuildable from the media server.
  */
 
@@ -81,7 +81,7 @@ export function deleteBackup(name: string): boolean {
   const p = backupPath(name);
   if (!fs.existsSync(p)) return false;
   fs.unlinkSync(p);
-  // Restoring FROM a WAL-mode backup can leave empty sidecars — sweep them.
+  // Restoring FROM a WAL-mode backup can leave empty sidecars - sweep them.
   for (const suffix of ['-wal', '-shm']) fs.rmSync(`${p}${suffix}`, { force: true });
   return true;
 }
@@ -106,13 +106,13 @@ export async function runBackup(): Promise<JobResult> {
 /**
  * Restore a backup over the live database.
  *
- * Sequence: snapshot the CURRENT db first (keeparr-pre-restore-…, the safety
- * net) → online-backup the snapshot file INTO the live DB_PATH → reopen the
+ * Sequence: snapshot the CURRENT db first (keeparr-pre-restore-..., the safety
+ * net) -> online-backup the snapshot file INTO the live DB_PATH -> reopen the
  * singleton so applySchema()/migrate() upgrade an older backup right away.
  *
  * Restoring via SQLite's backup API (instead of deleting/copying the file)
  * matters: it takes proper locks, so it's safe even when OTHER connections
- * hold the file — on Windows an unlink of the -wal sidecar fails with EBUSY
+ * hold the file - on Windows an unlink of the -wal sidecar fails with EBUSY
  * while any handle is open (Next dev keeps a second module copy alive via the
  * instrumentation context). Existing connections simply see the new content.
  */
