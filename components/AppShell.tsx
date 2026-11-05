@@ -135,12 +135,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  async function logoutAllDevices() {
-    await fetch('/api/auth/logout-all', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
-  }
-
   const onLibrary = pathname.startsWith('/library');
   const selected = new Set(
     onLibrary ? (searchParams.get('sections') || '').split(',').filter(Boolean) : []
@@ -180,7 +174,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <ToastProvider>
     <div className="h-screen overflow-hidden bg-app text-slate-200 flex">
       {/* Left rail */}
-      <aside className="w-60 shrink-0 bg-rail border-r border-slate-800 flex flex-col">
+      <aside data-tour="nav-rail" className="w-60 shrink-0 bg-rail border-r border-slate-800 flex flex-col">
         <Link
           href="/"
           className="flex items-center gap-2 h-14 px-4 border-b border-slate-800 shrink-0"
@@ -267,7 +261,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main column */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 shrink-0 bg-rail border-b border-slate-800 flex items-center gap-4 px-4">
-          <div className="flex-1 min-w-0">
+          <div data-tour="global-search" className="flex-1 min-w-0">
             <SearchBox />
           </div>
           {user?.isAdmin && health.length > 0 && (
@@ -286,6 +280,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
           <div className="relative shrink-0" ref={menuRef}>
             <button
+              data-tour="user-menu"
               onClick={() => setMenuOpen((o) => !o)}
               className="flex items-center gap-2 rounded-full hover:bg-slate-800 p-1 pr-2"
             >
@@ -309,17 +304,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   Profile is managed by your {SERVER_LABEL[serverType] ?? 'media server'} account.
                 </p>
                 <button
-                  onClick={logout}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    router.push('/?tour=1');
+                  }}
                   className="mt-2 w-full rounded-md border border-slate-700 px-3 py-1.5 text-left hover:border-slate-500"
                 >
-                  Log out
+                  Show the tour
                 </button>
                 <button
-                  onClick={logoutAllDevices}
-                  title="Invalidate every session for your account (use if you think a session was stolen)."
-                  className="mt-1.5 w-full rounded-md px-3 py-1.5 text-left text-[11px] text-slate-500 hover:text-slate-300"
+                  onClick={logout}
+                  className="mt-1.5 w-full rounded-md border border-slate-700 px-3 py-1.5 text-left hover:border-slate-500"
                 >
-                  Sign out all devices
+                  Log out
                 </button>
               </div>
             )}

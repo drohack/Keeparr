@@ -126,7 +126,7 @@ export function findUserIdByLogin(login: string | null | undefined): string | nu
 export function getUser(plexUserId: string): SessionUser | null {
   const row = getDb()
     .prepare(
-      'SELECT plex_user_id, username, email, thumb, is_admin, enabled FROM users WHERE plex_user_id = ?'
+      'SELECT plex_user_id, username, email, thumb, is_admin, enabled, tutorial_done_at FROM users WHERE plex_user_id = ?'
     )
     .get(plexUserId) as
     | {
@@ -136,6 +136,7 @@ export function getUser(plexUserId: string): SessionUser | null {
         thumb: string | null;
         is_admin: number;
         enabled: number;
+        tutorial_done_at: number | null;
       }
     | undefined;
   if (!row) return null;
@@ -146,7 +147,15 @@ export function getUser(plexUserId: string): SessionUser | null {
     thumb: row.thumb,
     isAdmin: row.is_admin === 1,
     enabled: row.enabled === 1,
+    tutorialDone: row.tutorial_done_at != null,
   };
+}
+
+/** Record that this user finished or skipped the Keep-page tour (it won't auto-start again). */
+export function markTutorialDone(plexUserId: string): void {
+  getDb()
+    .prepare('UPDATE users SET tutorial_done_at = ? WHERE plex_user_id = ?')
+    .run(now(), plexUserId);
 }
 
 /**
@@ -206,19 +215,12 @@ export function setUserEnabled(plexUserId: string, enabled: boolean): void {
 }
 
 /** The user's current session epoch (0 if unknown). Tokens carry the epoch at
- *  mint time; a mismatch means the token was invalidated (logout-all / disable). */
+ *  mint time; a mismatch means the token was invalidated (admin disable). */
 export function getUserEpoch(plexUserId: string): number {
   const row = getDb()
     .prepare('SELECT session_epoch FROM users WHERE plex_user_id = ?')
     .get(plexUserId) as { session_epoch: number } | undefined;
   return row?.session_epoch ?? 0;
-}
-
-/** Invalidate all of a user's outstanding session tokens (sign out everywhere). */
-export function bumpSessionEpoch(plexUserId: string): void {
-  getDb()
-    .prepare('UPDATE users SET session_epoch = session_epoch + 1 WHERE plex_user_id = ?')
-    .run(plexUserId);
 }
 
 // ---------------------------------------------------------------------------

@@ -80,6 +80,7 @@ export function applySchema(database: Database.Database): void {
       is_admin     INTEGER NOT NULL DEFAULT 0,
       enabled      INTEGER NOT NULL DEFAULT 1,  -- can this account sign in?
       session_epoch INTEGER NOT NULL DEFAULT 0, -- bump to invalidate this user's tokens
+      tutorial_done_at INTEGER,                -- NULL = Keep-page tour not yet finished/skipped
       created_at   INTEGER NOT NULL,
       last_login   INTEGER
     );
@@ -257,6 +258,10 @@ function migrate(database: Database.Database): void {
     database.exec(
       `ALTER TABLE users ADD COLUMN session_epoch INTEGER NOT NULL DEFAULT 0`
     );
+  }
+  // NULL on existing rows on purpose: accounts that predate the tour see it once.
+  if (!cols.some((c) => c.name === 'tutorial_done_at')) {
+    database.exec(`ALTER TABLE users ADD COLUMN tutorial_done_at INTEGER`);
   }
 
   // arr_unmatched gained size_bytes (to show downloaded-but-not-in-Plex sizes).

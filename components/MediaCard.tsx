@@ -7,8 +7,36 @@ import { useKeepState } from './useKeepState';
 // Shared so every page sizes its cards identically. CARD_MIN_W must match the
 // px in CARD_GRID_CLASS (kept as a literal so Tailwind's scanner sees it).
 export const CARD_MIN_W = 170;
+/** Colors of the not-yet-marked "OK to delete" button (the tour draws a copy). */
+export const DELETE_BTN_IDLE_CLASS =
+  'border-rose-900/70 text-rose-300 hover:border-rose-700 hover:text-rose-200';
 export const CARD_GRID_CLASS =
   'grid gap-3 grid-cols-[repeat(auto-fill,minmax(170px,1fr))]';
+
+/** The "you've watched this" eye. Exported so the Keep-page tour can show
+ *  people exactly what it looks like. */
+export function WatchedBadge({ className = '' }: { className?: string }) {
+  return (
+    <div
+      title="You've watched this"
+      aria-label="Watched"
+      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full bg-slate-900/75 text-slate-200 ring-1 ring-black/30 ${className}`}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-3 w-3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </svg>
+    </div>
+  );
+}
 
 interface Props {
   item: MediaCardData;
@@ -24,6 +52,8 @@ interface Props {
   onDeleteChange?: (ratingKey: string, markedForDelete: boolean) => void;
   /** Optional "you requested this" badge (from Seerr). */
   requested?: boolean;
+  /** Mark this card's "OK to delete" button as the Keep-page tour's target. */
+  tourDeleteTarget?: boolean;
 }
 
 export default function MediaCard({
@@ -34,6 +64,7 @@ export default function MediaCard({
   onSkipChange,
   onDeleteChange,
   requested,
+  tourDeleteTarget = false,
 }: Props) {
   // Per user: keptByMe / skipped / markedForDelete / neither (shared logic). An
   // item can also be "kept by others" (item.kept true while not mine) —
@@ -129,26 +160,7 @@ export default function MediaCard({
         )}
         {/* Watched marker: small, neutral, bottom-left — never collides with the
             keep/don't-care badges (top corners) or their highlights. */}
-        {item.watched && (
-          <div
-            title="You’ve watched this"
-            aria-label="Watched"
-            className="absolute bottom-1 left-1 grid h-5 w-5 place-items-center rounded-full bg-slate-900/75 text-slate-200 ring-1 ring-black/30"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-3 w-3"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-              <circle cx="12" cy="12" r="2.5" />
-            </svg>
-          </div>
-        )}
+        {item.watched && <WatchedBadge className="absolute bottom-1 left-1" />}
         {/* Sonarr/Radarr quality — small, muted, bottom-right (opposite the
             watched eye). Subordinate to the keep/don't-care badges. */}
         {item.quality && (
@@ -219,10 +231,11 @@ export default function MediaCard({
             type="button"
             onClick={onDeleteClick}
             disabled={deleteBusy}
+            data-tour={tourDeleteTarget ? 'feed-card-delete' : undefined}
             className={`mt-1.5 w-full rounded border px-2 py-1 text-[11px] disabled:opacity-60 ${
               markedForDelete
                 ? 'border-rose-700 bg-rose-800/80 font-semibold text-rose-100'
-                : 'border-rose-900/70 text-rose-300 hover:border-rose-700 hover:text-rose-200'
+                : DELETE_BTN_IDLE_CLASS
             }`}
           >
             {markedForDelete ? '↺ Never mind' : 'OK to delete'}

@@ -198,3 +198,26 @@ describe('migrate: disk-name columns land on old-shape tables', () => {
     expect(cols).toContain('folder_name');
   });
 });
+
+describe('migrate: users gained tutorial_done_at', () => {
+  it('adds the column as NULL, so existing accounts see the tour once', () => {
+    d = new Database(':memory:');
+    d.exec(`
+      CREATE TABLE users (
+        plex_user_id TEXT PRIMARY KEY,
+        username     TEXT,
+        email        TEXT,
+        thumb        TEXT,
+        is_admin     INTEGER NOT NULL DEFAULT 0,
+        created_at   INTEGER NOT NULL,
+        last_login   INTEGER
+      );
+      INSERT INTO users (plex_user_id, username, created_at) VALUES ('1', 'old', 1000);
+    `);
+    applySchema(d);
+    const row = d.prepare('SELECT tutorial_done_at FROM users').get() as {
+      tutorial_done_at: number | null;
+    };
+    expect(row).toEqual({ tutorial_done_at: null });
+  });
+});

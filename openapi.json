@@ -111,11 +111,11 @@
         "responses": { "200": { "description": "OK" } }
       }
     },
-    "/api/auth/logout-all": {
+    "/api/tutorial": {
       "post": {
         "tags": ["auth"],
-        "summary": "Sign out all devices: bump the user's session epoch (invalidate every token) and clear this cookie",
-        "responses": { "200": { "description": "OK" } }
+        "summary": "Mark this user's Keep-page tour as finished/skipped so it stops auto-starting (every device)",
+        "responses": { "200": { "description": "`{ok:true}`" }, "401": { "description": "No session" } }
       }
     },
     "/api/auth/plex/pin": {

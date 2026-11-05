@@ -78,6 +78,8 @@ export interface SessionUser {
   isAdmin: boolean;
   /** False = account is blocked from signing in. */
   enabled: boolean;
+  /** True once the user finished or skipped the Keep-page tour. */
+  tutorialDone: boolean;
 }
 
 /** A user as the admin "Users" management screen sees them. */

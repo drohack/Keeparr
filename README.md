@@ -47,10 +47,17 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   care" (per-user) and rolls a fresh set. Switch the feed to any of **your Plex
   libraries** (or **Largest**) — your choice is remembered. Designed for a
   30-second visit.
+- **First-visit tour** - the first time someone opens the Keep page, a short
+  guided tour dims the screen and explains each part (tapping to keep, "OK to
+  delete", Next, the totals column) and what the other tabs are for. Skip it any
+  time; it shows once per account, and **Show the tour** in the user menu replays it.
 - **Storage at a glance** — the Keep page's side column shows a disk gauge (free
   space + % full, the empty part *is* your free space), a **by-library donut**
   (share of the whole), per-library kept/don't-care/undecided bars, and your own
-  review progress. Free space is read straight off the disk — requires mounting
+  review progress. **Kept** counts everyone's keeps (anything someone keeps is
+  safe); **I don't care** and **Undecided** are only your own choices, on titles
+  nobody has kept, and the column labels each one that way. Free space is read
+  straight off the disk - requires mounting
   your media share read-only and mapping libraries to their paths in Settings
   (Plex's API doesn't expose free space).
 - **Search** — typeahead in the nav previews the closest matches as you type;
@@ -373,9 +380,10 @@ Notes for every install method:
 - **Plain HTTP vs HTTPS:** the session cookie is only marked `Secure` when the
   request arrives over HTTPS (via `x-forwarded-proto` from a TLS reverse
   proxy), so plain-HTTP LAN access works fine.
-- **Sessions** last 30 days. Normal **Log out** clears the current device; if you
-  suspect a session was stolen, use **Sign out all devices** in the user menu — it
-  invalidates every outstanding token for your account immediately.
+- **Sessions** last 30 days, one per device. **Log out** clears the current device.
+  To cut off an account everywhere at once, an admin can disable it under
+  **Settings -> Users**: that revokes every session it holds immediately, and
+  re-enabling it does not bring the old sessions back.
 
 **Migrating from a source-built deploy** (the old `docker compose up --build`
 flow): stop the old container, copy its `data/` directory to the new `/data`

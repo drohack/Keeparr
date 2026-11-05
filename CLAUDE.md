@@ -71,6 +71,8 @@ lib/
   seerr.ts           requests client
   arr.ts             Sonarr/Radarr v3 client (shared) + pure normalize fns (fetchSonarr/fetchRadarr/testArr)
   quality.ts         pure resolutionBucket()/RES_ORDER (shared by Browse + Big Picture quality grouping)
+  tour.ts            pure Keep-page tour steps (buildTourSteps, admin lines gated) +
+                     availableSteps() (drops steps whose data-tour target is absent)
   paths.ts           pure separator-agnostic path-string helpers (lastSegment/
                      parentSegment/normalizeName) — foreign server-side paths may be
                      Windows-style, so never node:path
@@ -134,7 +136,9 @@ components/          AppShell (rail + top bar + user menu), MediaCard (grid), Me
                      (Browse List view), MultiSelect (grouped checkbox-dropdown filter),
                      useKeepState (shared keep/skip hook), KeepView,
                      LibraryBrowser, StatsView, ProblemsView (admin Problems page),
-                     UsersManager, SearchBox, SearchResults;
+                     UsersManager, SearchBox, SearchResults, Tour (Keep-page guided
+                     tour overlay: dims the page, rings `data-tour` targets, blocks
+                     clicks underneath);
                      breakdown.tsx (shared keep/reclaim visual language: StackedBar,
                        Donut, LegendRow + the TONE palette — used by KeepView's totals
                        column and the StatsView dashboard);
@@ -196,9 +200,11 @@ inside it with no page scroll.
 - `users` — media-server accounts (`plex_user_id` is the internal id — historically
   Plex, now the Plex/Jellyfin/Emby account id); `is_admin` (first login / server owner),
   `enabled` (admin can block an account; Owner is exempt), `session_epoch` (bumped to
-  invalidate that user's outstanding tokens — "sign out all devices" and admin-disable
-  both bump it; session tokens carry the epoch at mint time and `getSessionUser` rejects
-  a mismatch). Migrated via guarded `ALTER TABLE`.
+  invalidate that user's outstanding tokens - admin-disable bumps it; session tokens
+  carry the epoch at mint time and `getSessionUser` rejects a mismatch, so re-enabling
+  never revives an old token), `tutorial_done_at` (NULL until the user finishes or skips
+  the Keep-page tour; NULL on pre-existing rows on purpose, so existing users see it
+  once). Migrated via guarded `ALTER TABLE`.
 - `watch_history` - `(plex_user_id, rating_key)` `plays` + `last_watched`. Written by
   `syncWatchHistory`, which **MERGES every configured source** rather than picking one:
   the backend's own history (`getBackend().getWatchData()` - Plex's play history via
@@ -309,9 +315,11 @@ when it has no tvdb/tmdb **and** no imdb.
   `POST /api/auth/login {username, password}` — Jellyfin/Emby credential login (a
   successful auth IS server access; first user bootstraps owner and their access token
   becomes the server read token). `POST /api/auth/logout` (clear this device's
-  cookie); `POST /api/auth/logout-all` (bump the user's `session_epoch` →
-  invalidate every token they hold, then clear the cookie — "sign out all
-  devices"); `GET /api/auth/me`. The Plex PIN create/poll endpoints
+  cookie; there is no sign-out-everywhere - an admin disabling the account is the
+  revoke-all path); `GET /api/auth/me` (the user includes `tutorialDone`; the Keep page itself reads it
+  server-side in `app/page.tsx`).
+  `POST /api/tutorial` - mark this user's Keep-page tour finished/skipped (stops it
+  auto-starting on every device; replay from the user menu never calls it). The Plex PIN create/poll endpoints
   (`/api/auth/plex/pin`, `/api/auth/plex/check`) and the credential
   `/api/auth/login` are per-IP rate-limited (`lib/rate-limit.ts`); login also
   buckets per-username + globally so `X-Forwarded-For` rotation can't bypass it.
@@ -594,8 +602,8 @@ backend-aware UI are clickable offline (default = Plex). All inert/absent in pro
   rate-limited per IP **and per-username + globally** so `X-Forwarded-For` rotation
   can't bypass it (`lib/rate-limit.ts`), and the Plex PIN create/poll endpoints are
   per-IP capped; `/api/auth/setup` rejects non-http(s) URLs before its pre-auth probe;
-  session tokens carry a per-user `session_epoch` so "sign out all devices" /
-  admin-disable revoke outstanding tokens; all outbound `fetch`es have a 15s timeout;
+  session tokens carry a per-user `session_epoch` so admin-disable revokes
+  outstanding tokens; all outbound `fetch`es have a 15s timeout;
   the API-key and session-signature compares are constant-time (`safeEqual`);
   `errorResponse` 500 bodies are bare `{error:'internal_error'}` (the raw
   exception text is logged, never sent — it can leak paths/hosts) and a
@@ -731,7 +739,23 @@ A fuller source-verified reference is in the planning doc
   manifest + `/icons/` are public in `middleware.ts` (credential-less fetch).
 - **Keyboard**: global keys live in AppShell (`?` overlay, `/` focuses
   `#global-search`); add new shortcuts there + list them in
-  `components/ShortcutsOverlay.tsx`.
+  `components/ShortcutsOverlay.tsx`. The Tour captures keys while open so
+  these don't fire under it.
+- **Guided tour**: a new Keep-screen element worth explaining gets a
+  `data-tour="..."` attribute plus a step in `lib/tour.ts`. The tour auto-runs
+  once per account (`users.tutorial_done_at`), and `/?tour=1` replays it (the user
+  menu's "Show the tour"). A step whose target isn't rendered is skipped, so
+  conditional UI (no Seerr -> no "OK to delete", totals hidden below `lg`) needs
+  no special handling. When the tour starts, KeepView reorders the loaded batch
+  (`arrangeForTour`: a watched title first, an "OK to delete" title second) and
+  renders it BEFORE opening the Tour, which picks its steps from the DOM at open.
+  The popup shows a real `WatchedBadge` (exported from MediaCard) so people
+  know the eye even when nothing on screen is watched. A step with a
+  `fallback` (the OK-to-delete step) hands its hint to another step when it
+  can't run, so people with no requests still see a copy of that button
+  (`DELETE_BTN_IDLE_CLASS` keeps the copy styled like the real one). Popup text must use
+  themed shades: slate 200-950 only (`slate-100`/`50` have no light-theme value
+  and vanish on the white popup).
 - Server components guard admin pages and pass to client components that fetch
   their own data.
 - Optimistic UI for keep toggles (revert on failure; any in-flight

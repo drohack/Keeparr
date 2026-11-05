@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { MediaCardData } from '@/lib/types';
+import { arrangeForTour, buildTourSteps, showsDeleteButton } from '@/lib/tour';
 import { formatSize } from '@/lib/format';
 import MediaCard, { CARD_MIN_W } from './MediaCard';
 import {
@@ -15,6 +17,7 @@ import {
   type Overview,
 } from './breakdown';
 import { useToast } from './Toaster';
+import Tour from './Tour';
 
 interface Library {
   id: string;
@@ -70,7 +73,16 @@ function estimateDims(): { cols: number; rows: number } {
   return dimsFor(w, h);
 }
 
-export default function KeepView({ libraries }: { libraries: Library[] }) {
+export default function KeepView({
+  libraries,
+  isAdmin,
+  tutorialDone,
+}: {
+  libraries: Library[];
+  isAdmin: boolean;
+  /** False until this account finishes or skips the tour (auto-starts it once). */
+  tutorialDone: boolean;
+}) {
   const [selection, setSelection] = useState<Selection>('all');
   const [items, setItems] = useState<MediaCardData[]>([]);
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -84,6 +96,17 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
   const [overview, setOverview] = useState<Overview | null>(null);
 
   const gridWrap = useRef<HTMLDivElement | null>(null);
+
+  // Guided tour: auto-runs once per account, or on demand via `/?tour=1` (the
+  // user menu's "Show the tour"). Waits for the feed so the poster steps have
+  // cards to point at.
+  const router = useRouter();
+  const replay = useSearchParams().get('tour') === '1';
+  // 'arranging' = the batch was just reordered for the tour and must reach the
+  // screen before the Tour opens (it picks its steps from what is rendered).
+  const [tourPhase, setTourPhase] = useState<'closed' | 'arranging' | 'open'>('closed');
+  const [tourDone, setTourDone] = useState(tutorialDone);
+  const tourSteps = useMemo(() => buildTourSteps({ isAdmin }), [isAdmin]);
 
   // Restore last filter.
   useEffect(() => {
@@ -176,6 +199,33 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
     loadFeed();
   }, [loadFeed]);
 
+  // One open per `?tour=1` arrival: closing strips the param, but the effect
+  // re-runs before the URL updates and would otherwise reopen the tour.
+  const replayHandled = useRef(false);
+  useEffect(() => {
+    if (!replay) replayHandled.current = false;
+  }, [replay]);
+  useEffect(() => {
+    if (tourPhase !== 'closed' || loading) return;
+    const start = replay && !replayHandled.current ? 'replay' : !tourDone ? 'first' : null;
+    if (!start) return;
+    if (start === 'replay') replayHandled.current = true;
+    setItems((prev) => arrangeForTour(prev));
+    setTourPhase('arranging');
+  }, [replay, tourDone, loading, tourPhase]);
+  useEffect(() => {
+    if (tourPhase === 'arranging') setTourPhase('open');
+  }, [tourPhase]);
+
+  function closeTour() {
+    setTourPhase('closed');
+    if (!tourDone) {
+      setTourDone(true);
+      fetch('/api/tutorial', { method: 'POST' }).catch(() => {});
+    }
+    if (replay) router.replace('/');
+  }
+
   const onKeptChange = (ratingKey: string, isKept: boolean) => {
     setKept((prev) => {
       const next = new Set(prev);
@@ -219,6 +269,10 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
   }
 
   const triage = remaining != null; // 'largest' is a fixed ranking, not triage
+  // The tour points "OK to delete" at the second card (arrangeForTour puts one
+  // there), else the first card that shows the button.
+  const tourDeleteIndex =
+    shown[1] && showsDeleteButton(shown[1]) ? 1 : shown.findIndex(showsDeleteButton);
   const keptSize = shown
     .filter((i) => kept.has(i.ratingKey))
     .reduce((a, i) => a + i.sizeBytes, 0);
@@ -251,7 +305,10 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
               : 'Your biggest titles by size on disk.'}
           </p>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1 rounded-lg bg-rail p-1">
+        <div
+          data-tour="feed-filters"
+          className="mt-2 flex flex-wrap items-center gap-1 rounded-lg bg-rail p-1"
+        >
           {chip('all', 'For you')}
           {libraries.map((l) => chip(l.id, l.title))}
           {chip('largest', 'Largest')}
@@ -272,19 +329,32 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
               className="grid gap-3 content-start"
               style={{ gridTemplateColumns: `repeat(${dims.cols}, minmax(0, 1fr))` }}
             >
-              {shown.map((item) => (
-                <MediaCard
-                  key={item.ratingKey}
-                  item={item}
-                  onKeptChange={onKeptChange}
-                  onDeleteChange={onDeleteChange}
-                />
-              ))}
+              {shown.map((item, i) => {
+                const card = (
+                  <MediaCard
+                    key={item.ratingKey}
+                    item={item}
+                    onKeptChange={onKeptChange}
+                    onDeleteChange={onDeleteChange}
+                    tourDeleteTarget={i === tourDeleteIndex}
+                  />
+                );
+                return i === 0 ? (
+                  <div key={item.ratingKey} data-tour="feed-card">
+                    {card}
+                  </div>
+                ) : (
+                  card
+                );
+              })}
             </div>
           )}
         </div>
 
-        <aside className="w-72 shrink-0 hidden lg:flex flex-col gap-3 py-1 overflow-y-auto">
+        <aside
+          data-tour="keep-totals"
+          className="w-72 shrink-0 hidden lg:flex flex-col gap-3 py-1 overflow-y-auto"
+        >
           {overview && <KeepTotals overview={overview} />}
         </aside>
       </div>
@@ -305,6 +375,7 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
                 fresh set.
               </span>
               <button
+                data-tour="feed-next"
                 onClick={next}
                 disabled={loading}
                 className="shrink-0 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold px-6 py-2.5 disabled:opacity-60"
@@ -330,6 +401,7 @@ export default function KeepView({ libraries }: { libraries: Library[] }) {
         {/* spacer matching the totals column so the button isn't beneath it */}
         <div className="hidden w-72 shrink-0 lg:block" />
       </div>
+      {tourPhase === 'open' && <Tour steps={tourSteps} onDone={closeTour} />}
     </div>
   );
 }
@@ -371,29 +443,33 @@ function KeepTotals({ overview }: { overview: Overview }) {
               height="h-3"
               max={storage.totalBytes}
               segments={[
-                { tone: 'kept', value: totals.keptBytes, label: 'Kept' },
-                { tone: 'dontcare', value: totals.dontcareBytes, label: 'I don’t care' },
-                { tone: 'undecided', value: totals.undecidedBytes, label: 'Undecided' },
+                { tone: 'kept', value: totals.keptBytes, label: 'Kept (by anyone)' },
+                { tone: 'dontcare', value: totals.dontcareBytes, label: "I don't care (you)" },
+                { tone: 'undecided', value: totals.undecidedBytes, label: 'Undecided (you)' },
                 { tone: 'other', value: otherBytes, label: 'Other files' },
               ]}
             />
           </div>
           <div className="mt-3 space-y-1.5">
-            <LegendRow tone="kept" label="Kept" value={formatSize(totals.keptBytes)} />
+            <LegendRow tone="kept" label="Kept (by anyone)" value={formatSize(totals.keptBytes)} />
             <LegendRow
               tone="dontcare"
-              label="I don’t care"
+              label="I don't care (you)"
               value={formatSize(totals.dontcareBytes)}
             />
             <LegendRow
               tone="undecided"
-              label="Undecided"
+              label="Undecided (you)"
               value={formatSize(totals.undecidedBytes)}
             />
             {otherBytes > 0 && (
               <LegendRow tone="other" label="Other files" value={formatSize(otherBytes)} />
             )}
           </div>
+          <p className="mt-2 text-[11px] leading-snug text-slate-500">
+            Kept counts everyone&apos;s keeps: anything someone keeps is safe. The
+            other two are only your choices, on titles nobody has kept.
+          </p>
         </div>
       )}
 
@@ -444,13 +520,13 @@ function KeepTotals({ overview }: { overview: Overview }) {
         {/* one shared key for the per-library composition colors */}
         <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
           <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-brand" /> Kept
+            <span className="h-2 w-2 rounded-sm bg-brand" /> Kept (by anyone)
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-rose-500" /> I don’t care
+            <span className="h-2 w-2 rounded-sm bg-rose-500" /> I don&apos;t care (you)
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-blue-500" /> Undecided
+            <span className="h-2 w-2 rounded-sm bg-blue-500" /> Undecided (you)
           </span>
         </div>
       </div>
@@ -474,7 +550,7 @@ function KeepTotals({ overview }: { overview: Overview }) {
             height="h-2"
             segments={[
               { tone: 'kept', value: totals.keptByMeItems, label: 'Kept by you' },
-              { tone: 'dontcare', value: totals.dontcareItems, label: 'I don’t care' },
+              { tone: 'dontcare', value: totals.dontcareItems, label: "I don't care" },
               { tone: 'undecided', value: totals.undecidedItems, label: 'Undecided' },
             ]}
           />
@@ -487,7 +563,7 @@ function KeepTotals({ overview }: { overview: Overview }) {
           />
           <LegendRow
             tone="dontcare"
-            label="I don’t care"
+            label="I don't care"
             value={String(totals.dontcareItems)}
           />
           <LegendRow
@@ -496,6 +572,10 @@ function KeepTotals({ overview }: { overview: Overview }) {
             value={String(totals.undecidedItems)}
           />
         </div>
+        <p className="mt-2 text-[11px] leading-snug text-slate-500">
+          Only your own choices. Titles someone else already keeps are safe, so
+          they aren&apos;t counted as left to review.
+        </p>
       </div>
     </>
   );
