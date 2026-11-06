@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MediaCardData } from '@/lib/types';
 import MediaCard, { CARD_GRID_CLASS } from './MediaCard';
+import { useIsMobile } from './useIsMobile';
 import { useToast } from './Toaster';
 
 export default function SearchResults({ query }: { query: string }) {
+  const mobile = useIsMobile();
   const [items, setItems] = useState<MediaCardData[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -90,6 +92,7 @@ export default function SearchResults({ query }: { query: string }) {
             <MediaCard
               key={item.ratingKey}
               item={item}
+              compact={mobile}
               skippable
               requested={requested.has(item.ratingKey)}
             />

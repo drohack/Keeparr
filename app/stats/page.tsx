@@ -13,7 +13,7 @@ export default async function StatsPage() {
 
   return (
     <AppShell>
-      <div className="px-6 py-6">
+      <div className="px-3 py-4 md:px-6 md:py-6">
         {!isServerConfigured() ? (
           <p className="text-slate-400">Not set up yet.</p>
         ) : (

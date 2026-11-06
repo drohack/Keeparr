@@ -158,6 +158,23 @@ export function arrangeForTour<T extends TourCard>(items: T[]): T[] {
   return out;
 }
 
+/**
+ * Whether the Keep page should open the tour now: a `?tour=1` replay not yet
+ * handled, else the account's first visit. Never on a phone - the tour points
+ * at desktop layout (rail, totals column) - and a phone visit does not count
+ * as having seen it, so the first desktop visit still runs it.
+ */
+export function tourStart(s: {
+  replay: boolean;
+  replayHandled: boolean;
+  tourDone: boolean;
+  mobile: boolean;
+}): 'replay' | 'first' | null {
+  if (s.mobile) return null;
+  if (s.replay && !s.replayHandled) return 'replay';
+  return s.tourDone ? null : 'first';
+}
+
 /** Drop steps whose target is not on the page right now (totals hidden on a
  *  narrow window, no "OK to delete" button without a request, empty feed). */
 export function availableSteps(steps: TourStep[], present: Set<string>): TourStep[] {

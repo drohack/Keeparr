@@ -381,7 +381,7 @@ function ReviewProgress({ overview }: { overview: Overview }) {
         Your review progress
       </h2>
       <div className="flex flex-col gap-8 lg:flex-row lg:items-center">
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-6">
           <Donut
             segments={[
               { tone: 'kept', value: totals.keptByMeItems },
@@ -391,7 +391,7 @@ function ReviewProgress({ overview }: { overview: Overview }) {
             center={`${reviewedPct}%`}
             centerSub="reviewed"
           />
-          <div className="w-64 space-y-2">
+          <div className="w-full space-y-2 sm:w-64">
             <p className="mb-3 text-sm text-slate-400">
               Decided on{' '}
               <span className="font-semibold text-white">{decided.toLocaleString()}</span> of{' '}

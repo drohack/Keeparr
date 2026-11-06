@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arrangeForTour, availableSteps, buildTourSteps } from './tour';
+import { arrangeForTour, availableSteps, buildTourSteps, tourStart } from './tour';
 
 describe('arrangeForTour', () => {
   type Card = { id: string; watched?: boolean; requestedByMe?: boolean; markedForDeleteByMe?: boolean };
@@ -81,5 +81,24 @@ describe('availableSteps', () => {
   it('keeps every step when every target is present', () => {
     const all = new Set(steps.map((s) => s.target).filter((t): t is string => t !== null));
     expect(availableSteps(steps, all)).toHaveLength(steps.length);
+  });
+});
+
+describe('tourStart', () => {
+  const base = { replay: false, replayHandled: false, tourDone: false, mobile: false };
+
+  it('runs on the first desktop visit, and not once done', () => {
+    expect(tourStart(base)).toBe('first');
+    expect(tourStart({ ...base, tourDone: true })).toBeNull();
+  });
+
+  it('replays once per ?tour=1 arrival', () => {
+    expect(tourStart({ ...base, tourDone: true, replay: true })).toBe('replay');
+    expect(tourStart({ ...base, tourDone: true, replay: true, replayHandled: true })).toBeNull();
+  });
+
+  it('never runs on a phone, first visit or replay', () => {
+    expect(tourStart({ ...base, mobile: true })).toBeNull();
+    expect(tourStart({ ...base, mobile: true, replay: true })).toBeNull();
   });
 });

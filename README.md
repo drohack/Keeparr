@@ -49,11 +49,14 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
   Tap to keep, then **"Next &rarr;"** marks everything you didn't keep as "you don't
   care" (per-user) and rolls a fresh set. Switch the feed to any of **your Plex
   libraries** (or **Largest**) - your choice is remembered. Designed for a
-  30-second visit.
+  30-second visit, and works on a phone: about nine posters a page, a menu button for
+  the other tabs, and Browse / Big Picture / search fit the small screen too.
 - **First-visit tour** - the first time someone opens the Keep page, a short
   guided tour dims the screen and explains each part (tapping to keep, "OK to
   delete", Next, the totals column) and what the other tabs are for. Skip it any
   time; it shows once per account, and **Show the tour** in the user menu replays it.
+  It only runs on a computer-sized screen; opening Keeparr on a phone first doesn't
+  use it up.
 - **Storage at a glance** - the Keep page's side column shows a disk gauge (free
   space + % full, the empty part *is* your free space), a **by-library donut**
   (share of the whole), per-library kept/don't-care/undecided bars, and your own

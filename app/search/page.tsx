@@ -19,7 +19,7 @@ export default async function SearchPage({
 
   return (
     <AppShell>
-      <div className="px-6 py-6">
+      <div className="px-3 py-4 md:px-6 md:py-6">
         <h1 className="text-2xl font-bold mb-6">
           {query ? `Results for “${query}”` : 'Search'}
         </h1>

@@ -74,7 +74,10 @@ lib/
   arr.ts             Sonarr/Radarr v3 client (shared) + pure normalize fns (fetchSonarr/fetchRadarr/testArr)
   quality.ts         pure resolutionBucket()/RES_ORDER (shared by Browse + Big Picture quality grouping)
   tour.ts            pure Keep-page tour steps (buildTourSteps, admin lines gated) +
-                     availableSteps() (drops steps whose data-tour target is absent)
+                     availableSteps() (drops steps whose data-tour target is absent) +
+                     tourStart() (whether to open it now; never on a phone)
+  keepgrid.ts        pure Keep-grid sizing: dimsFor(w, h, profile) -> cols x rows that
+                     fit with no scroll; DESKTOP_GRID / MOBILE_GRID profiles
   paths.ts           pure separator-agnostic path-string helpers (lastSegment/
                      parentSegment/normalizeName) - foreign server-side paths may be
                      Windows-style, so never node:path
@@ -135,7 +138,8 @@ app/
   settings/<tab>/    admin Settings sub-tabs: general, users, connections,
                      jobs, logs, about (+ /settings -> general). admin/* -> redirects.
   api/...            route handlers (see below)
-components/          AppShell (rail + top bar + user menu), MediaCard (grid), MediaRow
+components/          AppShell (rail + top bar + user menu), MediaCard (grid; `compact`
+                     variant for phones), useIsMobile (below `md`), MediaRow
                      (Browse List view), MultiSelect (grouped checkbox-dropdown filter),
                      useKeepState (shared keep/skip hook), KeepView,
                      LibraryBrowser, StatsView, ProblemsView (admin Problems page),
@@ -154,6 +158,17 @@ The chrome is a Sonarr/Radarr-style left rail (logo -> Keep; Keep / Browse[expan
 -> libraries] / Big Picture / Problems[admin] / Settings[admin]) + a top bar
 (search + user menu). `AppShell` (client) wraps every page; the Keep page renders
 inside it with no page scroll.
+
+**Phones** (below Tailwind `md`, 768px; `components/useIsMobile.ts` is the JS side
+of the same line): the rail moves into a slide-over drawer behind a menu button in
+the top bar, and the root is `h-dvh` so a phone's address bar can't push the Keep
+page's Next bar off-screen. The Keep page drops its heading and totals column,
+keeps the library chips as one sideways-scrolling row, and sizes its grid with
+`MOBILE_GRID` + `MediaCard compact` (3 x 3 on a typical phone; fewer on a short
+one, never a scrolling grid - Next marks every shown card, so every card must be
+on screen). Compact cards put "OK to delete" on the poster so no row needs extra
+height; `MOBILE_GRID.labelH` must match the compact label's real height. Browse
+and Search use 3 columns of compact cards, and Browse forces Grid view.
 
 ## Database schema (`lib/db.ts`)
 
@@ -757,7 +772,9 @@ A fuller source-verified reference is in the planning doc
 - **Guided tour**: a new Keep-screen element worth explaining gets a
   `data-tour="..."` attribute plus a step in `lib/tour.ts`. The tour auto-runs
   once per account (`users.tutorial_done_at`), and `/?tour=1` replays it (the user
-  menu's "Show the tour"). A step whose target isn't rendered is skipped, so
+  menu's "Show the tour"). Never on a phone (`tourStart`): it points at desktop
+  layout, a phone visit doesn't mark it done (the first desktop visit still runs
+  it), `?tour=1` is dropped there, and shrinking to phone width closes it. A step whose target isn't rendered is skipped, so
   conditional UI (no Seerr -> no "OK to delete", totals hidden below `lg`) needs
   no special handling. When the tour starts, KeepView reorders the loaded batch
   (`arrangeForTour`: a watched title first, an "OK to delete" title second) and

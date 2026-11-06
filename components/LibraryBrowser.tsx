@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import type { LibrarySection, MediaCardData } from '@/lib/types';
 import { formatSize } from '@/lib/format';
 import MediaCard, { CARD_GRID_CLASS } from './MediaCard';
+import { useIsMobile } from './useIsMobile';
 import MediaRow from './MediaRow';
 import MultiSelect, { type MSGroup } from './MultiSelect';
 import { useToast } from './Toaster';
@@ -149,6 +150,8 @@ export default function LibraryBrowser({
   const [sizeMismatch, setSizeMismatch] = useState(false);
   const [facets, setFacets] = useState<Facets>({ instances: [], tags: [], qualities: [], statuses: [] });
   const [view, setView] = useState<View>('grid');
+  // Phones always get the grid: the List table is too wide for them.
+  const mobile = useIsMobile();
   const toast = useToast();
 
   const [items, setItems] = useState<MediaCardData[]>([]);
@@ -309,7 +312,7 @@ export default function LibraryBrowser({
   const shownBytes = shownLibs.reduce((a, s) => a + s.sizeBytes, 0);
 
   return (
-    <div className="px-6 py-6">
+    <div className="px-3 py-4 md:px-6 md:py-6">
       <div className="mb-1 flex items-baseline gap-3">
         <h1 className="text-2xl font-bold">Browse</h1>
         <span className="text-sm text-slate-500">
@@ -484,7 +487,7 @@ export default function LibraryBrowser({
         </label>
         )}
         {/* Grid <-> List view toggle (remembered across visits). */}
-        <div className="ml-auto flex overflow-hidden rounded-md border border-slate-700">
+        <div className="ml-auto hidden overflow-hidden rounded-md border border-slate-700 md:flex">
           {(['grid', 'list'] as View[]).map((v) => (
             <button
               key={v}
@@ -502,12 +505,13 @@ export default function LibraryBrowser({
 
       {items.length === 0 && !loading ? (
         <p className="text-slate-400 py-12 text-center">No matches.</p>
-      ) : view === 'grid' ? (
+      ) : view === 'grid' || mobile ? (
         <div className={CARD_GRID_CLASS}>
           {items.map((item) => (
             <MediaCard
               key={item.ratingKey}
               item={item}
+              compact={mobile}
               skippable
               requested={requested.has(item.ratingKey)}
             />

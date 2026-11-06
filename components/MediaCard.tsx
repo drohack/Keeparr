@@ -5,13 +5,14 @@ import { formatGB } from '@/lib/format';
 import { useKeepState } from './useKeepState';
 
 // Shared so every page sizes its cards identically. CARD_MIN_W must match the
-// px in CARD_GRID_CLASS (kept as a literal so Tailwind's scanner sees it).
+// md: px in CARD_GRID_CLASS (kept as a literal so Tailwind's scanner sees it);
+// below md, phones get ~105px cards so three fit across.
 export const CARD_MIN_W = 170;
 /** Colors of the not-yet-marked "OK to delete" button (the tour draws a copy). */
 export const DELETE_BTN_IDLE_CLASS =
   'border-rose-900/70 text-rose-300 hover:border-rose-700 hover:text-rose-200';
 export const CARD_GRID_CLASS =
-  'grid gap-3 grid-cols-[repeat(auto-fill,minmax(170px,1fr))]';
+  'grid gap-2 grid-cols-[repeat(auto-fill,minmax(105px,1fr))] md:gap-3 md:grid-cols-[repeat(auto-fill,minmax(170px,1fr))]';
 
 /** The "you've watched this" eye. Exported so the Keep-page tour can show
  *  people exactly what it looks like. */
@@ -54,6 +55,10 @@ interface Props {
   requested?: boolean;
   /** Mark this card's "OK to delete" button as the Keep-page tour's target. */
   tourDeleteTarget?: boolean;
+  /** Phone layout: smaller label and badges, and "OK to delete" sits on the
+   *  poster instead of under the label, so every card is the same height.
+   *  MOBILE_GRID.labelH in lib/keepgrid.ts budgets this label's height. */
+  compact?: boolean;
 }
 
 export default function MediaCard({
@@ -65,6 +70,7 @@ export default function MediaCard({
   onDeleteChange,
   requested,
   tourDeleteTarget = false,
+  compact = false,
 }: Props) {
   // Per user: keptByMe / skipped / markedForDelete / neither (shared logic). An
   // item can also be "kept by others" (item.kept true while not mine) -
@@ -107,6 +113,42 @@ export default function MediaCard({
   // Only "don't care" greys the card out. "OK to delete" stays full-color with a
   // rose ring (a deliberate flag, not a dismissal) so the two read differently.
   const dimmed = skipped;
+  const showDelete = !!item.requestedByMe || markedForDelete;
+  const deleteButton = showDelete && (
+    <button
+      type="button"
+      onClick={onDeleteClick}
+      disabled={deleteBusy}
+      data-tour={tourDeleteTarget ? 'feed-card-delete' : undefined}
+      className={`w-full border disabled:opacity-60 ${
+        compact
+          ? 'absolute inset-x-0 bottom-0 rounded-none border-x-0 border-b-0 px-1 py-1 text-[10px] leading-3'
+          : 'mt-1.5 rounded px-2 py-1 text-[11px]'
+      } ${
+        // Over a poster, compact cards use colors that don't flip with the theme.
+        compact
+          ? markedForDelete
+            ? 'border-rose-700 bg-rose-600 font-semibold text-paper'
+            : 'border-rose-500/60 bg-ink/80 text-paper'
+          : markedForDelete
+            ? 'border-rose-700 bg-rose-800/80 font-semibold text-rose-100'
+            : DELETE_BTN_IDLE_CLASS
+      }`}
+    >
+      {markedForDelete ? <>&#8634; Never mind</> : 'OK to delete'}
+    </button>
+  );
+  // The status badges too wide to share a compact card's top edge with
+  // "Requested" (it moves down a row); "Keep", "Kept" and the trash icon fit.
+  const wideStatus = !keptByMe && !markedForDelete && (skipped || releasedByOther);
+  // Poster-corner badges sit above the on-poster delete bar on compact cards.
+  const cornerBottom = compact && showDelete ? 'bottom-6' : 'bottom-1';
+  // Font size stays out of `badge`: two size classes on one element resolve by
+  // stylesheet order, not by which was written last.
+  const badge = compact
+    ? 'absolute right-1 top-1 rounded-full px-1.5 py-0.5'
+    : 'absolute right-2 top-2 rounded-full px-2 py-0.5';
+  const badgeText = compact ? 'text-[9px]' : 'text-[10px]';
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!interactive) return;
@@ -161,7 +203,7 @@ export default function MediaCard({
         )}
         {/* Watched marker: small, neutral, bottom-left - never collides with the
             keep/don't-care badges (top corners) or their highlights. */}
-        {item.watched && <WatchedBadge className="absolute bottom-1 left-1" />}
+        {item.watched && <WatchedBadge className={`absolute left-1 ${cornerBottom}`} />}
         {/* Sonarr/Radarr quality - small, muted, bottom-right (opposite the
             watched eye). Subordinate to the keep/don't-care badges. */}
         {item.quality && (
@@ -171,47 +213,66 @@ export default function MediaCard({
                 ? `Quality profile: ${item.quality}`
                 : `Quality: ${item.quality}`
             }
-            className="absolute bottom-1 right-1 max-w-[80%] truncate rounded bg-slate-900/75 px-1.5 py-0.5 text-[10px] text-slate-300 ring-1 ring-black/30"
+            className={`absolute right-1 ${cornerBottom} max-w-[80%] truncate rounded bg-slate-900/75 px-1.5 py-0.5 text-[10px] text-slate-300 ring-1 ring-black/30`}
           >
             {item.quality}
           </div>
         )}
+        {compact && deleteButton}
       </div>
 
       {/* Status badge: my keep wins, then my "OK to delete", then don't care,
           then released-by-someone-else (name-less), then kept-by-others. */}
       {keptByMe ? (
-        <div className="absolute right-2 top-2 rounded-full bg-brand px-2 py-0.5 text-xs font-bold text-ink">
-          ✓ Keep
+        <div className={`${badge} bg-brand font-bold text-ink ${compact ? 'text-[9px]' : 'text-xs'}`}>
+          &#10003; Keep
         </div>
       ) : markedForDelete ? (
-        <div className="absolute right-2 top-2 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-paper">
-          🗑 OK to delete
+        <div
+          title="You marked this OK to delete"
+          className={`${badge} ${badgeText} bg-rose-600 font-bold text-paper`}
+        >
+          {/* compact: the on-poster bar already says it; the icon alone fits
+              beside a "Requested" badge on a narrow card */}
+          &#128465;{compact ? '' : ' OK to delete'}
         </div>
       ) : skipped ? (
-        <div className="absolute right-2 top-2 rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-200">
+        <div className={`${badge} ${badgeText} bg-slate-700 font-semibold text-slate-200`}>
           Don&apos;t care
         </div>
       ) : releasedByOther ? (
-        <div className="absolute right-2 top-2 rounded-full bg-rose-900/70 px-2 py-0.5 text-[10px] font-semibold text-rose-200">
+        <div className={`${badge} ${badgeText} bg-rose-900/70 font-semibold text-rose-200`}>
           OK to delete
         </div>
       ) : keptByOthers ? (
-        <div className="absolute right-2 top-2 rounded-full bg-amber-900/80 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
+        <div className={`${badge} ${badgeText} bg-amber-900/80 font-semibold text-amber-200`}>
           Kept
         </div>
       ) : null}
       {requested && (
-        <div className="absolute left-2 top-2 rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-semibold text-paper">
+        <div
+          className={`absolute rounded-full bg-sky-600 font-semibold text-paper ${
+            compact
+              ? `left-1 px-1.5 py-0.5 text-[9px] ${wideStatus ? 'top-6' : 'top-1'}`
+              : 'left-2 top-2 px-2 py-0.5 text-[10px]'
+          }`}
+        >
           Requested
         </div>
       )}
 
-      <div className="p-2">
-        <div className="truncate text-sm font-medium" title={item.title}>
+      <div className={compact ? 'p-1.5' : 'p-2'}>
+        <div
+          className={`truncate font-medium ${compact ? 'text-xs leading-4' : 'text-sm'}`}
+          title={item.title}
+        >
           {item.title}
         </div>
-        <div className="mt-0.5 flex items-center justify-between text-xs text-slate-400">
+        <div
+          className={`mt-0.5 flex items-center justify-between gap-1 text-slate-400 ${
+            compact ? 'text-[10px] leading-3' : 'text-xs'
+          }`}
+        >
           <span>{item.year ?? ''}</span>
           <span className="font-mono">{formatGB(item.sizeBytes)}</span>
         </div>
@@ -222,26 +283,12 @@ export default function MediaCard({
             disabled={skipBusy}
             className="mt-1.5 w-full rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-400 hover:border-slate-500 hover:text-slate-200 disabled:opacity-60"
           >
-            {skipped ? '↺ I care after all' : "I don't care"}
+            {skipped ? <>&#8634; I care after all</> : "I don't care"}
           </button>
         )}
         {/* "OK to delete" - on titles you requested on Seerr (you're the original
             requester signing off). Also shown once marked, so you can always undo. */}
-        {(item.requestedByMe || markedForDelete) && (
-          <button
-            type="button"
-            onClick={onDeleteClick}
-            disabled={deleteBusy}
-            data-tour={tourDeleteTarget ? 'feed-card-delete' : undefined}
-            className={`mt-1.5 w-full rounded border px-2 py-1 text-[11px] disabled:opacity-60 ${
-              markedForDelete
-                ? 'border-rose-700 bg-rose-800/80 font-semibold text-rose-100'
-                : DELETE_BTN_IDLE_CLASS
-            }`}
-          >
-            {markedForDelete ? '↺ Never mind' : 'OK to delete'}
-          </button>
-        )}
+        {!compact && deleteButton}
       </div>
     </div>
   );

@@ -200,3 +200,14 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
+
+/* A sideways-scrolling chip row on a phone: swipeable, no visible bar
+   (a bar would add height to a row sized to the pixel). */
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
