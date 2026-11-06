@@ -27,7 +27,7 @@ per-user. See README.md for the feature overview.
 - All SQL lives in `lib/queries.ts`. Don't write SQL elsewhere.
 - All external HTTP lives in `lib/plex.ts`, `lib/jellyfin.ts`, `lib/tautulli.ts`,
   `lib/seerr.ts`, `lib/arr.ts`, `lib/version.ts` (mostly via `lib/http.ts` `fetchJson`;
-  the plex.tv `/api/users` XML reads in `getSharedUsers`/`checkServerAccess` and the
+  the plex.tv `/api/users` XML read in `getSharedUsers` and the
   Jellyfin/Emby `authenticateByName` POST use raw `fetch`). One deliberate exception
   outside these files: the poster proxy (`app/api/image/route.ts`) streams the
   upstream image bytes itself (fetchJson is JSON-only).
@@ -312,7 +312,9 @@ when it has no tvdb/tmdb **and** no imdb.
 - **Auth is backend-aware** (`media_server_type`): Plex uses PIN OAuth; Jellyfin/Emby
   use username+password. `POST /api/auth/plex/pin` -> `{id, authUrl}`; `GET
   /api/auth/plex/check?id=` -> `{status: pending|authorized|denied, needsSetup, isAdmin}`
-  (Plex). `POST /api/auth/setup {type, url?}` - first-run only (403 once an admin exists):
+  (Plex; a denial carries `reason: setup_unfinished|no_server_access|not_enabled` from
+  `denyReason`, and a failed plex.tv lookup is a 502 `plex_check_failed`, never a denial).
+  `POST /api/auth/setup {type, url?}` - first-run only (403 once an admin exists):
   records the chosen server type, and for Jellyfin/Emby tests+stores the server URL.
   `POST /api/auth/login {username, password}` - Jellyfin/Emby credential login (a
   successful auth IS server access; first user bootstraps owner and their access token
@@ -577,8 +579,12 @@ backend-aware UI are clickable offline (default = Plex). All inert/absent in pro
   right flow; a server-type chooser appears only on a brand-new install (no type chosen +
   no admin). `decideAccess` (`lib/login.ts`) is backend-agnostic - it only takes booleans.
 - **Plex** - PIN OAuth: create pin -> user authorizes at app.plex.tv -> poll -> token ->
-  identity (`/api/v2/user`) -> `decideAccess`. Other users must appear in the server's
-  shared-users list (`checkServerAccess`, parsing `plex.tv/api/users` via `parseSharedUsers`).
+  identity (`/api/v2/user`) -> `decideAccess`. Other users have access when the server's
+  `plex_machine_id` is among THEIR OWN `/api/v2/resources` (`getResources` +
+  `hasServerResource`, called with the signing-in user's token). Never decide this from
+  the admin token's `plex.tv/api/users`: that lists only the token holder's own shares, so
+  when Keeparr was set up by a shared user rather than the server owner, every other user
+  is missing from it.
 - **Jellyfin/Emby** - credential login (`/api/auth/login` -> `authenticateByName`): a
   successful auth IS server access (no shared-user list). The first-run flow collects the
   server URL via `/api/auth/setup` (bootstrap-only) before login; the bootstrap admin's
@@ -592,7 +598,9 @@ backend-aware UI are clickable offline (default = Plex). All inert/absent in pro
   media-server login only, no self-registration.
 - **Sign-in gate**: `open_signin` (default on) lets any shared-server user in. When
   off, `decideAccess` admits non-owners only if they're `userKnown && userEnabled`
-  (use **Import users from Plex** to pre-create accounts, then toggle Enabled).
+  (use **Import users from Plex** to pre-create accounts, then toggle Enabled; import
+  reads `plex.tv/api/users`, which only the server owner's token answers fully, so it
+  prefers `plex_owner_token` and falls back to `plex_admin_token`).
   `getSessionUser` returns null for a disabled non-owner, so blocking takes effect
   immediately. The Owner is always allowed/enabled.
 - **Security posture** (audited July 2026, hardened for CA listing): all SQL is
@@ -629,8 +637,9 @@ backend-aware UI are clickable offline (default = Plex). All inert/absent in pro
   + `/api/stats`). `middleware.ts` lets `/api/` requests carrying that header past the
   edge session gate; the Node route validates the key.
 - `plex_admin_token` (from the Owner's sign-in or a Settings re-auth, whichever
-  came last) is used for shared-user checks + server discovery. PMS reads use
-  `plex_server_token`; play history prefers `plex_owner_token` when set.
+  came last) is used for server discovery (and the user import when no owner token is
+  set). PMS reads use `plex_server_token`; play history and the user import prefer
+  `plex_owner_token` when set.
 
 ## External API notes (verified against Overseerr / python-plexapi / Tautulli)
 

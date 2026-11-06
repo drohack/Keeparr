@@ -5,8 +5,9 @@ vi.mock('@/lib/plex', () => ({
   buildAuthUrl: vi.fn(() => 'http://auth.example'),
   checkPin: vi.fn(async () => null), // always "pending" -> poll returns fast
   // Unused by these tests but imported by the check route module:
-  checkServerAccess: vi.fn(),
   getPlexAccount: vi.fn(),
+  getResources: vi.fn(),
+  hasServerResource: vi.fn(),
 }));
 
 import { __setTestDbToMemory, __closeDb } from '@/lib/db';

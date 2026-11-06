@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { checkPin, checkServerAccess, getPlexAccount } from '@/lib/plex';
-import { decideAccess } from '@/lib/login';
+import { checkPin, getPlexAccount, getResources, hasServerResource } from '@/lib/plex';
+import { decideAccess, denyReason } from '@/lib/login';
 import { countAdmins, getUser, logEvent, upsertUser } from '@/lib/queries';
 import { errorResponse } from '@/lib/route-helpers';
 import { syncSeerrRequestsForUser } from '@/lib/sync';
 import {
-  getAdminToken,
   getMachineId,
   getOpenSignin,
   getOwnerId,
+  getServerName,
   isServerConfigured,
   writeSetting,
 } from '@/lib/settings';
@@ -28,7 +28,8 @@ const POLL_WINDOW_MS = 5 * 60 * 1000;
  * allowed) upsert the user + set the session cookie.
  *
  * Returns one of: pending | authorized | denied. `needsSetup` is true when an
- * admin still has to connect a Plex server.
+ * admin still has to connect a Plex server; a denial carries a `DenyReason`.
+ * A plex.tv failure (PIN or server-access lookup) is a 502 `plex_check_failed`.
  */
 export async function GET(req: Request) {
   const { limited, retryAfterMs } = rateLimit(
@@ -72,24 +73,21 @@ export async function GET(req: Request) {
 
     let hasServerAccess = false;
     if (serverConfigured && !isOwner) {
-      const adminToken = getAdminToken();
       const machineId = getMachineId();
-      if (adminToken && machineId) {
+      if (machineId) {
+        // A failed lookup is an error, not a denial: answering "not shared" for
+        // a plex.tv hiccup tells a legitimate user to go bother the owner.
         try {
-          hasServerAccess = await checkServerAccess({
-            adminToken,
-            machineId,
-            userPlexId: account.id,
-            adminPlexId: ownerId ?? '',
-          });
-        } catch {
-          hasServerAccess = false;
+          hasServerAccess = hasServerResource(await getResources(token), machineId);
+        } catch (e) {
+          logEvent('warn', 'auth', `Server-access check for ${who} failed: ${String(e)}`);
+          return NextResponse.json({ error: 'plex_check_failed' }, { status: 502 });
         }
       }
     }
 
     const existing = getUser(account.id);
-    const decision = decideAccess({
+    const inputs = {
       hasAdmin: countAdmins() > 0,
       serverConfigured,
       isOwner,
@@ -97,18 +95,27 @@ export async function GET(req: Request) {
       openSignin: getOpenSignin(),
       userKnown: existing != null,
       userEnabled: existing?.enabled ?? false,
-    });
+    };
+    const decision = decideAccess(inputs);
 
     if (decision === 'denied') {
-      logEvent('warn', 'auth', `Sign-in denied for ${who} (no server access, sign-in closed, or setup unfinished).`);
-      return NextResponse.json({ status: 'denied' });
+      const reason = denyReason(inputs) ?? 'no_server_access';
+      const server = getServerName() ?? 'the server';
+      const why =
+        reason === 'setup_unfinished'
+          ? 'no media server is connected yet'
+          : reason === 'not_enabled'
+            ? 'open sign-in is off and this account is not enabled'
+            : `${server} is not shared with this Plex account`;
+      logEvent('warn', 'auth', `Sign-in denied for ${who}: ${why}.`);
+      return NextResponse.json({ status: 'denied', reason });
     }
 
     const becomesAdmin = decision === 'bootstrap_admin' || isOwner;
 
     if (decision === 'bootstrap_admin') {
-      // First user claims admin. Persist their account token (used for the
-      // shared-users access check + server discovery) and owner id.
+      // First user claims admin. Persist their account token (used for server
+      // discovery + the shared-user import) and owner id.
       writeSetting('plex_owner_id', account.id);
       writeSetting('plex_admin_token', token);
     } else if (isOwner) {

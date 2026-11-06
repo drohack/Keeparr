@@ -10,7 +10,7 @@ export interface AccessInputs {
   serverConfigured: boolean;
   /** Is the logging-in account the recorded owner/admin account? */
   isOwner: boolean;
-  /** Server access: Plex shared-users list; true for Jellyfin/Emby logins. */
+  /** Server access: the server is in the user's own Plex resources; true for Jellyfin/Emby logins. */
   hasServerAccess: boolean;
   /** Setting: may any server member sign in (vs only enabled accounts)? */
   openSignin: boolean;
@@ -38,4 +38,14 @@ export function decideAccess(i: AccessInputs): AccessDecision {
   // (known + enabled) account may sign in.
   if (i.openSignin) return 'authorized';
   return i.userKnown && i.userEnabled ? 'authorized' : 'denied';
+}
+
+export type DenyReason = 'setup_unfinished' | 'no_server_access' | 'not_enabled';
+
+/** Why `decideAccess` denied these inputs; null when it would not deny. */
+export function denyReason(i: AccessInputs): DenyReason | null {
+  if (decideAccess(i) !== 'denied') return null;
+  if (!i.serverConfigured) return 'setup_unfinished';
+  if (!i.hasServerAccess) return 'no_server_access';
+  return 'not_enabled';
 }

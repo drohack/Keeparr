@@ -257,30 +257,14 @@ export async function getSharedUsers(
 }
 
 /**
- * Does `userPlexId` have access to the server identified by `machineId`?
- * The owner (adminPlexId) always has access. Shared users are looked up via the
- * admin token's friends list. `/api/users` returns XML, parsed by parseSharedUsers.
+ * Can the holder of these resources reach the server `machineId`? Pass the
+ * SIGNING-IN user's own `getResources()` list: it holds every server they own or
+ * have been shared, whoever set Keeparr up. The admin token's `/api/users` list
+ * is no substitute - it holds only that account's own shares, so when Keeparr
+ * was set up by a shared user rather than the server owner, nobody else matches.
  */
-export async function checkServerAccess(params: {
-  adminToken: string;
-  machineId: string;
-  userPlexId: string;
-  adminPlexId: string;
-}): Promise<boolean> {
-  if (params.userPlexId === params.adminPlexId) return true;
-  const res = await fetch(`${PLEX_TV}/api/users`, {
-    headers: {
-      'X-Plex-Token': params.adminToken,
-      'X-Plex-Client-Identifier': getClientId(),
-      'X-Plex-Product': PLEX_PRODUCT,
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`Plex checkServerAccess failed: ${res.status}`);
-  const xml = await res.text();
-  const shared = parseSharedUsers(xml);
-  const entry = shared.find((u) => u.id === params.userPlexId);
-  return !!entry && entry.machineIds.includes(params.machineId);
+export function hasServerResource(resources: PlexResource[], machineId: string): boolean {
+  return resources.some((r) => r.clientIdentifier === machineId);
 }
 
 // ---------------------------------------------------------------------------

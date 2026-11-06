@@ -171,7 +171,7 @@ function ConnectServer({
         disabled={busy || !url.trim()}
         className="w-full rounded-lg bg-brand hover:bg-brand-light disabled:opacity-60 text-ink font-semibold py-3 transition-colors"
       >
-        {busy ? 'Connecting…' : 'Continue'}
+        {busy ? 'Connecting...' : 'Continue'}
       </button>
       {err && <p className="mt-4 text-sm text-red-400">{err}</p>}
       <button
@@ -179,7 +179,7 @@ function ConnectServer({
         onClick={onBack}
         className="mt-4 text-sm text-slate-500 hover:text-slate-300"
       >
-        ← Back
+        &larr; Back
       </button>
     </form>
   );
@@ -245,7 +245,7 @@ function CredentialsLogin({
         disabled={busy || !username}
         className="w-full rounded-lg bg-brand hover:bg-brand-light disabled:opacity-60 text-ink font-semibold py-3 transition-colors"
       >
-        {busy ? 'Signing in…' : 'Sign in'}
+        {busy ? 'Signing in...' : 'Sign in'}
       </button>
       {err && <p className="mt-4 text-sm text-red-400">{err}</p>}
     </form>
@@ -258,6 +258,7 @@ function PlexLogin({
   onAuthorized: (needsSetup: boolean) => void;
 }) {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [denyReason, setDenyReason] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = () => {
@@ -283,7 +284,10 @@ function PlexLogin({
         stopPolling();
         popup?.close();
         if (data.status === 'authorized') onAuthorized(!!data.needsSetup);
-        else if (data.status === 'denied') setPhase('denied');
+        else if (data.status === 'denied') {
+          setDenyReason(typeof data.reason === 'string' ? data.reason : null);
+          setPhase('denied');
+        }
         else setPhase('error');
       }, 2000);
     } catch {
@@ -300,7 +304,7 @@ function PlexLogin({
         disabled={phase === 'waiting'}
         className="w-full rounded-lg bg-brand hover:bg-brand-light disabled:opacity-60 text-ink font-semibold py-3 transition-colors"
       >
-        {phase === 'waiting' ? 'Waiting for Plex…' : 'Sign in with Plex'}
+        {phase === 'waiting' ? 'Waiting for Plex...' : 'Sign in with Plex'}
       </button>
       {phase === 'waiting' && (
         <p className="mt-4 text-sm text-slate-500">
@@ -309,8 +313,22 @@ function PlexLogin({
       )}
       {phase === 'denied' && (
         <p className="mt-4 text-sm text-red-400">
-          That Plex account doesn&apos;t have access to this server. Ask the owner
-          to share a library with you, then try again.
+          {denyReason === 'not_enabled' ? (
+            <>
+              Your account hasn&apos;t been enabled yet. Ask an admin to enable it
+              in Keeparr, then try again.
+            </>
+          ) : denyReason === 'setup_unfinished' ? (
+            <>
+              Keeparr isn&apos;t set up yet. Try again once the admin has connected
+              a server.
+            </>
+          ) : (
+            <>
+              That Plex account doesn&apos;t have access to this server. Ask the
+              owner to share a library with you, then try again.
+            </>
+          )}
         </p>
       )}
       {phase === 'error' && (

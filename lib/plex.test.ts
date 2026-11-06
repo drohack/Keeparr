@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   extractGuids,
   getServerIdentity,
+  hasServerResource,
   parseSharedUsers,
   plexConnectUrl,
   sumLeafSizes,
@@ -11,6 +12,7 @@ import {
   plexWatchHistory,
   usefulServerConnections,
   type PlexMetadata,
+  type PlexResource,
   type ServerConnection,
 } from './plex';
 
@@ -295,6 +297,36 @@ describe('parseSharedUsers', () => {
     expect(neo.email).toBe('neo@x.com');
     expect(neo.thumb).toBe('https://plex.tv/n.png');
     expect(users.find((u) => u.id === '10')?.username).toBe('Trinity');
+  });
+});
+
+describe('hasServerResource (sign-in access from the user\'s own resources)', () => {
+  const res = (clientIdentifier: string, owned: boolean): PlexResource => ({
+    name: clientIdentifier,
+    clientIdentifier,
+    provides: 'server',
+    accessToken: null,
+    owned,
+    connections: [],
+  });
+
+  it('a server shared with the user (owned:false) grants access', () => {
+    expect(hasServerResource([res('OTHER', true), res('MACHINE_A', false)], 'MACHINE_A')).toBe(
+      true
+    );
+  });
+
+  it('a list without the server denies access', () => {
+    expect(hasServerResource([res('OTHER', true)], 'MACHINE_A')).toBe(false);
+  });
+
+  it('an empty list denies access', () => {
+    expect(hasServerResource([], 'MACHINE_A')).toBe(false);
+  });
+
+  it('matches the machine id exactly, not by prefix or case', () => {
+    expect(hasServerResource([res('MACHINE_AB', false)], 'MACHINE_A')).toBe(false);
+    expect(hasServerResource([res('machine_a', false)], 'MACHINE_A')).toBe(false);
   });
 });
 

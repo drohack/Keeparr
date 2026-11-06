@@ -34,8 +34,11 @@ manually in Plex / Jellyfin / Emby / Sonarr / Radarr.
 - **Admins & access control** - the Owner can promote any Plex user to admin
   (and revoke it). Only admins see/change Settings, connections, and users. Turn
   off **Open sign-in** to admit only accounts you've enabled, and **Import users
-  from Plex** to pre-enable people before their first login. The Owner can't be
-  demoted or disabled, so you can't get locked out.
+  from Plex** to pre-enable people before their first login (if you aren't the
+  Plex server's owner, set the owner token under Connections first - Plex only
+  lists a server's users to its owner). The Owner can't be demoted or disabled,
+  so you can't get locked out. Anyone the Plex server is shared with can sign in,
+  whoever set Keeparr up.
 - **Choose which libraries** Keeparr tracks - untick any Plex library in Settings
   to exclude it (default: all).
 - **Custom title** - rename the app (nav bar + browser tab) in Settings.

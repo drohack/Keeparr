@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/auth';
 import { errorResponse } from '@/lib/route-helpers';
 import { getSharedUsers } from '@/lib/plex';
 import { upsertUser } from '@/lib/queries';
-import { getAdminToken, getMachineId } from '@/lib/settings';
+import { getAdminToken, getMachineId, getPlexOwnerToken } from '@/lib/settings';
 
 export const runtime = 'nodejs';
 
@@ -11,11 +11,15 @@ export const runtime = 'nodejs';
  * Import the Plex server's shared users into the users table so an admin can
  * pre-enable them (useful when open sign-in is off). Existing rows are updated
  * (their admin/enabled flags are preserved); new rows default to enabled.
+ *
+ * plex.tv lists a server's shares only to its OWNER, so the owner token wins
+ * when set: the admin token belongs to whoever set Keeparr up, and if that is a
+ * shared user the list comes back without this server's users.
  */
 export async function POST() {
   try {
     await requireAdmin();
-    const adminToken = getAdminToken();
+    const adminToken = getPlexOwnerToken() ?? getAdminToken();
     const machineId = getMachineId();
     if (!adminToken || !machineId) {
       return NextResponse.json({ error: 'not_configured' }, { status: 400 });

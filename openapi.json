@@ -132,7 +132,11 @@
         "summary": "Poll a Plex PIN",
         "security": [],
         "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "`{status: pending|authorized|denied, needsSetup?, isAdmin?}`" } }
+        "responses": {
+          "200": { "description": "`{status: pending|authorized|denied, needsSetup?, isAdmin?, reason?}` - `reason` (setup_unfinished|no_server_access|not_enabled) only on denied" },
+          "429": { "description": "Rate limited" },
+          "502": { "description": "`{error: plex_check_failed}` - plex.tv PIN or server-access lookup failed" }
+        }
       }
     },
     "/api/auth/setup": {
